@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue-Fabric ESM Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { margin-bottom: 20px; color: #333; }
+    #canvas-container {
+      position: relative;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+  </style>
+  <link rel="stylesheet" href="../../dist/style.css">
+</head>
+<body>
+  <h1>Vue-Fabric ESM Demo</h1>
+  <div id="canvas-container"></div>
+
+  <script src="../fabric.js"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

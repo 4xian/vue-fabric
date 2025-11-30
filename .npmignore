@@ -1,0 +1,28 @@
+# Source files
+src/
+tests/
+types/
+demo/
+
+# Config files
+.github/
+.husky/
+rollup.config.ts
+vitest.config.ts
+tsconfig.json
+tsconfig.build.json
+eslint.config.js
+.prettierrc
+.commitlintrc.js
+.releaserc.js
+
+# Development files
+*.test.ts
+*.spec.ts
+coverage/
+
+# Other
+.gitignore
+.npmignore
+pnpm-lock.yaml
+NPM_PACKAGE_PLAN.md

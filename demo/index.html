@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue-Fabric UMD Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { margin-bottom: 20px; color: #333; }
+    #canvas-container {
+      position: relative;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .toolbar-top {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .toolbar-top button {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .toolbar-top button:hover {
+      background: #02a7f0;
+      color: #fff;
+      border-color: #02a7f0;
+    }
+    .info {
+      margin-top: 15px;
+      padding: 10px;
+      background: #fff;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #666;
+    }
+    #canvas-container {
+      height: 600px;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar-top">
+    <!-- <button onclick="board.setTool('select')">选择工具</button> -->
+    <!-- <button onclick="board.setTool('line')">绘制区域</button> -->
+    <!-- <button onclick="board.setTool('curve')">曲线工具</button> -->
+    <!-- <button onclick="board.setTool('text')">文字工具</button> -->
+    <!-- <button onclick="board.zoomIn()">放大</button> -->
+    <!-- <button onclick="board.zoomOut()">缩小</button> -->
+    <!-- <button onclick="board.resetZoom()">重置</button> -->
+    <!-- <button onclick="board.clear()">清空画布</button> -->
+    <!-- <button onclick="exportCanvas()">导出JSON</button> -->
+    <!-- <button onclick="board.exportToImage()">下载图片</button> -->
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <div class="info">
+    <p>操作提示：</p>
+    <ul>
+      <li>绘制区域：点击添加点，靠近起始点闭合多边形</li>
+      <li>曲线工具：点击添加控制点，按 Enter 完成，按 Escape 取消</li>
+      <li>文字工具：点击画布添加文本</li>
+      <li>缩放：滚轮缩放，Alt+拖动 或 鼠标中键拖动平移</li>
+      <li>撤销：绘制时按 Ctrl+Z 撤销上一个点</li>
+    </ul>
+  </div>
+
+  <link rel="stylesheet" href="/dist/style.css">
+  <script src="/demo/fabric.js"></script>
+  <script src="/dist/index.umd.js"></script>
+  <script>
+    const { PaintBoard, LineTool, SelectTool, TextTool, CurveTool, Toolbar } = VueFabric
+    const container = document.getElementById('canvas-container')
+    const board = new PaintBoard('#canvas-container', {
+      width: container.clientWidth,
+      height: container.clientHeight,
+      backgroundColor: '#ffffff'
+    }).init()
+
+    board
+      .registerTool('select', new SelectTool())
+      .registerTool('line', new LineTool())
+      .registerTool('curve', new CurveTool())
+      .registerTool('text', new TextTool())
+      .setTool('select')
+
+    const toolbar = new Toolbar(board).init()
+
+    board.on('area:created', (data) => {
+      console.log('区域已创建:', data)
+    })
+
+    board.on('area:selected', (data) => {
+      console.log('区域已选中:', data)
+    })
+
+    board.on('text:created', (data) => {
+      console.log('文本已创建:', data)
+    })
+
+    board.on('curve:created', (data) => {
+      console.log('曲线已创建:', data)
+    })
+
+    function exportCanvas() {
+      const json = board.exportToJSON()
+      console.log('导出数据:', JSON.parse(json))
+      alert('已导出到控制台')
+    }
+
+    console.log('PaintBoard 已初始化:', board)
+  </script>
+</body>
+</html>
