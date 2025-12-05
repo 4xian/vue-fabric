@@ -1,7 +1,10 @@
 import type { Canvas, TPointerEventInfo, TPointerEvent } from 'fabric'
-import type { Point } from '../../types'
+import type { Point, BaseToolOptions } from '../../types'
 import EventBus from '../core/EventBus'
 import type PaintBoard from '../core/PaintBoard'
+
+const DEFAULT_ACTIVE_CURSOR = 'crosshair'
+const DEFAULT_DEACTIVATE_CURSOR = 'default'
 
 export default class BaseTool {
   name: string
@@ -9,18 +12,23 @@ export default class BaseTool {
   eventBus: EventBus | null
   paintBoard: PaintBoard | null
   isActive: boolean
+  protected options: Required<BaseToolOptions>
 
   protected _onMouseDown!: (opt: TPointerEventInfo<TPointerEvent>) => void
   protected _onMouseMove!: (opt: TPointerEventInfo<TPointerEvent>) => void
   protected _onMouseUp!: (opt: TPointerEventInfo<TPointerEvent>) => void
   protected _onKeyDown!: (e: KeyboardEvent) => void
 
-  constructor(name: string) {
+  constructor(name: string, options: BaseToolOptions = {}) {
     this.name = name
     this.canvas = null
     this.eventBus = null
     this.paintBoard = null
     this.isActive = false
+    this.options = {
+      activeCursor: options.activeCursor ?? DEFAULT_ACTIVE_CURSOR,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_DEACTIVATE_CURSOR
+    }
     this._bindHandlers()
   }
 
@@ -44,6 +52,7 @@ export default class BaseTool {
     this.canvas.on('mouse:move', this._onMouseMove)
     this.canvas.on('mouse:up', this._onMouseUp)
     document.addEventListener('keydown', this._onKeyDown)
+    this.canvas.defaultCursor = this.options.activeCursor
     this.onActivate()
   }
 
@@ -54,6 +63,7 @@ export default class BaseTool {
     this.canvas.off('mouse:move', this._onMouseMove)
     this.canvas.off('mouse:up', this._onMouseUp)
     document.removeEventListener('keydown', this._onKeyDown)
+    this.canvas.defaultCursor = this.options.deactiveCursor
     this.onDeactivate()
   }
 

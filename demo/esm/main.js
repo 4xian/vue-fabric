@@ -1,4 +1,4 @@
-import { PaintBoard, LineTool, SelectTool, TextTool, CurveTool, Toolbar } from '../../dist/index.esm.js'
+import { PaintBoard, AreaTool, SelectTool, TextTool, CurveTool, ImageTool, Toolbar } from '../../dist/index.esm.js'
 
 const board = new PaintBoard('#canvas-container', {
   width: 1000,
@@ -8,9 +8,10 @@ const board = new PaintBoard('#canvas-container', {
 
 board
   .registerTool('select', new SelectTool())
-  .registerTool('line', new LineTool())
+  .registerTool('area', new AreaTool())
   .registerTool('curve', new CurveTool())
   .registerTool('text', new TextTool())
+  .registerTool('image', new ImageTool())
   .setTool('select')
 
 const toolbar = new Toolbar(board).init()
@@ -25,6 +26,10 @@ board.on('text:created', (data) => {
 
 board.on('curve:created', (data) => {
   console.log('曲线已创建:', data)
+})
+
+board.on('custom:image:created', (data) => {
+  console.log('图片已创建:', data)
 })
 
 console.log('ESM 方式初始化成功:', board)

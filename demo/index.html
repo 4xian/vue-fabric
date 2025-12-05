@@ -1,25 +1,41 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vue-Fabric UMD Demo</title>
+  <title>Vue-Fabric</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; padding: 20px; background: #f5f5f5; }
-    h1 { margin-bottom: 20px; color: #333; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+
     #canvas-container {
       position: relative;
       border: 1px solid #ccc;
       background: #fff;
-      border-radius: 8px;
       overflow: hidden;
     }
+
     .toolbar-top {
       display: flex;
       gap: 10px;
       margin-bottom: 15px;
     }
+
     .toolbar-top button {
       padding: 8px 16px;
       border: 1px solid #ddd;
@@ -28,11 +44,33 @@
       cursor: pointer;
       transition: all 0.2s;
     }
+
     .toolbar-top button:hover {
       background: #02a7f0;
       color: #fff;
       border-color: #02a7f0;
     }
+
+    .toolbar-top input {
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-row label {
+      font-size: 14px;
+      color: #666;
+    }
+
     .info {
       margin-top: 15px;
       padding: 10px;
@@ -41,28 +79,75 @@
       font-size: 14px;
       color: #666;
     }
+
     #canvas-container {
       height: 600px;
     }
+
+    .mouse-position {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      color: #333;
+      font-size: 14px;
+      z-index: 100;
+    }
   </style>
 </head>
+
 <body>
   <div class="toolbar-top">
-    <!-- <button onclick="board.setTool('select')">选择工具</button> -->
-    <!-- <button onclick="board.setTool('line')">绘制区域</button> -->
+    <div class="toolbar-row">
+      <button onclick="board.setTool('select')">选择</button>
+      <button onclick="addCustomText()">新增文字</button>
+      <button onclick="addCustomImage()">新增图片</button>
+      <!-- <button onclick="deleteSelected()">删除选中</button> -->
+      <!-- <button onclick="listCustomObjects()">列出对象</button> -->
+    </div>
+    <!-- <div class="toolbar-row">
+      <label>修改文字:</label>
+      <input type="text" id="textIdInput" placeholder="输入文字ID">
+      <button onclick="updateTextByInput()">修改文字</button>
+    </div> -->
+    <div class="toolbar-row">
+      <label>操作图片:</label>
+      <input type="text" id="imageIdInput" placeholder="输入图片ID">
+      <button onclick="rotateImageByInput()">旋转图片</button>
+    </div>
+    <div class="toolbar-row">
+      <label>删除对象:</label>
+      <input type="text" id="deleteIdInput" placeholder="输入要删除的ID">
+      <button onclick="deleteByInput()">删除</button>
+    </div>
+    <!-- <div class="toolbar-row">
+      <label>背景图:</label>
+      <input type="text" id="bgImageInput" placeholder="输入图片URL或Base64">
+      <select id="bgScaleMode">
+        <option value="fill">填充 (fill)</option>
+        <option value="fit">适应 (fit)</option>
+        <option value="stretch">拉伸 (stretch)</option>
+        <option value="center">居中 (center)</option>
+      </select>
+      <button onclick="setBackgroundImage()">设置背景</button>
+      <button onclick="clearBackgroundImage()">清除背景</button>
+      <input type="file" id="bgFileInput" accept="image/*" onchange="handleBgFileSelect(event)" style="display:none">
+      <button onclick="document.getElementById('bgFileInput').click()">选择本地图片</button>
+    </div> -->
     <!-- <button onclick="board.setTool('curve')">曲线工具</button> -->
     <!-- <button onclick="board.setTool('text')">文字工具</button> -->
     <!-- <button onclick="board.zoomIn()">放大</button> -->
     <!-- <button onclick="board.zoomOut()">缩小</button> -->
-    <!-- <button onclick="board.resetZoom()">重置</button> -->
+    <!-- <button onclick="board.resetZoom()">还原视图</button> -->
+    <!-- <button onclick="board.toggleAreaHelpers()">显示/隐藏距离</button> -->
     <!-- <button onclick="board.clear()">清空画布</button> -->
     <!-- <button onclick="exportCanvas()">导出JSON</button> -->
     <!-- <button onclick="board.exportToImage()">下载图片</button> -->
   </div>
 
   <div id="canvas-container"></div>
+  <!-- <div class="mouse-position" id="mousePosition">X: 0, Y: 0</div> -->
 
-  <div class="info">
+  <!-- <div class="info">
     <p>操作提示：</p>
     <ul>
       <li>绘制区域：点击添加点，靠近起始点闭合多边形</li>
@@ -71,28 +156,47 @@
       <li>缩放：滚轮缩放，Alt+拖动 或 鼠标中键拖动平移</li>
       <li>撤销：绘制时按 Ctrl+Z 撤销上一个点</li>
     </ul>
-  </div>
+  </div> -->
 
   <link rel="stylesheet" href="/dist/style.css">
-  <script src="/demo/fabric.js"></script>
+  <script src="/demo/static/fabric.js"></script>
   <script src="/dist/index.umd.js"></script>
   <script>
-    const { PaintBoard, LineTool, SelectTool, TextTool, CurveTool, Toolbar } = VueFabric
+    const { PaintBoard, AreaTool, SelectTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
     const container = document.getElementById('canvas-container')
     const board = new PaintBoard('#canvas-container', {
       width: container.clientWidth,
       height: container.clientHeight,
-      backgroundColor: '#ffffff'
+      // 按照实际像素点击内容
+      // perPixelTargetFind: false,
+      backgroundColor: '#ffffff',
+      // backgroundImage: '../demo/static/draw-bg.png'
     }).init()
 
     board
-      .registerTool('select', new SelectTool())
-      .registerTool('line', new LineTool())
+      .registerTool('select', new SelectTool({
+        allowSelection: false
+      }))
+      .registerTool('area', new AreaTool({
+        defaultShowHelpers: true,
+        allowOverlap: true,
+        enableFill: true
+      }))
       .registerTool('curve', new CurveTool())
       .registerTool('text', new TextTool())
+      .registerTool('image', new ImageTool())
       .setTool('select')
 
-    const toolbar = new Toolbar(board).init()
+    const toolbar = new Toolbar(board, {
+      tools: ['select', 'area', 'image']
+      // tools: ['select', 'area', 'toggleHelpers']
+    }).init()
+
+    // 监听鼠标移动事件，实时显示坐标
+    // const mousePositionEl = document.getElementById('mousePosition')
+    // board.on('mouse:move', (data) => {
+    //   mousePositionEl.textContent = `X: ${data.x}, Y: ${data.y}`
+    // })
 
     board.on('area:created', (data) => {
       console.log('区域已创建:', data)
@@ -110,13 +214,239 @@
       console.log('曲线已创建:', data)
     })
 
+    board.on('curve:selected', (data) => {
+      console.log('曲线已选择:', data)
+    })
+
+    board.on('custom:image:created', (data) => {
+      console.log('图片已创建:', data)
+    })
+
     function exportCanvas() {
       const json = board.exportToJSON()
       console.log('导出数据:', JSON.parse(json))
-      alert('已导出到控制台')
     }
+
+    function createSampleImage() {
+      const canvas = document.createElement('canvas')
+      canvas.width = 50
+      canvas.height = 50
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#02a7f0'
+      ctx.fillRect(0, 0, 50, 50)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '12px Arial'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('IMG', 25, 25)
+      return canvas.toDataURL('image/png')
+    }
+    const sampleImageBase64 = createSampleImage()
+
+    let textCounter = 1
+    let lastCreatedTextId = null
+    let lastCreatedImageId = null
+
+    // 新增文字
+    function addCustomText() {
+      const text = board.addText({
+        x: textCounter * 16,
+        y: textCounter * 16,
+        text: '测试文字 ' + textCounter,
+        editable: false,
+        fontSize: 16,
+        // fill: 'red'
+      })
+      if (text && text.customData) {
+        lastCreatedTextId = text.customData.textId
+      }
+      textCounter++
+      console.log('新增文字:', text, '文字ID:', lastCreatedTextId)
+    }
+
+    // 新增图片
+    async function addCustomImage() {
+      const img = await board.addImage({
+        id: 'image-1',
+        x: 300,
+        y: 200,
+        src: './static/logo.png'
+      })
+      if (img && img.customData) {
+        lastCreatedImageId = img.customData.customImageId
+      }
+      console.log('新增图片:', img, '图片ID:', lastCreatedImageId)
+    }
+
+    // 删除选中的对象
+    function deleteSelected() {
+      const canvas = board.getCanvas()
+      const activeObj = canvas.getActiveObject()
+      if (activeObj) {
+        canvas.remove(activeObj)
+        canvas.renderAll()
+        console.log('已删除对象:', activeObj)
+      } else {
+        alert('请先选中要删除的对象')
+      }
+    }
+
+    // 通过ID删除对象
+    function deleteById(id) {
+      const result = board.removeById(id)
+      console.log('通过ID删除结果:', result, 'ID:', id)
+      return result
+    }
+
+    // 列出所有自定义对象
+    function listCustomObjects() {
+      const objects = board.getCustomObjects()
+      console.log('所有自定义对象:', objects)
+      return objects
+    }
+
+    // 通过输入框ID修改文字
+    function updateTextByInput() {
+      const id = document.getElementById('textIdInput').value.trim()
+      if (!id) {
+        alert('请输入文字ID')
+        return
+      }
+      const newText = prompt('请输入新的文字内容:')
+      if (newText !== null) {
+        const result = board.updateTextById(id, {
+          text: newText,
+          fill: '#ff0000'
+        })
+        if (result) {
+          console.log('通过ID修改文字成功:', id)
+        } else {
+          alert('未找到该ID的文字对象')
+        }
+      }
+    }
+
+    // 通过输入框ID旋转图片
+    function rotateImageByInput() {
+      const id = document.getElementById('imageIdInput').value.trim()
+      if (!id) {
+        alert('请输入图片ID')
+        return
+      }
+      const obj = board.getObjectById(id)
+      if (obj) {
+        const currentAngle = obj.angle || 0
+        const result = board.updateImageById(id, {
+          angle: currentAngle + 45
+        })
+        console.log('通过ID旋转图片成功:', id, '当前角度:', currentAngle + 45)
+      } else {
+        alert('未找到该ID的图片对象')
+      }
+    }
+
+    // 通过输入框ID删除对象
+    function deleteByInput() {
+      const id = document.getElementById('deleteIdInput').value.trim()
+      if (!id) {
+        alert('请输入要删除的ID')
+        return
+      }
+      const result = board.removeById(id)
+      if (result) {
+        console.log('通过ID删除成功:', id)
+        document.getElementById('deleteIdInput').value = ''
+      } else {
+        alert('未找到该ID的对象')
+      }
+    }
+
+    // 监听自定义内容事件
+    board.on('custom:text:created', (data) => {
+      console.log('自定义文字已创建:', data)
+    })
+
+    board.on('custom:text:clicked', (data) => {
+      console.log('自定义文字被点击:', data)
+    })
+
+    board.on('custom:text:modified', (data) => {
+      console.log('自定义文字被修改:', data)
+    })
+
+    board.on('custom:image:created', (data) => {
+      console.log('自定义图片已创建:', data)
+    })
+
+    board.on('custom:image:clicked', (data) => {
+      console.log('自定义图片被点击:', data)
+    })
+
+    board.on('custom:image:modified', (data) => {
+      console.log('自定义图片被修改:', data)
+    })
+
+    board.on('custom:selected', (data) => {
+      console.log('自定义内容被选中:', data)
+    })
+
+    // 背景图相关函数
+    function setBackgroundImage() {
+      const source = document.getElementById('bgImageInput').value.trim()
+      const scaleMode = document.getElementById('bgScaleMode').value
+      if (!source) {
+        alert('请输入图片URL或Base64')
+        return
+      }
+      board.setBackgroundImage({
+        source: source,
+        scaleMode: scaleMode,
+        opacity: 1
+      }).then(() => {
+        console.log('背景图已设置')
+      })
+    }
+
+    function clearBackgroundImage() {
+      board.clearBackgroundImage()
+      console.log('背景图已清除')
+    }
+
+    // 手动上传本地图片作为背景
+    function handleBgFileSelect(event) {
+      const file = event.target.files[0]
+      if (!file) return
+
+      const reader = new FileReader()
+      reader.onload = function (e) {
+        const base64 = e.target.result
+        const scaleMode = document.getElementById('bgScaleMode').value
+        board.setBackgroundImage({
+          source: base64,
+          scaleMode: scaleMode,
+          opacity: 1
+        }).then(() => {
+          console.log('本地背景图已设置')
+        })
+      }
+      reader.readAsDataURL(file)
+      event.target.value = ''
+    }
+
+    board.on('backgroundImage:set', (data) => {
+      console.log('背景图已设置:', data)
+    })
+
+    board.on('backgroundImage:cleared', () => {
+      console.log('背景图已清除')
+    })
+
+    board.on('backgroundImage:error', (data) => {
+      console.error('背景图加载失败:', data)
+    })
 
     console.log('PaintBoard 已初始化:', board)
   </script>
 </body>
+
 </html>

@@ -1,21 +1,29 @@
 import * as fabric from 'fabric'
-import type { Canvas, TPointerEventInfo, TPointerEvent, BasicTransformEvent, FabricObject } from 'fabric'
+import type {
+  Canvas,
+  TPointerEventInfo,
+  TPointerEvent,
+  BasicTransformEvent,
+  FabricObject
+} from 'fabric'
 import type { CanvasManagerOptions } from '../../types'
 import { throttle } from '../utils/throttle'
 import EventBus from './EventBus'
 
-const ZOOM_STEP = 1.1
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 10
-const EXPAND_MARGIN = 50
-const EXPAND_SIZE = 200
+const DEFAULT_ZOOM_STEP = 1.1
+const DEFAULT_MIN_ZOOM = 0.1
+const DEFAULT_MAX_ZOOM = 10
+const DEFAULT_EXPAND_MARGIN = 50
+const DEFAULT_EXPAND_SIZE = 200
 
 type ObjectMovingEvent = BasicTransformEvent<TPointerEvent> & { target: FabricObject }
 
 export default class CanvasManager {
   private canvas: Canvas
   private eventBus: EventBus
-  private options: CanvasManagerOptions
+  private options: Required<
+    Pick<CanvasManagerOptions, 'zoomStep' | 'minZoom' | 'maxZoom' | 'expandMargin' | 'expandSize'>
+  >
   private isDragging: boolean
   private lastPosX: number
   private lastPosY: number
@@ -24,7 +32,13 @@ export default class CanvasManager {
   constructor(canvas: Canvas, eventBus: EventBus, options: CanvasManagerOptions = {}) {
     this.canvas = canvas
     this.eventBus = eventBus
-    this.options = options
+    this.options = {
+      zoomStep: options.zoomStep ?? DEFAULT_ZOOM_STEP,
+      minZoom: options.minZoom ?? DEFAULT_MIN_ZOOM,
+      maxZoom: options.maxZoom ?? DEFAULT_MAX_ZOOM,
+      expandMargin: options.expandMargin ?? DEFAULT_EXPAND_MARGIN,
+      expandSize: options.expandSize ?? DEFAULT_EXPAND_SIZE
+    }
     this.isDragging = false
     this.lastPosX = 0
     this.lastPosY = 0
@@ -37,14 +51,17 @@ export default class CanvasManager {
     this.canvas.on('mouse:down', this._onMouseDown.bind(this))
     this.canvas.on('mouse:move', this._onMouseMove.bind(this))
     this.canvas.on('mouse:up', this._onMouseUp.bind(this))
-    this.canvas.on('object:moving', this._onObjectMoving.bind(this) as (opt: ObjectMovingEvent) => void)
+    this.canvas.on(
+      'object:moving',
+      this._onObjectMoving.bind(this) as (opt: ObjectMovingEvent) => void
+    )
   }
 
   private _onMouseWheel(opt: TPointerEventInfo<WheelEvent>): void {
     const delta = opt.e.deltaY
     let zoom = this.canvas.getZoom()
     zoom *= Math.pow(0.999, delta)
-    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
+    zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
     this.canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom)
     opt.e.preventDefault()
     opt.e.stopPropagation()
@@ -82,6 +99,7 @@ export default class CanvasManager {
       this.isDragging = false
       this.canvas.selection = true
       this.canvas.setCursor('default')
+      this.eventBus.emit('canvas:panned')
     }
   }
 
@@ -95,28 +113,36 @@ export default class CanvasManager {
     const bounds = obj.getBoundingRect()
     const canvasWidth = this.canvas.getWidth()
     const canvasHeight = this.canvas.getHeight()
+    const margin = this.options.expandMargin
 
     if (
-      bounds.left < EXPAND_MARGIN ||
-      bounds.top < EXPAND_MARGIN ||
-      bounds.left + bounds.width > canvasWidth - EXPAND_MARGIN ||
-      bounds.top + bounds.height > canvasHeight - EXPAND_MARGIN
+      bounds.left < margin ||
+      bounds.top < margin ||
+      bounds.left + bounds.width > canvasWidth - margin ||
+      bounds.top + bounds.height > canvasHeight - margin
     ) {
       this._expandCanvas(bounds)
     }
   }
 
-  private _expandCanvas(bounds: { left: number; top: number; width: number; height: number }): void {
+  private _expandCanvas(bounds: {
+    left: number
+    top: number
+    width: number
+    height: number
+  }): void {
     const canvasWidth = this.canvas.getWidth()
     const canvasHeight = this.canvas.getHeight()
     let newWidth = canvasWidth
     let newHeight = canvasHeight
+    const margin = this.options.expandMargin
+    const size = this.options.expandSize
 
-    if (bounds.left < EXPAND_MARGIN || bounds.left + bounds.width > canvasWidth - EXPAND_MARGIN) {
-      newWidth += EXPAND_SIZE
+    if (bounds.left < margin || bounds.left + bounds.width > canvasWidth - margin) {
+      newWidth += size
     }
-    if (bounds.top < EXPAND_MARGIN || bounds.top + bounds.height > canvasHeight - EXPAND_MARGIN) {
-      newHeight += EXPAND_SIZE
+    if (bounds.top < margin || bounds.top + bounds.height > canvasHeight - margin) {
+      newHeight += size
     }
 
     if (newWidth !== canvasWidth || newHeight !== canvasHeight) {
@@ -127,16 +153,16 @@ export default class CanvasManager {
 
   zoomIn(): void {
     const center = this._getCanvasCenter()
-    let zoom = this.canvas.getZoom() * ZOOM_STEP
-    zoom = Math.min(zoom, MAX_ZOOM)
+    let zoom = this.canvas.getZoom() * this.options.zoomStep
+    zoom = Math.min(zoom, this.options.maxZoom)
     this.canvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom)
     this.eventBus.emit('canvas:zoomed', zoom)
   }
 
   zoomOut(): void {
     const center = this._getCanvasCenter()
-    let zoom = this.canvas.getZoom() / ZOOM_STEP
-    zoom = Math.max(zoom, MIN_ZOOM)
+    let zoom = this.canvas.getZoom() / this.options.zoomStep
+    zoom = Math.max(zoom, this.options.minZoom)
     this.canvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom)
     this.eventBus.emit('canvas:zoomed', zoom)
   }
@@ -155,7 +181,7 @@ export default class CanvasManager {
 
   setZoom(zoom: number): void {
     const center = this._getCanvasCenter()
-    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
+    zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
     this.canvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom)
     this.eventBus.emit('canvas:zoomed', zoom)
   }

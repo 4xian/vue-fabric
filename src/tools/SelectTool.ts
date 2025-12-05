@@ -1,15 +1,23 @@
-import type { TPointerEventInfo, TPointerEvent, FabricObject } from 'fabric'
+import type { FabricObject } from 'fabric'
+import type { SelectToolOptions } from '../../types'
 import BaseTool from './BaseTool'
 
 export default class SelectTool extends BaseTool {
-  constructor() {
-    super('select')
+  protected override options: Required<SelectToolOptions>
+
+  constructor(options: SelectToolOptions = {}) {
+    super('select', options)
+    this.options = {
+      activeCursor: options.activeCursor ?? 'default',
+      deactiveCursor: options.deactiveCursor ?? 'default',
+      allowSelection: options.allowSelection ?? false
+    }
   }
 
   onActivate(): void {
     if (!this.canvas) return
-    this.canvas.defaultCursor = 'default'
-    this.canvas.selection = true
+    this.canvas.defaultCursor = this.options.activeCursor
+    this.canvas.selection = this.options.allowSelection
     this.canvas.forEachObject((obj: FabricObject & { customType?: string }) => {
       if (obj.customType === 'area') {
         obj.set({ selectable: true, evented: true })
@@ -35,7 +43,9 @@ export default class SelectTool extends BaseTool {
     if (activeObjects.length === 0) return
 
     activeObjects.forEach(obj => {
-      const customObj = obj as FabricObject & { customData?: { circles?: FabricObject[]; labels?: FabricObject[]; lines?: FabricObject[] } }
+      const customObj = obj as FabricObject & {
+        customData?: { circles?: FabricObject[]; labels?: FabricObject[]; lines?: FabricObject[] }
+      }
       if (customObj.customData) {
         const { circles, labels, lines } = customObj.customData
         if (circles) circles.forEach(c => this.canvas!.remove(c))

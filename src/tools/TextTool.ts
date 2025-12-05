@@ -1,21 +1,33 @@
 import * as fabric from 'fabric'
 import type { TPointerEventInfo, TPointerEvent, IText, FabricObject } from 'fabric'
-import type { TextCustomData } from '../../types'
+import type { TextCustomData, TextToolOptions, AddTextOptions } from '../../types'
 import BaseTool from './BaseTool'
 
-export default class TextTool extends BaseTool {
-  private defaultFontSize: number
-  private defaultFontFamily: string
+const DEFAULT_FONT_SIZE = 16
+const DEFAULT_FONT_FAMILY = 'Arial'
 
-  constructor() {
-    super('text')
-    this.defaultFontSize = 16
-    this.defaultFontFamily = 'Arial'
+export interface CreateTextResult {
+  textObj: IText & { customType: string; customData: TextCustomData }
+  customData: TextCustomData
+}
+
+export default class TextTool extends BaseTool {
+  protected override options: Required<TextToolOptions>
+
+  constructor(options: TextToolOptions = {}) {
+    super('text', options)
+    this.options = {
+      activeCursor: options.activeCursor ?? 'text',
+      deactiveCursor: options.deactiveCursor ?? 'default',
+      fontSize: options.fontSize ?? DEFAULT_FONT_SIZE,
+      fontFamily: options.fontFamily ?? DEFAULT_FONT_FAMILY,
+      fill: options.fill ?? '#333',
+      perPixelTargetFind: options.perPixelTargetFind ?? false
+    }
   }
 
   onActivate(): void {
     if (!this.canvas) return
-    this.canvas.defaultCursor = 'text'
     this.canvas.selection = false
     this.canvas.forEachObject((obj: FabricObject & { customType?: string }) => {
       if (obj.customType !== 'text') {
@@ -26,9 +38,8 @@ export default class TextTool extends BaseTool {
 
   onDeactivate(): void {
     if (!this.canvas) return
-    this.canvas.defaultCursor = 'default'
     this.canvas.selection = true
-    this.canvas.forEachObject((obj) => {
+    this.canvas.forEachObject(obj => {
       obj.set({ selectable: true, evented: true })
     })
     this._exitAllEditing()
@@ -52,9 +63,9 @@ export default class TextTool extends BaseTool {
     const text = new fabric.IText('文本', {
       left: pointer.x,
       top: pointer.y,
-      fontSize: this.defaultFontSize,
-      fontFamily: this.defaultFontFamily,
-      fill: this.paintBoard.lineColor,
+      fontSize: this.options.fontSize,
+      fontFamily: this.options.fontFamily,
+      fill: this.options.fill,
       editable: true,
       selectable: true,
       hasControls: false,
@@ -107,7 +118,7 @@ export default class TextTool extends BaseTool {
 
   private _exitAllEditing(): void {
     if (!this.canvas) return
-    this.canvas.getObjects().forEach((obj) => {
+    this.canvas.getObjects().forEach(obj => {
       const itext = obj as IText
       if (itext.type === 'i-text' && itext.isEditing) {
         itext.exitEditing()
@@ -118,7 +129,7 @@ export default class TextTool extends BaseTool {
 
   setFontSize(size: number): void {
     if (!this.canvas) return
-    this.defaultFontSize = size
+    this.options.fontSize = size
     const activeObject = this.canvas.getActiveObject() as FabricObject & { customType?: string }
     if (activeObject && activeObject.customType === 'text') {
       activeObject.set('fontSize', size)
@@ -128,7 +139,7 @@ export default class TextTool extends BaseTool {
 
   setFontFamily(family: string): void {
     if (!this.canvas) return
-    this.defaultFontFamily = family
+    this.options.fontFamily = family
     const activeObject = this.canvas.getActiveObject() as FabricObject & { customType?: string }
     if (activeObject && activeObject.customType === 'text') {
       activeObject.set('fontFamily', family)
@@ -142,6 +153,71 @@ export default class TextTool extends BaseTool {
     if (activeObject && activeObject.customType === 'text') {
       activeObject.set('fill', color)
       this.canvas.renderAll()
+    }
+  }
+
+  createTextAt(options: AddTextOptions): CreateTextResult | null {
+    if (!this.canvas || !this.paintBoard || !this.eventBus) return null
+
+    const {
+      x,
+      y,
+      text,
+      editable = false,
+      fontSize = this.options.fontSize,
+      fontFamily = this.options.fontFamily,
+      fill = options.fill || this.options.fill,
+      fontWeight = 'normal',
+      fontStyle = 'normal',
+      textAlign = 'left',
+      selectable = true,
+      hasControls = false,
+      hasBorders = false,
+      perPixelTargetFind = this.options.perPixelTargetFind
+    } = options
+
+    const textObj = new fabric.IText(text, {
+      left: x,
+      top: y,
+      fontSize,
+      fontFamily,
+      fill,
+      fontWeight,
+      fontStyle,
+      textAlign,
+      editable,
+      selectable,
+      hasControls,
+      hasBorders,
+      lockScalingFlip: true,
+      lockMovementX: true,
+      lockMovementY: true,
+      hoverCursor: editable ? 'text' : 'pointer',
+      moveCursor: editable ? 'text' : 'move',
+      perPixelTargetFind
+    })
+
+    const customData: TextCustomData = {
+      textId: options.id || `text-${Date.now()}`,
+      createdAt: Date.now()
+    }
+
+    ;(textObj as IText & { customType: string; customData: TextCustomData }).customType = 'text'
+    ;(textObj as IText & { customType: string; customData: TextCustomData }).customData = customData
+
+    this.canvas.add(textObj)
+    this.canvas.renderAll()
+
+    this._bindTextEvents(textObj as IText & { customType: string; customData: TextCustomData })
+
+    this.eventBus.emit('text:created', {
+      textId: customData.textId,
+      text: textObj.text
+    })
+
+    return {
+      textObj: textObj as IText & { customType: string; customData: TextCustomData },
+      customData
     }
   }
 }

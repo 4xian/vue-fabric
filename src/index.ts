@@ -4,10 +4,11 @@ import CanvasManager from './core/CanvasManager'
 import Toolbar from './ui/Toolbar'
 import ColorPicker from './ui/ColorPicker'
 import BaseTool from './tools/BaseTool'
-import LineTool from './tools/LineTool'
+import AreaTool from './tools/AreaTool'
 import SelectTool from './tools/SelectTool'
 import TextTool from './tools/TextTool'
 import CurveTool from './tools/CurveTool'
+import ImageTool from './tools/ImageTool'
 import './styles/paint-board.css'
 
 export {
@@ -17,10 +18,11 @@ export {
   Toolbar,
   ColorPicker,
   BaseTool,
-  LineTool,
+  AreaTool,
   SelectTool,
   TextTool,
-  CurveTool
+  CurveTool,
+  ImageTool
 }
 
 export default PaintBoard
