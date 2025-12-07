@@ -21,6 +21,7 @@ const TOOL_ICONS: Record<string, string> = {
 
 const TOOL_TITLES: Record<string, string> = {
   select: '选择工具',
+  line: '画直线',
   area: '画区域',
   curve: '画曲线',
   text: '写文字',
@@ -42,6 +43,7 @@ const DEFAULT_TOOLS: ToolName[] = [
   'lineColor',
   'fillColor',
   'select',
+  'line',
   'area',
   'curve',
   'text',
@@ -70,7 +72,8 @@ export default class Toolbar {
   constructor(paintBoard: PaintBoard, options: ToolbarOptions = {}) {
     this.paintBoard = paintBoard
     this.options = {
-      tools: options.tools ?? DEFAULT_TOOLS
+      tools: options.tools ?? DEFAULT_TOOLS,
+      visible: options.visible ?? true
     }
     this.container = null
     this.buttons = new Map()
@@ -86,6 +89,9 @@ export default class Toolbar {
     this._createContainer()
     this._createToolsByConfig()
     this._bindEvents()
+    if (!this.options.visible) {
+      this.hide()
+    }
     return this
   }
 
@@ -114,6 +120,7 @@ export default class Toolbar {
         this._createFillColorPicker()
         break
       case 'select':
+      case 'line':
       case 'area':
       case 'curve':
       case 'text':
@@ -124,11 +131,13 @@ export default class Toolbar {
       case 'undo':
         this._createActionButton('undo', TOOL_TITLES.undo, TOOL_ICONS.undo, () => {
           this.paintBoard.undo()
+          this._updateUndoRedoState()
         })
         break
       case 'redo':
         this._createActionButton('redo', TOOL_TITLES.redo, TOOL_ICONS.redo, () => {
           this.paintBoard.redo()
+          this._updateUndoRedoState()
         })
         break
       case 'zoomIn':
@@ -338,9 +347,26 @@ export default class Toolbar {
 
     this.paintBoard.on('tool:changed', (toolName: unknown) => {
       this._setActiveToolButton(toolName as string)
+      this._updateUndoRedoState()
     })
 
     this.paintBoard.on('history:changed', () => {
+      this._updateUndoRedoState()
+    })
+
+    this.paintBoard.on('object:created', () => {
+      this._updateUndoRedoState()
+    })
+
+    this.paintBoard.on('line:created', () => {
+      this._updateUndoRedoState()
+    })
+
+    this.paintBoard.on('area:created', () => {
+      this._updateUndoRedoState()
+    })
+
+    this.paintBoard.on('curve:created', () => {
       this._updateUndoRedoState()
     })
 
@@ -369,6 +395,22 @@ export default class Toolbar {
 
   getHelpersVisible(): boolean {
     return this.helpersVisible
+  }
+
+  show(): void {
+    if (this.container) {
+      this.container.style.display = ''
+    }
+  }
+
+  hide(): void {
+    if (this.container) {
+      this.container.style.display = 'none'
+    }
+  }
+
+  isVisible(): boolean {
+    return this.container?.style.display !== 'none'
   }
 
   destroy(): void {

@@ -4,15 +4,23 @@ import type { Point, AreaCustomData, AreaToolOptions } from '../../types'
 import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
 
-const DEFAULT_CLOSE_THRESHOLD = 15
-const DEFAULT_POINT_RADIUS = 4
+const DEFAULT_CLOSE_THRESHOLD = 8
+const DEFAULT_POINT_RADIUS = 3
 const DEFAULT_LABEL_FONT_SIZE = 12
-const DEFAULT_POINT_FILL_COLOR = 'red'
-const DEFAULT_POINT_HOVER_COLOR = '#ff6600'
+const DEFAULT_POINT_FILL_COLOR = '#ff0000'
+const DEFAULT_POINT_HOVER_COLOR = '#ff0000'
+
+interface UndoState {
+  point: Point
+  circle: Circle
+  line: Line | null
+  label: Text | null
+  distance: number | null
+}
 
 export default class AreaTool extends BaseTool {
   protected override options: Required<AreaToolOptions>
-  private isDrawing: boolean
+  private isDrawingState: boolean
   private points: Point[]
   private circles: Circle[]
   private lines: Line[]
@@ -21,6 +29,7 @@ export default class AreaTool extends BaseTool {
   private previewLine: Line | null
   private previewLabel: Text | null
   private _hoverRect: Rect | null
+  private _undoStack: UndoState[]
 
   constructor(options: AreaToolOptions = {}) {
     super('area', options)
@@ -37,7 +46,7 @@ export default class AreaTool extends BaseTool {
       enableFill: options.enableFill ?? true,
       perPixelTargetFind: options.perPixelTargetFind ?? true
     }
-    this.isDrawing = false
+    this.isDrawingState = false
     this.points = []
     this.circles = []
     this.lines = []
@@ -46,6 +55,7 @@ export default class AreaTool extends BaseTool {
     this.previewLine = null
     this.previewLabel = null
     this._hoverRect = null
+    this._undoStack = []
   }
 
   onActivate(): void {
@@ -57,7 +67,7 @@ export default class AreaTool extends BaseTool {
     if (!this.canvas) return
     this.canvas.selection = true
     this._clearPreview()
-    if (this.isDrawing) {
+    if (this.isDrawingState) {
       this._cancelDrawing()
     }
   }
@@ -79,7 +89,7 @@ export default class AreaTool extends BaseTool {
       this.canvas?.discardActiveObject()
     }
 
-    if (target && target.customType === 'point') {
+    if (target && target.customType === 'areaPoint') {
       const circleTarget = target as Circle
       const point: Point = { x: circleTarget.left || 0, y: circleTarget.top || 0 }
 
@@ -106,7 +116,7 @@ export default class AreaTool extends BaseTool {
   }
 
   onMouseMove(opt: TPointerEventInfo<TPointerEvent>): void {
-    if (!this.isDrawing || this.points.length === 0) return
+    if (!this.isDrawingState || this.points.length === 0) return
 
     const pointer = this.getPointer(opt)
     this._updatePreview(pointer)
@@ -121,6 +131,32 @@ export default class AreaTool extends BaseTool {
     }
   }
 
+  override isDrawing(): boolean {
+    return this.isDrawingState
+  }
+
+  override canUndoTool(): boolean {
+    return this.isDrawingState && this.points.length > 0
+  }
+
+  override canRedoTool(): boolean {
+    return this._undoStack.length > 0
+  }
+
+  override undo(): boolean {
+    if (!this.isDrawingState) return false
+    if (this.points.length === 0) return false
+    this._undoLastPoint()
+    return true
+  }
+
+  override redo(): boolean {
+    if (!this.isDrawingState && this._undoStack.length === 0) return false
+    if (this._undoStack.length === 0) return false
+    this._redoLastPoint()
+    return true
+  }
+
   private _addPoint(point: Point): void {
     if (!this.canvas || !this.paintBoard) return
 
@@ -130,7 +166,11 @@ export default class AreaTool extends BaseTool {
     }
 
     const isFirstPoint = this.points.length === 0
-    this.isDrawing = true
+    if (isFirstPoint) {
+      this.paintBoard.pauseHistory()
+    }
+    this._undoStack = []
+    this.isDrawingState = true
     this.points.push(point)
 
     const circle = new fabric.Circle({
@@ -150,7 +190,7 @@ export default class AreaTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: 'pointer'
     })
-    ;(circle as Circle & { customType: string; isStartPoint?: boolean }).customType = 'point'
+    ;(circle as Circle & { customType: string; isStartPoint?: boolean }).customType = 'areaPoint'
     ;(circle as Circle & { customType: string; isStartPoint?: boolean }).isStartPoint = isFirstPoint
     if (isFirstPoint) {
       this._bindCircleHoverEvents(circle)
@@ -179,7 +219,7 @@ export default class AreaTool extends BaseTool {
       lockMovementX: true,
       lockMovementY: true
     })
-    ;(line as Line & { customType: string }).customType = 'line'
+    ;(line as Line & { customType: string }).customType = 'areaLine'
     this.canvas.add(line)
     this.lines.push(line)
 
@@ -199,9 +239,10 @@ export default class AreaTool extends BaseTool {
       hasBorders: false,
       hasControls: false,
       lockMovementX: true,
-      lockMovementY: true
+      lockMovementY: true,
+      hoverCursor: 'default'
     })
-    ;(label as Text & { customType: string }).customType = 'label'
+    ;(label as Text & { customType: string }).customType = 'areaLabel'
     this.canvas.add(label)
     this.labels.push(label)
   }
@@ -325,6 +366,7 @@ export default class AreaTool extends BaseTool {
     })
 
     this._reset()
+    this.paintBoard.resumeHistory()
     this.canvas.renderAll()
   }
 
@@ -363,6 +405,7 @@ export default class AreaTool extends BaseTool {
 
     data.circles?.forEach(circle => {
       circle.set({ left: (circle.left || 0) + dx, top: (circle.top || 0) + dy })
+      circle.setCoords()
     })
 
     data.lines?.forEach(line => {
@@ -372,10 +415,12 @@ export default class AreaTool extends BaseTool {
         x2: (line.x2 || 0) + dx,
         y2: (line.y2 || 0) + dy
       })
+      line.setCoords()
     })
 
     data.labels?.forEach(label => {
       label.set({ left: (label.left || 0) + dx, top: (label.top || 0) + dy })
+      label.setCoords()
     })
 
     data.points = data.points.map(p => ({ x: p.x + dx, y: p.y + dy }))
@@ -449,32 +494,54 @@ export default class AreaTool extends BaseTool {
     if (!this.canvas) return
     if (this.points.length === 0) return
 
-    this.points.pop()
+    const point = this.points.pop()!
+    const circle = this.circles.pop()!
+    const line = this.lines.length > 0 ? this.lines.pop()! : null
+    const label = this.labels.length > 0 ? this.labels.pop()! : null
+    const distance = this.distances.length > 0 ? this.distances.pop()! : null
 
-    if (this.circles.length > 0) {
-      const lastCircle = this.circles.pop()!
-      this.canvas.remove(lastCircle)
-    }
+    this._undoStack.push({ point, circle, line, label, distance })
 
-    if (this.lines.length > 0) {
-      const lastLine = this.lines.pop()!
-      this.canvas.remove(lastLine)
-    }
-
-    if (this.labels.length > 0) {
-      const lastLabel = this.labels.pop()!
-      this.canvas.remove(lastLabel)
-    }
-
-    if (this.distances.length > 0) {
-      this.distances.pop()
-    }
+    this.canvas.remove(circle)
+    if (line) this.canvas.remove(line)
+    if (label) this.canvas.remove(label)
 
     if (this.points.length === 0) {
-      this.isDrawing = false
+      this.isDrawingState = false
     }
 
     this._clearPreview()
+    this.canvas.renderAll()
+  }
+
+  private _redoLastPoint(): void {
+    if (!this.canvas || !this.paintBoard) return
+    if (this._undoStack.length === 0) return
+
+    const state = this._undoStack.pop()!
+    const { point, circle, line, label, distance } = state
+
+    if (this.points.length === 0) {
+      this.isDrawingState = true
+      this.paintBoard.pauseHistory()
+    }
+
+    this.points.push(point)
+    this.circles.push(circle)
+    this.canvas.add(circle)
+
+    if (line) {
+      this.lines.push(line)
+      this.canvas.add(line)
+    }
+    if (label) {
+      this.labels.push(label)
+      this.canvas.add(label)
+    }
+    if (distance !== null) {
+      this.distances.push(distance)
+    }
+
     this.canvas.renderAll()
   }
 
@@ -487,16 +554,18 @@ export default class AreaTool extends BaseTool {
     this.labels.forEach(l => this.canvas!.remove(l))
 
     this._reset()
+    this.paintBoard?.resumeHistory()
     this.canvas.renderAll()
   }
 
   private _reset(): void {
-    this.isDrawing = false
+    this.isDrawingState = false
     this.points = []
     this.circles = []
     this.lines = []
     this.labels = []
     this.distances = []
+    this._undoStack = []
   }
 
   private _bindCircleHoverEvents(circle: Circle): void {

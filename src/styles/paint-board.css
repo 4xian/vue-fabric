@@ -57,11 +57,12 @@
 }
 
 .color-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
   cursor: pointer;
-  border: 2px solid #e0e0e0;
+  margin: 2px 0;
+  border: 1px solid #e0e0e0;
   transition: border-color 0.2s ease;
   position: relative;
 }

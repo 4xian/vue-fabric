@@ -95,6 +95,26 @@ export default class BaseTool {
   onMouseUp(_opt: TPointerEventInfo<TPointerEvent>): void {}
   onKeyDown(_e: KeyboardEvent): void {}
 
+  isDrawing(): boolean {
+    return false
+  }
+
+  canUndoTool(): boolean {
+    return false
+  }
+
+  canRedoTool(): boolean {
+    return false
+  }
+
+  undo(): boolean {
+    return false
+  }
+
+  redo(): boolean {
+    return false
+  }
+
   getPointer(opt: TPointerEventInfo<TPointerEvent>): Point {
     return this.canvas!.getPointer(opt.e)
   }

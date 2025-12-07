@@ -1,21 +1,32 @@
 import * as fabric from 'fabric'
-import type { TPointerEventInfo, TPointerEvent, Circle, Path, Rect } from 'fabric'
+import type { TPointerEventInfo, TPointerEvent, Circle, Path, Rect, Text } from 'fabric'
 import type { Point, CurveCustomData, CurveToolOptions } from '../../types'
 import BaseTool from './BaseTool'
 
 const DEFAULT_TENSION = 0.5
-const DEFAULT_POINT_RADIUS = 5
-const DEFAULT_CLOSE_THRESHOLD = 15
-const DEFAULT_POINT_FILL_COLOR = 'red'
-const DEFAULT_POINT_HOVER_COLOR = '#ff6600'
+const DEFAULT_POINT_RADIUS = 3
+const DEFAULT_CLOSE_THRESHOLD = 8
+const DEFAULT_POINT_FILL_COLOR = '#ff0000'
+const DEFAULT_POINT_HOVER_COLOR = '#ff0000'
+
+interface CurveUndoState {
+  point: Point
+  circle: Circle
+  label: Text | null
+  distance: number | null
+}
 
 export default class CurveTool extends BaseTool {
   protected override options: Required<CurveToolOptions>
   private points: Point[]
   private circles: Circle[]
+  private labels: Text[]
+  private distances: number[]
   private previewPath: Path | null
-  private isDrawing: boolean
+  private previewLabel: Text | null
+  private isDrawingState: boolean
   private _hoverRect: Rect | null
+  private _undoStack: CurveUndoState[]
 
   constructor(options: CurveToolOptions = {}) {
     super('curve', options)
@@ -27,13 +38,20 @@ export default class CurveTool extends BaseTool {
       closeThreshold: options.closeThreshold ?? DEFAULT_CLOSE_THRESHOLD,
       labelFontSize: options.labelFontSize ?? 12,
       pointFillColor: options.pointFillColor ?? DEFAULT_POINT_FILL_COLOR,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_POINT_HOVER_COLOR
+      pointHoverColor: options.pointHoverColor ?? DEFAULT_POINT_HOVER_COLOR,
+      defaultShowHelpers: options.defaultShowHelpers ?? true,
+      enableFill: options.enableFill ?? false,
+      perPixelTargetFind: options.perPixelTargetFind ?? true
     }
     this.points = []
     this.circles = []
+    this.labels = []
+    this.distances = []
     this.previewPath = null
-    this.isDrawing = false
+    this.previewLabel = null
+    this.isDrawingState = false
     this._hoverRect = null
+    this._undoStack = []
   }
 
   onActivate(): void {
@@ -57,8 +75,8 @@ export default class CurveTool extends BaseTool {
     const pointer = this.getPointer(opt)
     if (!pointer || isNaN(pointer.x) || isNaN(pointer.y)) return
 
-    if (!this.isDrawing) {
-      this.isDrawing = true
+    if (!this.isDrawingState) {
+      this.isDrawingState = true
       this.points = []
       this.circles = []
     }
@@ -78,7 +96,7 @@ export default class CurveTool extends BaseTool {
   }
 
   onMouseMove(opt: TPointerEventInfo<TPointerEvent>): void {
-    if (!this.isDrawing || this.points.length === 0) return
+    if (!this.isDrawingState || this.points.length === 0) return
 
     const pointer = this.getPointer(opt)
     this._updatePreview(pointer)
@@ -87,11 +105,38 @@ export default class CurveTool extends BaseTool {
   onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       this._cancelDrawing()
-    } else if (e.ctrlKey && e.key === 'z') {
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault()
       this._undoLastPoint()
     } else if (e.key === 'Enter') {
       this._finishCurve()
     }
+  }
+
+  override isDrawing(): boolean {
+    return this.isDrawingState
+  }
+
+  override canUndoTool(): boolean {
+    return this.isDrawingState && this.points.length > 0
+  }
+
+  override canRedoTool(): boolean {
+    return this._undoStack.length > 0
+  }
+
+  override undo(): boolean {
+    if (!this.isDrawingState) return false
+    if (this.points.length === 0) return false
+    this._undoLastPoint()
+    return true
+  }
+
+  override redo(): boolean {
+    if (!this.isDrawingState && this._undoStack.length === 0) return false
+    if (this._undoStack.length === 0) return false
+    this._redoLastPoint()
+    return true
   }
 
   private _addPoint(point: Point): void {
@@ -103,6 +148,10 @@ export default class CurveTool extends BaseTool {
     }
 
     const isFirstPoint = this.points.length === 0
+    if (isFirstPoint) {
+      this.paintBoard.pauseHistory()
+    }
+    this._undoStack = []
     this.points.push({ x: point.x, y: point.y })
 
     const circle = new fabric.Circle({
@@ -131,6 +180,10 @@ export default class CurveTool extends BaseTool {
     this.canvas.add(circle)
     this.circles.push(circle)
 
+    if (this.points.length >= 2) {
+      this._addDistanceLabel()
+    }
+
     if (this.points.length > 1) {
       this._updatePreview()
     }
@@ -138,12 +191,152 @@ export default class CurveTool extends BaseTool {
     this.canvas.renderAll()
   }
 
+  private _addDistanceLabel(): void {
+    if (!this.canvas || !this.paintBoard || this.points.length < 2) return
+
+    const segmentIndex = this.points.length - 2
+
+    const segmentPath = this._generateSegmentPath(segmentIndex)
+    const distance = this._calculatePathLength(segmentPath)
+    this.distances.push(distance)
+
+    const midPoint = this._getSegmentMidPoint(segmentIndex)
+
+    const label = new fabric.Text(`${distance.toFixed(1)}`, {
+      left: midPoint.x,
+      top: midPoint.y,
+      fontSize: this.options.labelFontSize,
+      fill: '#333',
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+      hasBorders: false,
+      hasControls: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      hoverCursor: 'default'
+    })
+    ;(label as Text & { customType: string }).customType = 'curveHelperLabel'
+    this.canvas.add(label)
+    this.labels.push(label)
+  }
+
+  private _addClosingDistanceLabel(): void {
+    if (!this.canvas || !this.paintBoard || this.points.length < 3) return
+
+    const segmentPath = this._generateClosingSegmentPath()
+    const distance = this._calculatePathLength(segmentPath)
+    this.distances.push(distance)
+
+    const midPoint = this._getClosingSegmentMidPoint()
+
+    const label = new fabric.Text(`${distance.toFixed(1)}`, {
+      left: midPoint.x,
+      top: midPoint.y,
+      fontSize: this.options.labelFontSize,
+      fill: '#333',
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+      hasBorders: false,
+      hasControls: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      hoverCursor: 'default'
+    })
+    ;(label as Text & { customType: string }).customType = 'curveHelperLabel'
+    this.canvas.add(label)
+    this.labels.push(label)
+  }
+
+  private _generateClosingSegmentPath(): string {
+    if (this.points.length < 4) return ''
+
+    const n = this.points.length
+    const p0 = this.points[n - 3]
+    const p1 = this.points[n - 2]
+    const p2 = this.points[n - 1]
+    const p3 = this.points[1]
+
+    const cp1 = {
+      x: p1.x + ((p2.x - p0.x) * this.options.tension) / 3,
+      y: p1.y + ((p2.y - p0.y) * this.options.tension) / 3
+    }
+    const cp2 = {
+      x: p2.x - ((p3.x - p1.x) * this.options.tension) / 3,
+      y: p2.y - ((p3.y - p1.y) * this.options.tension) / 3
+    }
+
+    return `M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`
+  }
+
+  private _getClosingSegmentMidPoint(): Point {
+    const pathData = this._generateClosingSegmentPath()
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    const path = document.createElementNS(svgNS, 'path')
+    path.setAttribute('d', pathData)
+    svg.appendChild(path)
+    document.body.appendChild(svg)
+    const length = path.getTotalLength()
+    const midPoint = path.getPointAtLength(length / 2)
+    document.body.removeChild(svg)
+    return { x: midPoint.x, y: midPoint.y }
+  }
+
+  private _generateSegmentPath(segmentIndex: number): string {
+    if (this.points.length < 2) return ''
+
+    const i = segmentIndex
+    const p0 = this.points[Math.max(0, i - 1)]
+    const p1 = this.points[i]
+    const p2 = this.points[i + 1]
+    const p3 = this.points[Math.min(this.points.length - 1, i + 2)]
+
+    const cp1 = {
+      x: p1.x + ((p2.x - p0.x) * this.options.tension) / 3,
+      y: p1.y + ((p2.y - p0.y) * this.options.tension) / 3
+    }
+    const cp2 = {
+      x: p2.x - ((p3.x - p1.x) * this.options.tension) / 3,
+      y: p2.y - ((p3.y - p1.y) * this.options.tension) / 3
+    }
+
+    return `M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`
+  }
+
+  private _calculatePathLength(pathData: string): number {
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    const path = document.createElementNS(svgNS, 'path')
+    path.setAttribute('d', pathData)
+    svg.appendChild(path)
+    document.body.appendChild(svg)
+    const length = path.getTotalLength()
+    document.body.removeChild(svg)
+    return length
+  }
+
+  private _getSegmentMidPoint(segmentIndex: number): Point {
+    const pathData = this._generateSegmentPath(segmentIndex)
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    const path = document.createElementNS(svgNS, 'path')
+    path.setAttribute('d', pathData)
+    svg.appendChild(path)
+    document.body.appendChild(svg)
+    const length = path.getTotalLength()
+    const midPoint = path.getPointAtLength(length / 2)
+    document.body.removeChild(svg)
+    return { x: midPoint.x, y: midPoint.y }
+  }
+
   private _updatePreview(mousePoint?: Point): void {
     if (!this.canvas || !this.paintBoard) return
 
-    if (this.previewPath) {
-      this.canvas.remove(this.previewPath)
-    }
+    this._clearPreview()
 
     const previewPoints = [...this.points]
     if (mousePoint) {
@@ -162,9 +355,82 @@ export default class CurveTool extends BaseTool {
       evented: false
     })
     ;(this.previewPath as Path & { customType: string }).customType = 'curvePreview'
-
     this.canvas.add(this.previewPath)
+
+    if (mousePoint && this.points.length >= 1) {
+      const previewSegmentPath = this._generatePreviewSegmentPath(mousePoint)
+      const distance = this._calculatePathLength(previewSegmentPath)
+      const midPoint = this._getPreviewSegmentMidPoint(previewSegmentPath)
+
+      this.previewLabel = new fabric.Text(`${distance.toFixed(1)}`, {
+        left: midPoint.x,
+        top: midPoint.y,
+        fontSize: this.options.labelFontSize,
+        fill: '#666',
+        originX: 'center',
+        originY: 'center',
+        selectable: false,
+        evented: false,
+        hasBorders: false,
+        hasControls: false,
+        lockMovementX: true,
+        lockMovementY: true
+      })
+      this.canvas.add(this.previewLabel)
+    }
+
     this.canvas.renderAll()
+  }
+
+  private _clearPreview(): void {
+    if (!this.canvas) return
+    if (this.previewPath) {
+      this.canvas.remove(this.previewPath)
+      this.previewPath = null
+    }
+    if (this.previewLabel) {
+      this.canvas.remove(this.previewLabel)
+      this.previewLabel = null
+    }
+  }
+
+  private _generatePreviewSegmentPath(mousePoint: Point): string {
+    const n = this.points.length
+    if (n === 0) return ''
+
+    if (n === 1) {
+      const p1 = this.points[0]
+      return `M ${p1.x} ${p1.y} L ${mousePoint.x} ${mousePoint.y}`
+    }
+
+    const p0 = this.points[Math.max(0, n - 2)]
+    const p1 = this.points[n - 1]
+    const p2 = mousePoint
+    const p3 = mousePoint
+
+    const cp1 = {
+      x: p1.x + ((p2.x - p0.x) * this.options.tension) / 3,
+      y: p1.y + ((p2.y - p0.y) * this.options.tension) / 3
+    }
+    const cp2 = {
+      x: p2.x - ((p3.x - p1.x) * this.options.tension) / 3,
+      y: p2.y - ((p3.y - p1.y) * this.options.tension) / 3
+    }
+
+    return `M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`
+  }
+
+  private _getPreviewSegmentMidPoint(pathData: string): Point {
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    const path = document.createElementNS(svgNS, 'path')
+    path.setAttribute('d', pathData)
+    svg.appendChild(path)
+    document.body.appendChild(svg)
+    const length = path.getTotalLength()
+    const midPoint = path.getPointAtLength(length / 2)
+    document.body.removeChild(svg)
+    return { x: midPoint.x, y: midPoint.y }
   }
 
   private _generateSmoothPath(points: Point[]): string {
@@ -214,14 +480,13 @@ export default class CurveTool extends BaseTool {
       return
     }
 
-    if (this.previewPath) {
-      this.canvas.remove(this.previewPath)
-    }
+    this._clearPreview()
 
     const pathData = this._generateSmoothPath(this.points)
+    const fillColor = isClosed && this.options.enableFill ? this.paintBoard.fillColor : 'transparent'
 
     const curve = new fabric.Path(pathData, {
-      fill: isClosed ? 'transparent' : '',
+      fill: fillColor,
       stroke: this.paintBoard.lineColor,
       strokeWidth: 2,
       selectable: true,
@@ -231,24 +496,38 @@ export default class CurveTool extends BaseTool {
       lockMovementX: true,
       lockMovementY: true,
       hoverCursor: 'pointer',
-      moveCursor: 'pointer'
+      moveCursor: 'pointer',
+      perPixelTargetFind: this.options.perPixelTargetFind ?? false
     })
+
+    if (isClosed && this.points.length > 2) {
+      this._addClosingDistanceLabel()
+    }
 
     const customData: CurveCustomData = {
       curveId: `curve-${Date.now()}`,
       points: [...this.points],
       isClosed: isClosed,
       lineColor: this.paintBoard.lineColor,
-      fillColor: isClosed ? 'transparent' : null
+      fillColor: fillColor,
+      circles: [...this.circles],
+      labels: [...this.labels],
+      distances: [...this.distances]
     }
 
     ;(curve as Path & { customType: string; customData: CurveCustomData }).customType = 'curve'
     ;(curve as Path & { customType: string; customData: CurveCustomData }).customData = customData
 
-    this._hideHelpers()
-
     this.canvas.add(curve)
-    this.canvas.renderAll()
+
+    const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
+    if (shouldShowHelpers) {
+      this._bringHelpersToFront()
+    } else {
+      this._hideCurveHelpers()
+    }
+
+    this._setupCurveEvents(curve as Path & { customType: string; customData: CurveCustomData })
 
     this.eventBus.emit('curve:created', {
       curveId: customData.curveId,
@@ -257,18 +536,23 @@ export default class CurveTool extends BaseTool {
     })
 
     this._reset()
+    this.paintBoard.resumeHistory()
+    this.canvas.renderAll()
   }
 
   private _undoLastPoint(): void {
     if (!this.canvas) return
     if (this.points.length === 0) return
 
-    this.points.pop()
+    const point = this.points.pop()!
+    const circle = this.circles.pop()!
+    const label = this.labels.length > 0 ? this.labels.pop()! : null
+    const distance = this.distances.length > 0 ? this.distances.pop()! : null
 
-    if (this.circles.length > 0) {
-      const lastCircle = this.circles.pop()!
-      this.canvas.remove(lastCircle)
-    }
+    this._undoStack.push({ point, circle, label, distance })
+
+    this.canvas.remove(circle)
+    if (label) this.canvas.remove(label)
 
     if (this.points.length > 1) {
       this._updatePreview()
@@ -277,32 +561,134 @@ export default class CurveTool extends BaseTool {
       this.previewPath = null
     }
 
+    if (this.points.length === 0) {
+      this.isDrawingState = false
+    }
+
+    this.canvas.renderAll()
+  }
+
+  private _redoLastPoint(): void {
+    if (!this.canvas || !this.paintBoard) return
+    if (this._undoStack.length === 0) return
+
+    const state = this._undoStack.pop()!
+    const { point, circle, label, distance } = state
+
+    if (this.points.length === 0) {
+      this.isDrawingState = true
+      this.paintBoard.pauseHistory()
+    }
+
+    this.points.push(point)
+    this.circles.push(circle)
+    this.canvas.add(circle)
+
+    if (label) {
+      this.labels.push(label)
+      this.canvas.add(label)
+    }
+    if (distance !== null) {
+      this.distances.push(distance)
+    }
+
+    if (this.points.length > 1) {
+      this._updatePreview()
+    }
+
     this.canvas.renderAll()
   }
 
   private _cancelDrawing(): void {
     if (!this.canvas) return
     this.circles.forEach(circle => this.canvas!.remove(circle))
+    this.labels.forEach(label => this.canvas!.remove(label))
 
-    if (this.previewPath) {
-      this.canvas.remove(this.previewPath)
-    }
+    this._clearPreview()
 
     this._reset()
+    this.paintBoard?.resumeHistory()
     this.canvas.renderAll()
   }
 
-  private _hideHelpers(): void {
+  private _setupCurveEvents(curve: Path & { customData: CurveCustomData }): void {
+    if (!this.eventBus) return
+
+    let lastLeft = curve.left || 0
+    let lastTop = curve.top || 0
+
+    curve.on('selected', () => {
+      lastLeft = curve.left || 0
+      lastTop = curve.top || 0
+      this.eventBus!.emit('curve:selected', {
+        curveId: curve.customData.curveId,
+        points: curve.customData.points,
+        isClosed: curve.customData.isClosed
+      })
+    })
+
+    curve.on('moving', () => {
+      const dx = (curve.left || 0) - lastLeft
+      const dy = (curve.top || 0) - lastTop
+      this._moveCurveHelpers(curve, dx, dy)
+      lastLeft = curve.left || 0
+      lastTop = curve.top || 0
+    })
+  }
+
+  private _moveCurveHelpers(
+    curve: Path & { customData: CurveCustomData },
+    dx: number,
+    dy: number
+  ): void {
+    if (!this.canvas) return
+    const data = curve.customData
+
+    data.circles?.forEach(circle => {
+      circle.set({ left: (circle.left || 0) + dx, top: (circle.top || 0) + dy })
+      circle.setCoords()
+    })
+
+    data.labels?.forEach(label => {
+      label.set({ left: (label.left || 0) + dx, top: (label.top || 0) + dy })
+      label.setCoords()
+    })
+
+    data.points = data.points.map(p => ({ x: p.x + dx, y: p.y + dy }))
+
+    this.canvas.renderAll()
+  }
+
+  private _bringHelpersToFront(): void {
+    if (!this.canvas) return
+    this.circles.forEach(circle => {
+      circle.set({ visible: true, opacity: 1 })
+      this.canvas!.bringObjectToFront(circle)
+    })
+    this.labels.forEach(label => {
+      label.set({ visible: true, opacity: 1 })
+      this.canvas!.bringObjectToFront(label)
+    })
+  }
+
+  private _hideCurveHelpers(): void {
     this.circles.forEach(circle => {
       circle.set({ visible: false })
+    })
+    this.labels.forEach(label => {
+      label.set({ visible: false })
     })
   }
 
   private _reset(): void {
     this.points = []
     this.circles = []
+    this.labels = []
+    this.distances = []
     this.previewPath = null
-    this.isDrawing = false
+    this.previewLabel = null
+    this.isDrawingState = false
+    this._undoStack = []
   }
 
   private _bindCircleHoverEvents(circle: Circle): void {
@@ -324,7 +710,11 @@ export default class CurveTool extends BaseTool {
         originX: 'center',
         originY: 'center',
         selectable: false,
-        evented: false
+        evented: false,
+        hasBorders: false,
+        hasControls: false,
+        lockMovementX: true,
+        lockMovementY: true
       })
       this.canvas?.add(this._hoverRect)
       this.canvas?.renderAll()

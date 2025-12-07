@@ -10,8 +10,11 @@ import type {
   CustomImageData,
   TextCustomData,
   BackgroundImageOptions,
-  CurveCustomData
+  CurveCustomData,
+  LineCustomData,
+  TrajectoryOptions
 } from '../../types'
+import PersonTracker from '../utils/PersonTracker'
 import TextTool from '../tools/TextTool'
 import ImageTool from '../tools/ImageTool'
 import EventBus from './EventBus'
@@ -47,6 +50,7 @@ export default class PaintBoard {
   private _helpersVisible: boolean
   private _backgroundImage: FabricImage | null
   private _bgImageOptions: BackgroundImageOptions | null
+  private _personTracker: PersonTracker | null
 
   constructor(container: string | HTMLElement, options: PaintBoardOptions = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container
@@ -63,6 +67,7 @@ export default class PaintBoard {
     this._helpersVisible = false
     this._backgroundImage = null
     this._bgImageOptions = null
+    this._personTracker = null
   }
 
   init(): this {
@@ -108,7 +113,15 @@ export default class PaintBoard {
 
   private _initUndoRedo(): void {
     if (!this.canvas) return
-    this.undoRedoManager = new UndoRedoManager(this.canvas, this.eventBus)
+    this.undoRedoManager = new UndoRedoManager(this.canvas, this.eventBus, {
+      excludeTypes: [
+        'text', 'customImage',
+        'area', 'areaPoint', 'areaLine', 'areaLabel',
+        'curve', 'curveHelper', 'curveHelperLabel', 'curvePreview',
+        'line', 'lineHelper', 'lineHelperLabel'
+      ],
+      getBackgroundImage: () => this._backgroundImage
+    })
   }
 
   private _bindEvents(): void {
@@ -199,26 +212,69 @@ export default class PaintBoard {
   }
 
   undo(): boolean {
+    if (this.currentTool?.canUndoTool()) {
+      return this.currentTool.undo()
+    }
+    for (const tool of this.tools.values()) {
+      if (tool !== this.currentTool && tool.canUndoTool()) {
+        return tool.undo()
+      }
+    }
     return this.undoRedoManager?.undo() ?? false
   }
 
   redo(): boolean {
+
+    if (this.currentTool?.canRedoTool()) {
+      return this.currentTool.redo()
+    }
+    for (const tool of this.tools.values()) {
+      if (tool !== this.currentTool && tool.canRedoTool()) {
+        return tool.redo()
+      }
+    }
     return this.undoRedoManager?.redo() ?? false
   }
 
   canUndo(): boolean {
+    for (const tool of this.tools.values()) {
+      if (tool.canUndoTool()) {
+        return true
+      }
+    }
     return this.undoRedoManager?.canUndo() ?? false
   }
 
   canRedo(): boolean {
+    for (const tool of this.tools.values()) {
+      if (tool.canRedoTool()) {
+        return true
+      }
+    }
     return this.undoRedoManager?.canRedo() ?? false
+  }
+
+  pauseHistory(): void {
+    this.undoRedoManager?.pause()
+  }
+
+  resumeHistory(): void {
+    this.undoRedoManager?.resume()
+  }
+
+  isHistoryPaused(): boolean {
+    return this.undoRedoManager?.isPaused() ?? false
   }
 
   clear(): this {
     if (!this.canvas) return this
-    this.canvas.clear()
+    const objects = this.canvas.getObjects()
+    objects.forEach(obj => {
+      if (obj !== this._backgroundImage) {
+        this.canvas!.remove(obj)
+      }
+    })
     this.canvas.backgroundColor = this.options.backgroundColor
-    this._backgroundImage = null
     this.canvas.renderAll()
     this.undoRedoManager?.clear()
     this.eventBus.emit('canvas:cleared')
@@ -412,9 +468,9 @@ export default class PaintBoard {
   showAllAreaHelpers(): this {
     if (!this.canvas) return this
     this.canvas.forEachObject(
-      (obj: FabricObject & { customType?: string; customData?: AreaCustomData }) => {
+      (obj: FabricObject & { customType?: string; customData?: AreaCustomData | CurveCustomData | LineCustomData }) => {
         if (obj.customType === 'area' && obj.customData) {
-          const data = obj.customData
+          const data = obj.customData as AreaCustomData
           data.lines?.forEach((line: Line) => {
             line.set({ visible: true, opacity: 1 })
             this.canvas!.bringObjectToFront(line)
@@ -427,6 +483,30 @@ export default class PaintBoard {
             label.set({ visible: true, opacity: 1 })
             this.canvas!.bringObjectToFront(label)
           })
+        } else if (obj.customType === 'curve' && obj.customData) {
+          const data = obj.customData as CurveCustomData
+          data.circles?.forEach((circle: Circle) => {
+            circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
+            this.canvas!.bringObjectToFront(circle)
+          })
+          data.labels?.forEach((label: Text) => {
+            label.set({ visible: true, opacity: 1 })
+            this.canvas!.bringObjectToFront(label)
+          })
+        } else if (obj.customType === 'line' && obj.customData) {
+          const data = obj.customData as LineCustomData
+          if (data.startCircle) {
+            data.startCircle.set({ visible: true, opacity: 1 })
+            this.canvas!.bringObjectToFront(data.startCircle)
+          }
+          if (data.endCircle) {
+            data.endCircle.set({ visible: true, opacity: 1 })
+            this.canvas!.bringObjectToFront(data.endCircle)
+          }
+          if (data.label) {
+            data.label.set({ visible: true, opacity: 1 })
+            this.canvas!.bringObjectToFront(data.label)
+          }
         }
       }
     )
@@ -439,9 +519,9 @@ export default class PaintBoard {
   hideAllAreaHelpers(): this {
     if (!this.canvas) return this
     this.canvas.forEachObject(
-      (obj: FabricObject & { customType?: string; customData?: AreaCustomData }) => {
+      (obj: FabricObject & { customType?: string; customData?: AreaCustomData | CurveCustomData | LineCustomData }) => {
         if (obj.customType === 'area' && obj.customData) {
-          const data = obj.customData
+          const data = obj.customData as AreaCustomData
           data.circles?.forEach((circle: Circle) => {
             circle.set({ visible: false })
           })
@@ -451,6 +531,25 @@ export default class PaintBoard {
           data.lines?.forEach((line: Line) => {
             line.set({ visible: false })
           })
+        } else if (obj.customType === 'curve' && obj.customData) {
+          const data = obj.customData as CurveCustomData
+          data.circles?.forEach((circle: Circle) => {
+            circle.set({ visible: false })
+          })
+          data.labels?.forEach((label: Text) => {
+            label.set({ visible: false })
+          })
+        } else if (obj.customType === 'line' && obj.customData) {
+          const data = obj.customData as LineCustomData
+          if (data.startCircle) {
+            data.startCircle.set({ visible: false })
+          }
+          if (data.endCircle) {
+            data.endCircle.set({ visible: false })
+          }
+          if (data.label) {
+            data.label.set({ visible: false })
+          }
         }
       }
     )
@@ -507,7 +606,7 @@ export default class PaintBoard {
     let removed = false
     const objects = this.canvas.getObjects()
 
-    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData
+    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData | LineCustomData
 
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: CustomData }
@@ -527,11 +626,18 @@ export default class PaintBoard {
           case 'curve':
             objId = (customObj.customData as CurveCustomData).curveId
             break
+          case 'line':
+            objId = (customObj.customData as LineCustomData).lineId
+            break
         }
 
         if (objId === id) {
           if (customObj.customType === 'area') {
             this._removeAreaWithHelpers(customObj as FabricObject & { customData: AreaCustomData })
+          } else if (customObj.customType === 'curve') {
+            this._removeCurveWithHelpers(customObj as FabricObject & { customData: CurveCustomData })
+          } else if (customObj.customType === 'line') {
+            this._removeLineWithHelpers(customObj as FabricObject & { customData: LineCustomData })
           } else {
             this.canvas.remove(obj)
           }
@@ -565,13 +671,42 @@ export default class PaintBoard {
     this.canvas.remove(areaObj)
   }
 
+  private _removeCurveWithHelpers(curveObj: FabricObject & { customData: CurveCustomData }): void {
+    if (!this.canvas) return
+
+    const data = curveObj.customData
+    data.circles?.forEach((circle: Circle) => {
+      this.canvas!.remove(circle)
+    })
+    data.labels?.forEach((label: Text) => {
+      this.canvas!.remove(label)
+    })
+    this.canvas.remove(curveObj)
+  }
+
+  private _removeLineWithHelpers(lineObj: FabricObject & { customData: LineCustomData }): void {
+    if (!this.canvas) return
+
+    const data = lineObj.customData
+    if (data.startCircle) {
+      this.canvas.remove(data.startCircle)
+    }
+    if (data.endCircle) {
+      this.canvas.remove(data.endCircle)
+    }
+    if (data.label) {
+      this.canvas.remove(data.label)
+    }
+    this.canvas.remove(lineObj)
+  }
+
   getCustomObjects(): Array<{ id: string; type: string; object: FabricObject }> {
     if (!this.canvas) return []
 
     const result: Array<{ id: string; type: string; object: FabricObject }> = []
     const objects = this.canvas.getObjects()
 
-    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData
+    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData | LineCustomData
 
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: CustomData }
@@ -590,6 +725,9 @@ export default class PaintBoard {
             break
           case 'curve':
             id = (customObj.customData as CurveCustomData).curveId
+            break
+          case 'line':
+            id = (customObj.customData as LineCustomData).lineId
             break
         }
 
@@ -671,7 +809,7 @@ export default class PaintBoard {
   getObjectById(id: string): FabricObject | null {
     if (!this.canvas) return null
 
-    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData
+    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData | LineCustomData
 
     const objects = this.canvas.getObjects()
     for (const obj of objects) {
@@ -692,6 +830,9 @@ export default class PaintBoard {
           case 'curve':
             objId = (customObj.customData as CurveCustomData).curveId
             break
+          case 'line':
+            objId = (customObj.customData as LineCustomData).lineId
+            break
         }
 
         if (objId === id) {
@@ -701,6 +842,21 @@ export default class PaintBoard {
     }
 
     return null
+  }
+
+  createPersonTracker(options?: TrajectoryOptions): PersonTracker {
+    if (!this.canvas) {
+      throw new Error('Canvas not initialized')
+    }
+    if (this._personTracker) {
+      this._personTracker.destroy()
+    }
+    this._personTracker = new PersonTracker(this.canvas, this.eventBus, options)
+    return this._personTracker
+  }
+
+  getPersonTracker(): PersonTracker | null {
+    return this._personTracker
   }
 
   private _bindCustomObjectEvents(obj: FabricObject, type: 'text' | 'image'): void {
@@ -745,6 +901,8 @@ export default class PaintBoard {
     }
     this.tools.forEach(tool => tool.destroy && tool.destroy())
     this.tools.clear()
+    this._personTracker?.destroy()
+    this._personTracker = null
     this.eventBus.clear()
     this.canvas?.dispose()
     if (this.container) {

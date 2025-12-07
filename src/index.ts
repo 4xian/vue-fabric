@@ -8,7 +8,9 @@ import AreaTool from './tools/AreaTool'
 import SelectTool from './tools/SelectTool'
 import TextTool from './tools/TextTool'
 import CurveTool from './tools/CurveTool'
+import LineTool from './tools/LineTool'
 import ImageTool from './tools/ImageTool'
+import PersonTracker from './utils/PersonTracker'
 import './styles/paint-board.css'
 
 export {
@@ -22,7 +24,9 @@ export {
   SelectTool,
   TextTool,
   CurveTool,
-  ImageTool
+  LineTool,
+  ImageTool,
+  PersonTracker
 }
 
 export default PaintBoard
@@ -35,10 +39,13 @@ export type {
   AreaCustomData,
   TextCustomData,
   CurveCustomData,
+  LineCustomData,
   HistoryState,
   ColorPickerOptions,
   ColorState,
   ToolbarOptions,
   ToolName,
-  EventCallback
+  EventCallback,
+  PersonData,
+  TrajectoryOptions
 } from '../types'

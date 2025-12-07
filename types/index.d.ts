@@ -67,6 +67,18 @@ export interface CurveToolOptions extends BaseToolOptions {
   labelFontSize?: number
   pointFillColor?: string
   pointHoverColor?: string
+  defaultShowHelpers?: boolean
+  enableFill?: boolean
+  perPixelTargetFind?: boolean
+}
+
+export interface LineToolOptions extends BaseToolOptions {
+  pointRadius?: number
+  labelFontSize?: number
+  pointFillColor?: string
+  pointHoverColor?: string
+  defaultShowHelpers?: boolean
+  perPixelTargetFind?: boolean
 }
 
 export interface ImageToolOptions extends BaseToolOptions {
@@ -107,6 +119,20 @@ export interface CurveCustomData {
   isClosed: boolean
   lineColor: string
   fillColor: string | null
+  circles?: Circle[]
+  labels?: Text[]
+  distances?: number[]
+}
+
+export interface LineCustomData {
+  lineId: string
+  startPoint: Point
+  endPoint: Point
+  distance: number
+  lineColor: string
+  startCircle?: Circle
+  endCircle?: Circle
+  label?: Text
 }
 
 export interface HistoryState {
@@ -131,6 +157,7 @@ export interface ColorState {
 
 export interface ToolbarOptions {
   tools?: string[]
+  visible?: boolean
 }
 
 export interface AddTextOptions {
@@ -182,5 +209,24 @@ export interface CustomImageData {
   createdAt: number
 }
 
-export type ToolName = 'select' | 'area' | 'curve' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
+export interface PersonData {
+  id: string
+  name: string
+  x: number
+  y: number
+  lineColor: string
+  trajectory?: Point[]
+}
+
+export interface TrajectoryOptions {
+  radius?: number
+  strokeWidth?: number
+  fontSize?: number
+  animationSpeed?: number
+  textColor?: string
+  lineWidth?: number
+  pathType?: 'line' | 'curve'
+}
+
+export type ToolName = 'select' | 'area' | 'curve' | 'line' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
 export type EventCallback = (data?: unknown) => void
