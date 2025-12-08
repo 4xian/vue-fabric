@@ -2,19 +2,14 @@ import * as fabric from 'fabric'
 import type { Canvas, Group, Circle, Polyline, Path } from 'fabric'
 import type { Point, PersonData, TrajectoryOptions } from '../../types'
 import EventBus from '../core/EventBus'
-
-const DEFAULT_RADIUS = 5
-const DEFAULT_STROKE_WIDTH = 2
-const DEFAULT_FONT_SIZE = 12
-const DEFAULT_ANIMATION_SPEED = 0.05
-const DEFAULT_TEXT_COLOR = '#333'
-const DEFAULT_LINE_WIDTH = 2
-const DEFAULT_PATH_TYPE: 'line' | 'curve' = 'line'
+import { DEFAULT_PERSON_TRACKER_OPTIONS } from '../utils/settings'
 
 interface PersonMarker {
   group: Group
   circle: Circle
   text: fabric.FabricText
+  blinkAnimationId?: number
+  personData?: PersonData
 }
 
 interface TrajectoryData {
@@ -32,27 +27,20 @@ export default class PersonTracker {
   private eventBus: EventBus
   private persons: Map<string, PersonMarker> = new Map()
   private trajectories: Map<string, TrajectoryData> = new Map()
-  private options: {
-    radius: number
-    strokeWidth: number
-    fontSize: number
-    animationSpeed: number
-    textColor: string
-    lineWidth: number
-    pathType: 'line' | 'curve'
-  }
+  private options: Required<TrajectoryOptions>
 
   constructor(canvas: Canvas, eventBus: EventBus, options?: Partial<TrajectoryOptions>) {
     this.canvas = canvas
     this.eventBus = eventBus
     this.options = {
-      radius: options?.radius ?? DEFAULT_RADIUS,
-      strokeWidth: options?.strokeWidth ?? DEFAULT_STROKE_WIDTH,
-      fontSize: options?.fontSize ?? DEFAULT_FONT_SIZE,
-      animationSpeed: options?.animationSpeed ?? DEFAULT_ANIMATION_SPEED,
-      textColor: options?.textColor ?? DEFAULT_TEXT_COLOR,
-      lineWidth: options?.lineWidth ?? DEFAULT_LINE_WIDTH,
-      pathType: options?.pathType ?? DEFAULT_PATH_TYPE
+      radius: options?.radius ?? DEFAULT_PERSON_TRACKER_OPTIONS.radius!,
+      strokeWidth: options?.strokeWidth ?? DEFAULT_PERSON_TRACKER_OPTIONS.strokeWidth!,
+      fontSize: options?.fontSize ?? DEFAULT_PERSON_TRACKER_OPTIONS.fontSize!,
+      animationSpeed: options?.animationSpeed ?? DEFAULT_PERSON_TRACKER_OPTIONS.animationSpeed!,
+      textColor: options?.textColor ?? DEFAULT_PERSON_TRACKER_OPTIONS.textColor!,
+      lineWidth: options?.lineWidth ?? DEFAULT_PERSON_TRACKER_OPTIONS.lineWidth!,
+      pathType: options?.pathType ?? DEFAULT_PERSON_TRACKER_OPTIONS.pathType!,
+      blinkInterval: options?.blinkInterval ?? DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!
     }
   }
 
@@ -106,6 +94,7 @@ export default class PersonTracker {
     const marker = this.persons.get(id)
     if (!marker) return false
 
+    this._stopBlinkAnimation(id)
     this.canvas.remove(marker.group)
     this.persons.delete(id)
     this.canvas.renderAll()
@@ -115,6 +104,7 @@ export default class PersonTracker {
 
   clearAll(): void {
     this.trajectories.forEach((_, id) => this.hideTrajectory(id))
+    this.persons.forEach((_, id) => this._stopBlinkAnimation(id))
     this.persons.forEach(marker => this.canvas.remove(marker.group))
     this.persons.clear()
     this.canvas.renderAll()
@@ -137,13 +127,15 @@ export default class PersonTracker {
       trajectory[0].x,
       trajectory[0].y,
       person.name,
-      person.lineColor
+      person.lineColor,
+      true
     )
     const endMarker = this._createMarkerGroup(
       trajectory[trajectory.length - 1].x,
       trajectory[trajectory.length - 1].y,
       person.name,
-      person.lineColor
+      person.lineColor,
+      true
     )
     const movingMarker = this._createMarkerGroup(
       trajectory[0].x,
@@ -151,6 +143,12 @@ export default class PersonTracker {
       person.name,
       person.lineColor
     )
+
+    const clickHandler = () => {
+      this.eventBus.emit('trajectory:click', { ...person, trajectory })
+    }
+    startMarker.group.on('mousedown', clickHandler)
+    endMarker.group.on('mousedown', clickHandler)
 
     this.canvas.add(pathLine)
     this.canvas.add(startMarker.group)
@@ -200,9 +198,19 @@ export default class PersonTracker {
   }
 
   private _createPersonMarker(person: PersonData): void {
-    const marker = this._createMarkerGroup(person.x, person.y, person.name, person.lineColor)
+    const marker = this._createMarkerGroup(person.x, person.y, person.name, person.lineColor, true)
+    marker.personData = person
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
+
+    marker.group.on('mousedown', () => {
+      this.eventBus.emit('person:click', { ...person })
+    })
+
+    if (this._shouldBlink(person.status)) {
+      this._startBlinkAnimation(person.id)
+    }
+
     this.eventBus.emit('person:created', { id: person.id })
   }
 
@@ -214,14 +222,18 @@ export default class PersonTracker {
     marker.circle.set({ stroke: person.lineColor })
     marker.text.set({ text: person.name })
     marker.group.setCoords()
+
+    const prevStatus = marker.personData?.status
+    marker.personData = person
+
+    if (this._shouldBlink(person.status) && !this._shouldBlink(prevStatus)) {
+      this._startBlinkAnimation(person.id)
+    } else if (!this._shouldBlink(person.status) && this._shouldBlink(prevStatus)) {
+      this._stopBlinkAnimation(person.id)
+    }
   }
 
-  private _createMarkerGroup(
-    x: number,
-    y: number,
-    name: string,
-    lineColor: string
-  ): PersonMarker {
+  private _createMarkerGroup(x: number, y: number, name: string, lineColor: string, evented: boolean = false): PersonMarker {
     const circle = new fabric.Circle({
       radius: this.options.radius,
       fill: 'transparent',
@@ -248,9 +260,10 @@ export default class PersonTracker {
       originX: 'center',
       originY: 'center',
       selectable: false,
-      evented: false,
+      evented: evented,
       hasBorders: false,
-      hasControls: false
+      hasControls: false,
+      hoverCursor: 'pointer'
     })
 
     ;(group as Group & { customType: string }).customType = 'personMarker'
@@ -443,5 +456,33 @@ export default class PersonTracker {
 
   destroy(): void {
     this.clearAll()
+  }
+
+  private _startBlinkAnimation(id: string): void {
+    const marker = this.persons.get(id)
+    if (!marker) return
+    this._stopBlinkAnimation(id)
+
+    let visible = true
+
+    marker.blinkAnimationId = window.setInterval(() => {
+      visible = !visible
+      marker.group.set({ opacity: visible ? 1 : 0 })
+      this.canvas.renderAll()
+    }, DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!);
+  }
+
+  private _stopBlinkAnimation(id: string): void {
+    const marker = this.persons.get(id)
+    if (!marker || !marker.blinkAnimationId) return
+
+    clearInterval(marker.blinkAnimationId)
+    marker.blinkAnimationId = undefined
+    marker.group.set({ opacity: 1 })
+    this.canvas.renderAll()
+  }
+
+  private _shouldBlink(status?: string): boolean {
+    return status === 'fainted'
   }
 }

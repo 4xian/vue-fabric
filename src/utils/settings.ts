@@ -7,7 +7,8 @@ import type {
   ImageToolOptions,
   TextToolOptions,
   LineToolOptions,
-  SelectToolOptions
+  SelectToolOptions,
+  TrajectoryOptions
 } from '../../types'
 
 // 项目名称
@@ -109,4 +110,16 @@ export const DEFAULT_IMAGETOOL_OPTIONS: ImageToolOptions = {
   defaultHasBorders: false,
   defaultLockMovement: true,
   defaultLockScaling: true
+}
+
+// 默认人员轨迹配置
+export const DEFAULT_PERSON_TRACKER_OPTIONS: TrajectoryOptions = {
+  radius: 5,
+  strokeWidth: 2,
+  fontSize: 12,
+  textColor: '#333',
+  lineWidth: 2,
+  pathType: 'curve' as 'line' | 'curve',
+  animationSpeed: 0.05,
+  blinkInterval: 1000
 }

@@ -217,6 +217,7 @@ export interface PersonData {
   x: number
   y: number
   lineColor: string
+  status?: 'normal' | 'fainted' | string
   trajectory?: Point[]
 }
 
@@ -228,6 +229,13 @@ export interface TrajectoryOptions {
   textColor?: string
   lineWidth?: number
   pathType?: 'line' | 'curve'
+  blinkInterval?: number
+}
+
+export interface PersonClickEventData extends PersonData {}
+
+export interface TrajectoryMarkerClickEventData extends PersonData {
+  trajectory: Point[]
 }
 
 export type ToolName = 'select' | 'area' | 'curve' | 'line' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
