@@ -9,12 +9,7 @@ import type {
 import type { CanvasManagerOptions } from '../../types'
 import { throttle } from '../utils/throttle'
 import EventBus from './EventBus'
-
-const DEFAULT_ZOOM_STEP = 1.1
-const DEFAULT_MIN_ZOOM = 0.1
-const DEFAULT_MAX_ZOOM = 10
-const DEFAULT_EXPAND_MARGIN = 50
-const DEFAULT_EXPAND_SIZE = 200
+import { DEFAULT_CANVAS_MANAGER_OPTIONS } from '../utils/settings'
 
 type ObjectMovingEvent = BasicTransformEvent<TPointerEvent> & { target: FabricObject }
 
@@ -33,11 +28,11 @@ export default class CanvasManager {
     this.canvas = canvas
     this.eventBus = eventBus
     this.options = {
-      zoomStep: options.zoomStep ?? DEFAULT_ZOOM_STEP,
-      minZoom: options.minZoom ?? DEFAULT_MIN_ZOOM,
-      maxZoom: options.maxZoom ?? DEFAULT_MAX_ZOOM,
-      expandMargin: options.expandMargin ?? DEFAULT_EXPAND_MARGIN,
-      expandSize: options.expandSize ?? DEFAULT_EXPAND_SIZE
+      zoomStep: options.zoomStep ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomStep!,
+      minZoom: options.minZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.minZoom!,
+      maxZoom: options.maxZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.maxZoom!,
+      expandMargin: options.expandMargin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandMargin!,
+      expandSize: options.expandSize ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandSize!
     }
     this.isDragging = false
     this.lastPosX = 0

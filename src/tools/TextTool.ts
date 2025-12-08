@@ -2,9 +2,7 @@ import * as fabric from 'fabric'
 import type { TPointerEventInfo, TPointerEvent, IText, FabricObject } from 'fabric'
 import type { TextCustomData, TextToolOptions, AddTextOptions } from '../../types'
 import BaseTool from './BaseTool'
-
-const DEFAULT_FONT_SIZE = 16
-const DEFAULT_FONT_FAMILY = 'Arial'
+import { DEFAULT_TEXTTOOL_OPTIONS } from '../utils/settings'
 
 export interface CreateTextResult {
   textObj: IText & { customType: string; customData: TextCustomData }
@@ -17,12 +15,12 @@ export default class TextTool extends BaseTool {
   constructor(options: TextToolOptions = {}) {
     super('text', options)
     this.options = {
-      activeCursor: options.activeCursor ?? 'text',
-      deactiveCursor: options.deactiveCursor ?? 'default',
-      fontSize: options.fontSize ?? DEFAULT_FONT_SIZE,
-      fontFamily: options.fontFamily ?? DEFAULT_FONT_FAMILY,
-      fill: options.fill ?? '#333',
-      perPixelTargetFind: options.perPixelTargetFind ?? false
+      activeCursor: options.activeCursor ?? DEFAULT_TEXTTOOL_OPTIONS.activeCursor!,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_TEXTTOOL_OPTIONS.deactiveCursor!,
+      fontSize: options.fontSize ?? DEFAULT_TEXTTOOL_OPTIONS.fontSize!,
+      fontFamily: options.fontFamily ?? DEFAULT_TEXTTOOL_OPTIONS.fontFamily!,
+      fill: options.fill ?? DEFAULT_TEXTTOOL_OPTIONS.fill!,
+      perPixelTargetFind: options.perPixelTargetFind ?? DEFAULT_TEXTTOOL_OPTIONS.perPixelTargetFind!
     }
   }
 

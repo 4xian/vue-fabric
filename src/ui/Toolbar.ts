@@ -2,13 +2,14 @@ import type { ToolbarOptions, ToolName } from '../../types'
 import ColorPicker from './ColorPicker'
 import type PaintBoard from '../core/PaintBoard'
 import type ImageTool from '../tools/ImageTool'
+import { PROJECT_NAME } from '../utils/settings'
 
 const TOOL_ICONS: Record<string, string> = {
   line: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3.5 22l1.5-1.5L18.5 7l1.5-1.5L18.5 4 17 5.5 3.5 19 2 20.5 3.5 22z"/></svg>`,
   area: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="3" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"/></svg>`,
-  curve: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 19c0-5.5 4.5-10 10-10s10 4.5 10 10" stroke="currentColor" stroke-width="2" fill="none"/></svg>`,
+  curve: `<svg viewBox="0 0 28 28" width="24" height="24"><path fill="currentColor" d="M4 19c0-5.5 4.5-10 10-10s10 4.5 10 10" stroke="currentColor" stroke-width="2" fill="none"/></svg>`,
   text: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M5 4v3h5.5v12h3V7H19V4z"/></svg>`,
-  image: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h-3zM5 19l3-4 2 3 3-4 4 5H5z"/></svg>`,
+  image: `<svg viewBox="0 0 16 16" width="20" height="20"><path fill="currentColor" d="M10.496 7c-.824 0-1.572-.675-1.498-1.5 0-.825.674-1.5 1.498-1.5.823 0 1.497.675 1.497 1.5S11.319 7 10.496 7zM13.8 9.476V2.2H2.2v5.432l.1-.078C3.132 6.904 4.029 6.5 5 6.5c.823 0 1.552.27 2.342.778.226.145.449.304.735.518.06.045.546.413.69.52 1.634 1.21 2.833 1.6 4.798 1.207l.235-.047zm0 1.523V10.7c-5 1-6.3-3-8.8-3-1.5 0-2.8 1.6-2.8 1.6v4.6h11.6V11zM14 1c.6 0 1 .536 1 1.071v11.784c0 .642-.4 1.071-1 1.071H2c-.6 0-1-.429-1-1.07V2.07c0-.535.4-1.07 1-1.07h12z"></path></svg>`,
   zoomIn: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7H9v2H7v1h2v2h1v-2h2V9h-2z"/></svg>`,
   zoomOut: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z"/></svg>`,
   fitZoom: `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>`,
@@ -20,7 +21,7 @@ const TOOL_ICONS: Record<string, string> = {
 }
 
 const TOOL_TITLES: Record<string, string> = {
-  select: '选择工具',
+  select: '选择',
   line: '画直线',
   area: '画区域',
   curve: '画曲线',
@@ -28,16 +29,14 @@ const TOOL_TITLES: Record<string, string> = {
   image: '上传图片',
   undo: '撤销',
   redo: '重做',
-  zoomIn: '放大',
-  zoomOut: '缩小',
+  zoomIn: '放大视图',
+  zoomOut: '缩小视图',
   fitZoom: '重置视图',
   download: '下载图片',
-  lineColor: '线条颜色',
+  lineColor: '线段颜色',
   fillColor: '填充颜色',
-  toggleHelpers: '显示/隐藏距离'
+  toggleHelpers: '显示/隐藏距离提示'
 }
-
-// const SELECTABLE_TOOLS = ['select', 'area', 'curve', 'text']
 
 const DEFAULT_TOOLS: ToolName[] = [
   'lineColor',
@@ -97,7 +96,7 @@ export default class Toolbar {
 
   private _createContainer(): void {
     this.container = document.createElement('div')
-    this.container.className = 'paint-toolbar'
+    this.container.className = `${PROJECT_NAME} paint-toolbar`
     this.paintBoard.container?.appendChild(this.container)
   }
 

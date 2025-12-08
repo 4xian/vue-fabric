@@ -1,7 +1,7 @@
 import * as fabric from 'fabric'
 import type { Canvas, FabricObject, Circle, Line, Text, FabricImage } from 'fabric'
 import type {
-  PaintBoardOptions,
+  FabricPaintOptions,
   ExportImageOptions,
   EventCallback,
   AreaCustomData,
@@ -22,22 +22,11 @@ import CanvasManager from './CanvasManager'
 import UndoRedoManager from '../utils/UndoRedoManager'
 import * as exportUtils from '../utils/export'
 import BaseTool from '../tools/BaseTool'
+import { PROJECT_NAME, DEFAULT_VUEFABRIC_OPTIONS } from '../utils/settings'
 
-const defaultOptions: PaintBoardOptions = {
-  width: 800,
-  height: 800,
-  backgroundColor: 'transparent',
-  lineColor: 'rgba(2, 167, 240, 1)',
-  fillColor: 'rgba(128, 255, 255, 1)',
-  selection: true,
-  preserveObjectStacking: true,
-  perPixelTargetFind: false,
-  targetFindTolerance: 0
-}
-
-export default class PaintBoard {
+export default class VueFabric {
   container: HTMLElement | null
-  options: Required<PaintBoardOptions>
+  options: Required<FabricPaintOptions>
   canvas: Canvas | null
   eventBus: EventBus
   canvasManager: CanvasManager | null
@@ -52,9 +41,9 @@ export default class PaintBoard {
   private _bgImageOptions: BackgroundImageOptions | null
   private _personTracker: PersonTracker | null
 
-  constructor(container: string | HTMLElement, options: PaintBoardOptions = {}) {
+  constructor(container: string | HTMLElement, options: FabricPaintOptions = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container
-    this.options = { ...defaultOptions, ...options } as Required<PaintBoardOptions>
+    this.options = { ...DEFAULT_VUEFABRIC_OPTIONS, ...options } as Required<FabricPaintOptions>
     this.canvas = null
     this.eventBus = new EventBus()
     this.canvasManager = null
@@ -89,7 +78,7 @@ export default class PaintBoard {
     if (!this.container) return
 
     const canvasEl = document.createElement('canvas')
-    canvasEl.id = `paint-board-${Date.now()}`
+    canvasEl.id = `${PROJECT_NAME}-${Date.now()}`
     this.container.appendChild(canvasEl)
 
     this.canvas = new fabric.Canvas(canvasEl, {
@@ -115,10 +104,19 @@ export default class PaintBoard {
     if (!this.canvas) return
     this.undoRedoManager = new UndoRedoManager(this.canvas, this.eventBus, {
       excludeTypes: [
-        'text', 'customImage',
-        'area', 'areaPoint', 'areaLine', 'areaLabel',
-        'curve', 'curveHelper', 'curveHelperLabel', 'curvePreview',
-        'line', 'lineHelper', 'lineHelperLabel'
+        'text',
+        'customImage',
+        'area',
+        'areaPoint',
+        'areaLine',
+        'areaLabel',
+        'curve',
+        'curveHelper',
+        'curveHelperLabel',
+        'curvePreview',
+        'line',
+        'lineHelper',
+        'lineHelperLabel'
       ],
       getBackgroundImage: () => this._backgroundImage
     })
@@ -224,7 +222,6 @@ export default class PaintBoard {
   }
 
   redo(): boolean {
-
     if (this.currentTool?.canRedoTool()) {
       return this.currentTool.redo()
     }
@@ -468,7 +465,12 @@ export default class PaintBoard {
   showAllAreaHelpers(): this {
     if (!this.canvas) return this
     this.canvas.forEachObject(
-      (obj: FabricObject & { customType?: string; customData?: AreaCustomData | CurveCustomData | LineCustomData }) => {
+      (
+        obj: FabricObject & {
+          customType?: string
+          customData?: AreaCustomData | CurveCustomData | LineCustomData
+        }
+      ) => {
         if (obj.customType === 'area' && obj.customData) {
           const data = obj.customData as AreaCustomData
           data.lines?.forEach((line: Line) => {
@@ -519,7 +521,12 @@ export default class PaintBoard {
   hideAllAreaHelpers(): this {
     if (!this.canvas) return this
     this.canvas.forEachObject(
-      (obj: FabricObject & { customType?: string; customData?: AreaCustomData | CurveCustomData | LineCustomData }) => {
+      (
+        obj: FabricObject & {
+          customType?: string
+          customData?: AreaCustomData | CurveCustomData | LineCustomData
+        }
+      ) => {
         if (obj.customType === 'area' && obj.customData) {
           const data = obj.customData as AreaCustomData
           data.circles?.forEach((circle: Circle) => {
@@ -606,7 +613,12 @@ export default class PaintBoard {
     let removed = false
     const objects = this.canvas.getObjects()
 
-    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData | LineCustomData
+    type CustomData =
+      | TextCustomData
+      | CustomImageData
+      | AreaCustomData
+      | CurveCustomData
+      | LineCustomData
 
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: CustomData }
@@ -635,7 +647,9 @@ export default class PaintBoard {
           if (customObj.customType === 'area') {
             this._removeAreaWithHelpers(customObj as FabricObject & { customData: AreaCustomData })
           } else if (customObj.customType === 'curve') {
-            this._removeCurveWithHelpers(customObj as FabricObject & { customData: CurveCustomData })
+            this._removeCurveWithHelpers(
+              customObj as FabricObject & { customData: CurveCustomData }
+            )
           } else if (customObj.customType === 'line') {
             this._removeLineWithHelpers(customObj as FabricObject & { customData: LineCustomData })
           } else {
@@ -706,7 +720,12 @@ export default class PaintBoard {
     const result: Array<{ id: string; type: string; object: FabricObject }> = []
     const objects = this.canvas.getObjects()
 
-    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData | LineCustomData
+    type CustomData =
+      | TextCustomData
+      | CustomImageData
+      | AreaCustomData
+      | CurveCustomData
+      | LineCustomData
 
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: CustomData }
@@ -809,7 +828,12 @@ export default class PaintBoard {
   getObjectById(id: string): FabricObject | null {
     if (!this.canvas) return null
 
-    type CustomData = TextCustomData | CustomImageData | AreaCustomData | CurveCustomData | LineCustomData
+    type CustomData =
+      | TextCustomData
+      | CustomImageData
+      | AreaCustomData
+      | CurveCustomData
+      | LineCustomData
 
     const objects = this.canvas.getObjects()
     for (const obj of objects) {

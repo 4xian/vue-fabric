@@ -1,6 +1,7 @@
 import type { FabricObject } from 'fabric'
 import type { SelectToolOptions } from '../../types'
 import BaseTool from './BaseTool'
+import { DEFAULT_SELECTTOOL_OPTIONS } from '../utils/settings'
 
 export default class SelectTool extends BaseTool {
   protected override options: Required<SelectToolOptions>
@@ -8,9 +9,9 @@ export default class SelectTool extends BaseTool {
   constructor(options: SelectToolOptions = {}) {
     super('select', options)
     this.options = {
-      activeCursor: options.activeCursor ?? 'default',
-      deactiveCursor: options.deactiveCursor ?? 'default',
-      allowSelection: options.allowSelection ?? false
+      activeCursor: options.activeCursor ?? DEFAULT_SELECTTOOL_OPTIONS.activeCursor!,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_SELECTTOOL_OPTIONS.deactiveCursor!,
+      allowSelection: options.allowSelection ?? DEFAULT_SELECTTOOL_OPTIONS.allowSelection!
     }
   }
 
@@ -31,11 +32,11 @@ export default class SelectTool extends BaseTool {
     this.canvas.renderAll()
   }
 
-  onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      this._deleteSelected()
-    }
-  }
+  // onKeyDown(e: KeyboardEvent): void {
+  // if (e.key === 'Delete' || e.key === 'Backspace') {
+  //   this._deleteSelected()
+  // }
+  // }
 
   private _deleteSelected(): void {
     if (!this.canvas || !this.eventBus) return

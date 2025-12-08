@@ -2,6 +2,7 @@ import * as fabric from 'fabric'
 import type { FabricImage, FabricObject } from 'fabric'
 import type { ImageToolOptions, AddImageOptions, CustomImageData } from '../../types'
 import BaseTool from './BaseTool'
+import { DEFAULT_IMAGETOOL_OPTIONS } from '../utils/settings'
 
 export interface CreateImageResult {
   imageObj: FabricImage & { customType: string; customData: CustomImageData }
@@ -15,13 +16,16 @@ export default class ImageTool extends BaseTool {
   constructor(options: ImageToolOptions = {}) {
     super('image', options)
     this.options = {
-      activeCursor: options.activeCursor ?? 'default',
-      deactiveCursor: options.deactiveCursor ?? 'default',
-      defaultSelectable: options.defaultSelectable ?? false,
-      defaultHasControls: options.defaultHasControls ?? false,
-      defaultHasBorders: options.defaultHasBorders ?? false,
-      defaultLockMovement: options.defaultLockMovement ?? true,
-      defaultLockScaling: options.defaultLockScaling ?? true
+      activeCursor: options.activeCursor ?? DEFAULT_IMAGETOOL_OPTIONS.activeCursor!,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_IMAGETOOL_OPTIONS.deactiveCursor!,
+      defaultSelectable: options.defaultSelectable ?? DEFAULT_IMAGETOOL_OPTIONS.defaultSelectable!,
+      defaultHasControls:
+        options.defaultHasControls ?? DEFAULT_IMAGETOOL_OPTIONS.defaultHasControls!,
+      defaultHasBorders: options.defaultHasBorders ?? DEFAULT_IMAGETOOL_OPTIONS.defaultHasBorders!,
+      defaultLockMovement:
+        options.defaultLockMovement ?? DEFAULT_IMAGETOOL_OPTIONS.defaultLockMovement!,
+      defaultLockScaling:
+        options.defaultLockScaling ?? DEFAULT_IMAGETOOL_OPTIONS.defaultLockScaling!
     }
     this._fileInput = null
   }

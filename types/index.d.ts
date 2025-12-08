@@ -11,7 +11,7 @@ export interface BackgroundImageOptions {
   opacity?: number
 }
 
-export interface PaintBoardOptions {
+export interface FabricPaintOptions {
   width?: number
   height?: number
   backgroundColor?: string
@@ -24,7 +24,7 @@ export interface PaintBoardOptions {
   targetFindTolerance?: number
 }
 
-export interface CanvasManagerOptions extends PaintBoardOptions {
+export interface CanvasManagerOptions extends FabricPaintOptions {
   zoomStep?: number
   minZoom?: number
   maxZoom?: number
@@ -38,6 +38,8 @@ export interface BaseToolOptions {
 }
 
 export interface AreaToolOptions extends BaseToolOptions {
+  activeCursor?: string
+  deactiveCursor?: string
   closeThreshold?: number
   pointRadius?: number
   labelFontSize?: number

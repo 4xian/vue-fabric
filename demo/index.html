@@ -100,48 +100,47 @@
   <div class="toolbar-top">
     <div class="toolbar-row">
       <button onclick="board.setTool('select')">选择</button>
-      <button onclick="addCustomText()">新增文字</button>
-      <button onclick="addCustomImage()">新增图片</button>
-      <button onclick="board.setTool('curve')">画曲线</button>
-      <button onclick="deleteSelected()">删除选中</button>
-      <button onclick="board.undo()">撤销</button>
-      <button onclick="board.redo()">还原</button>
-      <button onclick="board.zoomIn()">放大</button>
-      <button onclick="board.zoomOut()">缩小</button>
-      <button onclick="board.resetZoom()">还原视图</button>
-      <button onclick="board.toggleAreaHelpers()">显示/隐藏距离</button>
-      <button onclick="toolbar.show()">显示工具栏</button>
-      <button onclick="toolbar.hide()">隐藏工具栏</button>
+      <!-- <button onclick="addCustomText()">新增文字</button> -->
+      <!-- <button onclick="addCustomImage()">新增图片</button> -->
+      <!-- <button onclick="board.setTool('curve')">画曲线</button> -->
+      <!-- <button onclick="board.undo()">撤销</button> -->
+      <!-- <button onclick="board.redo()">还原</button> -->
+      <!-- <button onclick="board.zoomIn()">放大</button> -->
+      <!-- <button onclick="board.zoomOut()">缩小</button> -->
+      <!-- <button onclick="board.resetZoom()">还原视图</button> -->
+      <!-- <button onclick="board.toggleAreaHelpers()">显示/隐藏距离</button> -->
+      <!-- <button onclick="toolbar.show()">显示工具栏</button> -->
+      <!-- <button onclick="toolbar.hide()">隐藏工具栏</button> -->
       <!-- <button onclick="listCustomObjects()">列出对象</button> -->
     </div>
     <div class="toolbar-row">
       <button onclick="board.clear()">清空画布</button>
-      <button onclick="exportCanvas()">导出JSON</button>
-      <button onclick="board.exportToImage()">下载图片</button>
+      <!-- <button onclick="exportCanvas()">导出JSON</button> -->
+      <!-- <button onclick="board.exportToImage()">下载图片</button> -->
     </div>
-    <div class="toolbar-row">
+    <!-- <div class="toolbar-row">
       <label>修改文字:</label>
       <input type="text" id="textIdInput" placeholder="输入文字ID">
       <button onclick="updateTextByInput()">修改文字</button>
-    </div>
-    <div class="toolbar-row">
+    </div> -->
+    <!-- <div class="toolbar-row">
       <label>操作图片:</label>
       <input type="text" id="imageIdInput" placeholder="输入图片ID">
       <button onclick="rotateImageByInput()">旋转图片</button>
-    </div>
-    <div class="toolbar-row">
+    </div> -->
+    <!-- <div class="toolbar-row">
       <label>删除对象:</label>
       <input type="text" id="deleteIdInput" placeholder="输入要删除的ID">
       <button onclick="deleteByInput()">删除</button>
-    </div>
-    <div class="toolbar-row">
+    </div> -->
+    <!-- <div class="toolbar-row">
       <label>人员追踪:</label>
       <button onclick="initPersons()">初始化人员</button>
       <button onclick="updatePersonPositions()">更新位置</button>
       <button onclick="showTrajectoryDemo('line')">直线轨迹</button>
       <button onclick="showTrajectoryDemo('curve')">曲线轨迹</button>
       <button onclick="clearPersons()">清除人员</button>
-    </div>
+    </div> -->
     <!-- <div class="toolbar-row">
       <label>背景图:</label>
       <input type="text" id="bgImageInput" placeholder="输入图片URL或Base64">
@@ -159,7 +158,7 @@
   </div>
 
   <div id="canvas-container"></div>
-  <div class="mouse-position" id="mousePosition">X: 0, Y: 0</div>
+  <!-- <div class="mouse-position" id="mousePosition">X: 0, Y: 0</div> -->
 
   <!-- <div class="info">
     <p>操作提示：</p>
@@ -176,43 +175,39 @@
   <script src="/demo/static/fabric.js"></script>
   <script src="/dist/index.umd.js"></script>
   <script>
-    const { PaintBoard, AreaTool, SelectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
+    const { FabricPaint, AreaTool, SelectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
+    console.log(VueFabric)
     const container = document.getElementById('canvas-container')
-    const board = new PaintBoard('#canvas-container', {
+    const board = new FabricPaint('#canvas-container', {
       width: container.clientWidth,
       height: container.clientHeight,
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
       backgroundColor: '#ffffff',
-      backgroundImage: '../demo/static/draw-bg.png'
+      // backgroundImage: '../demo/static/draw-bg.png'
     }).init()
 
     board
-      .registerTool('select', new SelectTool({
-        allowSelection: false
-      }))
+      .registerTool('select', new SelectTool())
       .registerTool('line', new LineTool())
-      .registerTool('area', new AreaTool({
-        defaultShowHelpers: true,
-        allowOverlap: true,
-        enableFill: true
-      }))
+      .registerTool('area', new AreaTool())
       .registerTool('curve', new CurveTool())
       .registerTool('text', new TextTool())
       .registerTool('image', new ImageTool())
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      tools: ['lineColor', 'fillColor', 'select', 'line', 'area', 'curve', 'image', 'toggleHelpers', 'undo', 'redo'],
+      tools: ['lineColor', 'fillColor', 'select', 'line'],
+      // tools: ['lineColor', 'fillColor', 'select', 'line', 'area', 'curve', 'image', 'toggleHelpers', 'undo', 'redo'],
       visible: true
       // tools: ['select', 'area', 'toggleHelpers']
     }).init()
 
     // 监听鼠标移动事件，实时显示坐标
-    const mousePositionEl = document.getElementById('mousePosition')
-    board.on('mouse:move', (data) => {
-      mousePositionEl.textContent = `X: ${data.x}, Y: ${data.y}`
-    })
+    // const mousePositionEl = document.getElementById('mousePosition')
+    // board.on('mouse:move', (data) => {
+    //   mousePositionEl.textContent = `X: ${data.x}, Y: ${data.y}`
+    // })
 
     board.on('line:created', (data) => {
       console.log('直线已创建:', data)

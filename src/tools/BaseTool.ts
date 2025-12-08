@@ -1,16 +1,14 @@
 import type { Canvas, TPointerEventInfo, TPointerEvent } from 'fabric'
 import type { Point, BaseToolOptions } from '../../types'
 import EventBus from '../core/EventBus'
-import type PaintBoard from '../core/PaintBoard'
-
-const DEFAULT_ACTIVE_CURSOR = 'crosshair'
-const DEFAULT_DEACTIVATE_CURSOR = 'default'
+import type VueFabric from '../core/PaintBoard'
+import { DEFAULT_BASETOOL_OPTIONS } from '../utils/settings'
 
 export default class BaseTool {
   name: string
   canvas: Canvas | null
   eventBus: EventBus | null
-  paintBoard: PaintBoard | null
+  paintBoard: VueFabric | null
   isActive: boolean
   protected options: Required<BaseToolOptions>
 
@@ -26,8 +24,8 @@ export default class BaseTool {
     this.paintBoard = null
     this.isActive = false
     this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_ACTIVE_CURSOR,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_DEACTIVATE_CURSOR
+      activeCursor: options.activeCursor ?? DEFAULT_BASETOOL_OPTIONS.activeCursor!,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_BASETOOL_OPTIONS.deactiveCursor!
     }
     this._bindHandlers()
   }
@@ -39,7 +37,7 @@ export default class BaseTool {
     this._onKeyDown = this._handleKeyDown.bind(this)
   }
 
-  bindCanvas(canvas: Canvas, eventBus: EventBus, paintBoard: PaintBoard): void {
+  bindCanvas(canvas: Canvas, eventBus: EventBus, paintBoard: VueFabric): void {
     this.canvas = canvas
     this.eventBus = eventBus
     this.paintBoard = paintBoard

@@ -3,12 +3,7 @@ import type { TPointerEventInfo, TPointerEvent, Circle, Line, Text, Polygon, Rec
 import type { Point, AreaCustomData, AreaToolOptions } from '../../types'
 import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
-
-const DEFAULT_CLOSE_THRESHOLD = 8
-const DEFAULT_POINT_RADIUS = 3
-const DEFAULT_LABEL_FONT_SIZE = 12
-const DEFAULT_POINT_FILL_COLOR = '#ff0000'
-const DEFAULT_POINT_HOVER_COLOR = '#ff0000'
+import { DEFAULT_AREATOOL_OPTIONS } from '../utils/settings'
 
 interface UndoState {
   point: Point
@@ -34,17 +29,18 @@ export default class AreaTool extends BaseTool {
   constructor(options: AreaToolOptions = {}) {
     super('area', options)
     this.options = {
-      activeCursor: options.activeCursor ?? 'crosshair',
-      deactiveCursor: options.deactiveCursor ?? 'default',
-      closeThreshold: options.closeThreshold ?? DEFAULT_CLOSE_THRESHOLD,
-      pointRadius: options.pointRadius ?? DEFAULT_POINT_RADIUS,
-      labelFontSize: options.labelFontSize ?? DEFAULT_LABEL_FONT_SIZE,
-      pointFillColor: options.pointFillColor ?? DEFAULT_POINT_FILL_COLOR,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_POINT_HOVER_COLOR,
-      defaultShowHelpers: options.defaultShowHelpers ?? true,
-      allowOverlap: options.allowOverlap ?? true,
-      enableFill: options.enableFill ?? true,
-      perPixelTargetFind: options.perPixelTargetFind ?? true
+      activeCursor: options.activeCursor ?? DEFAULT_AREATOOL_OPTIONS.activeCursor!,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_AREATOOL_OPTIONS.deactiveCursor!,
+      closeThreshold: options.closeThreshold ?? DEFAULT_AREATOOL_OPTIONS.closeThreshold!,
+      pointRadius: options.pointRadius ?? DEFAULT_AREATOOL_OPTIONS.pointRadius!,
+      labelFontSize: options.labelFontSize ?? DEFAULT_AREATOOL_OPTIONS.labelFontSize!,
+      pointFillColor: options.pointFillColor ?? DEFAULT_AREATOOL_OPTIONS.pointFillColor!,
+      pointHoverColor: options.pointHoverColor ?? DEFAULT_AREATOOL_OPTIONS.pointHoverColor!,
+      defaultShowHelpers:
+        options.defaultShowHelpers ?? DEFAULT_AREATOOL_OPTIONS.defaultShowHelpers!,
+      allowOverlap: options.allowOverlap ?? DEFAULT_AREATOOL_OPTIONS.allowOverlap!,
+      enableFill: options.enableFill ?? DEFAULT_AREATOOL_OPTIONS.enableFill!,
+      perPixelTargetFind: options.perPixelTargetFind ?? DEFAULT_AREATOOL_OPTIONS.perPixelTargetFind!
     }
     this.isDrawingState = false
     this.points = []

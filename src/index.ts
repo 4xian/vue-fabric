@@ -1,4 +1,4 @@
-import PaintBoard from './core/PaintBoard'
+import FabricPaint from './core/PaintBoard'
 import EventBus from './core/EventBus'
 import CanvasManager from './core/CanvasManager'
 import Toolbar from './ui/Toolbar'
@@ -11,10 +11,10 @@ import CurveTool from './tools/CurveTool'
 import LineTool from './tools/LineTool'
 import ImageTool from './tools/ImageTool'
 import PersonTracker from './utils/PersonTracker'
-import './styles/paint-board.css'
+import './styles/ui.css'
 
 export {
-  PaintBoard,
+  FabricPaint,
   EventBus,
   CanvasManager,
   Toolbar,
@@ -29,11 +29,11 @@ export {
   PersonTracker
 }
 
-export default PaintBoard
+export default FabricPaint
 
 export type {
   Point,
-  PaintBoardOptions,
+  FabricPaintOptions,
   CanvasManagerOptions,
   ExportImageOptions,
   AreaCustomData,

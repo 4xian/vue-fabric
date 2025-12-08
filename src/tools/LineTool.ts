@@ -3,11 +3,7 @@ import type { TPointerEventInfo, TPointerEvent, Circle, Line, Text, Rect } from 
 import type { Point, LineToolOptions, LineCustomData } from '../../types'
 import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
-
-const DEFAULT_POINT_RADIUS = 3
-const DEFAULT_LABEL_FONT_SIZE = 12
-const DEFAULT_POINT_FILL_COLOR = '#ff0000'
-const DEFAULT_POINT_HOVER_COLOR = '#ff0000'
+import { DEFAULT_LINETOOL_OPTIONS } from '../utils/settings'
 
 interface LineUndoState {
   type: 'drawing' | 'complete'
@@ -36,14 +32,15 @@ export default class LineTool extends BaseTool {
   constructor(options: LineToolOptions = {}) {
     super('line', options)
     this.options = {
-      activeCursor: options.activeCursor ?? 'crosshair',
-      deactiveCursor: options.deactiveCursor ?? 'default',
-      pointRadius: options.pointRadius ?? DEFAULT_POINT_RADIUS,
-      labelFontSize: options.labelFontSize ?? DEFAULT_LABEL_FONT_SIZE,
-      pointFillColor: options.pointFillColor ?? DEFAULT_POINT_FILL_COLOR,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_POINT_HOVER_COLOR,
-      defaultShowHelpers: options.defaultShowHelpers ?? true,
-      perPixelTargetFind: options.perPixelTargetFind ?? true
+      activeCursor: options.activeCursor ?? DEFAULT_LINETOOL_OPTIONS.activeCursor!,
+      deactiveCursor: options.deactiveCursor ?? DEFAULT_LINETOOL_OPTIONS.deactiveCursor!,
+      pointRadius: options.pointRadius ?? DEFAULT_LINETOOL_OPTIONS.pointRadius!,
+      labelFontSize: options.labelFontSize ?? DEFAULT_LINETOOL_OPTIONS.labelFontSize!,
+      pointFillColor: options.pointFillColor ?? DEFAULT_LINETOOL_OPTIONS.pointFillColor!,
+      pointHoverColor: options.pointHoverColor ?? DEFAULT_LINETOOL_OPTIONS.pointHoverColor!,
+      defaultShowHelpers:
+        options.defaultShowHelpers ?? DEFAULT_LINETOOL_OPTIONS.defaultShowHelpers!,
+      perPixelTargetFind: options.perPixelTargetFind ?? DEFAULT_LINETOOL_OPTIONS.perPixelTargetFind!
     }
     this.isDrawingState = false
     this.startPoint = null
@@ -238,7 +235,7 @@ export default class LineTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#666',
+      fill: '#000',
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -311,7 +308,7 @@ export default class LineTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#333',
+      fill: '#666',
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -398,7 +395,11 @@ export default class LineTool extends BaseTool {
     })
   }
 
-  private _moveLineHelpers(line: Line & { customData: LineCustomData }, dx: number, dy: number): void {
+  private _moveLineHelpers(
+    line: Line & { customData: LineCustomData },
+    dx: number,
+    dy: number
+  ): void {
     if (!this.canvas) return
     const data = line.customData
 

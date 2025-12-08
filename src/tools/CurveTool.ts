@@ -2,12 +2,7 @@ import * as fabric from 'fabric'
 import type { TPointerEventInfo, TPointerEvent, Circle, Path, Rect, Text } from 'fabric'
 import type { Point, CurveCustomData, CurveToolOptions } from '../../types'
 import BaseTool from './BaseTool'
-
-const DEFAULT_TENSION = 0.5
-const DEFAULT_POINT_RADIUS = 3
-const DEFAULT_CLOSE_THRESHOLD = 8
-const DEFAULT_POINT_FILL_COLOR = '#ff0000'
-const DEFAULT_POINT_HOVER_COLOR = '#ff0000'
+import { DEFAULT_CURVETOOL_OPTIONS } from '../utils/settings'
 
 interface CurveUndoState {
   point: Point
@@ -15,6 +10,8 @@ interface CurveUndoState {
   label: Text | null
   distance: number | null
 }
+
+const svgNS = 'http://www.w3.org/2000/svg'
 
 export default class CurveTool extends BaseTool {
   protected override options: Required<CurveToolOptions>
@@ -33,15 +30,17 @@ export default class CurveTool extends BaseTool {
     this.options = {
       activeCursor: options.activeCursor ?? 'crosshair',
       deactiveCursor: options.deactiveCursor ?? 'default',
-      tension: options.tension ?? DEFAULT_TENSION,
-      pointRadius: options.pointRadius ?? DEFAULT_POINT_RADIUS,
-      closeThreshold: options.closeThreshold ?? DEFAULT_CLOSE_THRESHOLD,
-      labelFontSize: options.labelFontSize ?? 12,
-      pointFillColor: options.pointFillColor ?? DEFAULT_POINT_FILL_COLOR,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_POINT_HOVER_COLOR,
-      defaultShowHelpers: options.defaultShowHelpers ?? true,
-      enableFill: options.enableFill ?? false,
-      perPixelTargetFind: options.perPixelTargetFind ?? true
+      tension: options.tension ?? DEFAULT_CURVETOOL_OPTIONS.tension!,
+      pointRadius: options.pointRadius ?? DEFAULT_CURVETOOL_OPTIONS.pointRadius!,
+      closeThreshold: options.closeThreshold ?? DEFAULT_CURVETOOL_OPTIONS.closeThreshold!,
+      labelFontSize: options.labelFontSize ?? DEFAULT_CURVETOOL_OPTIONS.labelFontSize!,
+      pointFillColor: options.pointFillColor ?? DEFAULT_CURVETOOL_OPTIONS.pointFillColor!,
+      pointHoverColor: options.pointHoverColor ?? DEFAULT_CURVETOOL_OPTIONS.pointHoverColor!,
+      defaultShowHelpers:
+        options.defaultShowHelpers ?? DEFAULT_CURVETOOL_OPTIONS.defaultShowHelpers!,
+      enableFill: options.enableFill ?? DEFAULT_CURVETOOL_OPTIONS.enableFill!,
+      perPixelTargetFind:
+        options.perPixelTargetFind ?? DEFAULT_CURVETOOL_OPTIONS.perPixelTargetFind!
     }
     this.points = []
     this.circles = []
@@ -274,7 +273,6 @@ export default class CurveTool extends BaseTool {
 
   private _getClosingSegmentMidPoint(): Point {
     const pathData = this._generateClosingSegmentPath()
-    const svgNS = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(svgNS, 'svg')
     const path = document.createElementNS(svgNS, 'path')
     path.setAttribute('d', pathData)
@@ -308,7 +306,6 @@ export default class CurveTool extends BaseTool {
   }
 
   private _calculatePathLength(pathData: string): number {
-    const svgNS = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(svgNS, 'svg')
     const path = document.createElementNS(svgNS, 'path')
     path.setAttribute('d', pathData)
@@ -321,7 +318,6 @@ export default class CurveTool extends BaseTool {
 
   private _getSegmentMidPoint(segmentIndex: number): Point {
     const pathData = this._generateSegmentPath(segmentIndex)
-    const svgNS = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(svgNS, 'svg')
     const path = document.createElementNS(svgNS, 'path')
     path.setAttribute('d', pathData)
@@ -421,7 +417,6 @@ export default class CurveTool extends BaseTool {
   }
 
   private _getPreviewSegmentMidPoint(pathData: string): Point {
-    const svgNS = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(svgNS, 'svg')
     const path = document.createElementNS(svgNS, 'path')
     path.setAttribute('d', pathData)
@@ -483,7 +478,8 @@ export default class CurveTool extends BaseTool {
     this._clearPreview()
 
     const pathData = this._generateSmoothPath(this.points)
-    const fillColor = isClosed && this.options.enableFill ? this.paintBoard.fillColor : 'transparent'
+    const fillColor =
+      isClosed && this.options.enableFill ? this.paintBoard.fillColor : 'transparent'
 
     const curve = new fabric.Path(pathData, {
       fill: fillColor,
