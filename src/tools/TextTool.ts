@@ -14,14 +14,7 @@ export default class TextTool extends BaseTool {
 
   constructor(options: TextToolOptions = {}) {
     super('text', options)
-    this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_TEXTTOOL_OPTIONS.activeCursor!,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_TEXTTOOL_OPTIONS.deactiveCursor!,
-      fontSize: options.fontSize ?? DEFAULT_TEXTTOOL_OPTIONS.fontSize!,
-      fontFamily: options.fontFamily ?? DEFAULT_TEXTTOOL_OPTIONS.fontFamily!,
-      fill: options.fill ?? DEFAULT_TEXTTOOL_OPTIONS.fill!,
-      perPixelTargetFind: options.perPixelTargetFind ?? DEFAULT_TEXTTOOL_OPTIONS.perPixelTargetFind!
-    }
+    this.options = { ...DEFAULT_TEXTTOOL_OPTIONS, ...options } as Required<TextToolOptions>
   }
 
   onActivate(): void {
@@ -110,6 +103,22 @@ export default class TextTool extends BaseTool {
       this.eventBus!.emit('text:changed', {
         textId: textObj.customData.textId,
         text: textObj.text
+      })
+    })
+
+    textObj.on('mousedown', () => {
+      this.eventBus!.emit('text:clicked', {
+        textId: textObj.customData.textId,
+        text: textObj.text,
+        object: textObj
+      })
+    })
+
+    textObj.on('selected', () => {
+      this.eventBus!.emit('text:selected', {
+        textId: textObj.customData.textId,
+        text: textObj.text,
+        object: textObj
       })
     })
   }

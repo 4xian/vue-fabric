@@ -12,7 +12,7 @@ import type {
   BackgroundImageOptions,
   CurveCustomData,
   LineCustomData,
-  TrajectoryOptions
+  TraceOptions
 } from '../../types'
 import PersonTracker from '../utils/PersonTracker'
 import TextTool from '../tools/TextTool'
@@ -53,7 +53,7 @@ export default class VueFabric {
     this.fillColor = this.options.fillColor
     this.undoRedoManager = null
     this._initialized = false
-    this._helpersVisible = false
+    this._helpersVisible = this.options.defaultShowHelpers
     this._backgroundImage = null
     this._bgImageOptions = null
     this._personTracker = null
@@ -67,9 +67,9 @@ export default class VueFabric {
     this._bindEvents()
     this._initialized = true
 
-    if (this.options.backgroundImage) {
-      this.setBackgroundImage(this.options.backgroundImage)
-    }
+    // if (this.options.backgroundImage) {
+    //   this.setBackgroundImage(this.options.backgroundImage)
+    // }
 
     return this
   }
@@ -85,6 +85,9 @@ export default class VueFabric {
       width: this.options.width,
       height: this.options.height,
       backgroundColor: this.options.backgroundColor,
+      hoverCursor: this.options.hoverCursor,
+      moveCursor: this.options.moveCursor,
+      // backgroundImage: this.options.backgroundImage,
       selection: this.options.selection,
       preserveObjectStacking: this.options.preserveObjectStacking,
       perPixelTargetFind: this.options.perPixelTargetFind,
@@ -184,13 +187,13 @@ export default class VueFabric {
 
   setLineColor(color: string): this {
     this.lineColor = color
-    this.eventBus.emit('lineColor:changed', color)
+    // this.eventBus.emit('lineColor:changed', color)
     return this
   }
 
   setFillColor(color: string): this {
     this.fillColor = color
-    this.eventBus.emit('fillColor:changed', color)
+    // this.eventBus.emit('fillColor:changed', color)
     return this
   }
 
@@ -421,11 +424,13 @@ export default class VueFabric {
     return exportUtils.exportToJSON(this.canvas, additionalProperties)
   }
 
-  importFromJSON(json: string | object): Promise<void> {
+  async importFromJSON(json: string | object): Promise<void> {
     if (!this.canvas) return Promise.reject(new Error('Canvas not initialized'))
-    return exportUtils.importFromJSON(this.canvas, json, this.eventBus).then(() => {
-      this.eventBus.emit('canvas:loaded')
-    })
+    return exportUtils
+      .importFromJSON(this.canvas, json, this.eventBus, this._helpersVisible)
+      .then(() => {
+        this.eventBus.emit('canvas:loaded')
+      })
   }
 
   exportToImage(options: ExportImageOptions | string = {}): string {
@@ -817,7 +822,7 @@ export default class VueFabric {
         if (options.selectable !== undefined) obj.set('selectable', options.selectable)
 
         this.canvas.renderAll()
-        this.eventBus.emit('custom:image:updated', { id, options })
+        this.eventBus.emit('image:updated', { id, options })
         return true
       }
     }
@@ -868,7 +873,7 @@ export default class VueFabric {
     return null
   }
 
-  createPersonTracker(options?: TrajectoryOptions): PersonTracker {
+  createPersonTracker(options?: TraceOptions): PersonTracker {
     if (!this.canvas) {
       throw new Error('Canvas not initialized')
     }
@@ -881,42 +886,6 @@ export default class VueFabric {
 
   getPersonTracker(): PersonTracker | null {
     return this._personTracker
-  }
-
-  private _bindCustomObjectEvents(obj: FabricObject, type: 'text' | 'image'): void {
-    const customData = (obj as FabricObject & { customData: TextCustomData | CustomImageData })
-      .customData
-
-    obj.on('mousedown', () => {
-      this.eventBus.emit(`custom:${type}:clicked`, {
-        id:
-          type === 'text'
-            ? (customData as TextCustomData).textId
-            : (customData as CustomImageData).customImageId,
-        object: obj
-      })
-    })
-
-    obj.on('selected', () => {
-      this.eventBus.emit('custom:selected', {
-        type,
-        id:
-          type === 'text'
-            ? (customData as TextCustomData).textId
-            : (customData as CustomImageData).customImageId,
-        object: obj
-      })
-    })
-
-    obj.on('modified', () => {
-      this.eventBus.emit(`custom:${type}:modified`, {
-        id:
-          type === 'text'
-            ? (customData as TextCustomData).textId
-            : (customData as CustomImageData).customImageId,
-        object: obj
-      })
-    })
   }
 
   destroy(): void {

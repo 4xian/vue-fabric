@@ -42,9 +42,9 @@ export default class CanvasManager {
   }
 
   private _bindEvents(): void {
-    this.canvas.on('mouse:wheel', this._onMouseWheel.bind(this))
+    // this.canvas.on('mouse:wheel', this._onMouseWheel.bind(this))
     this.canvas.on('mouse:down', this._onMouseDown.bind(this))
-    this.canvas.on('mouse:move', this._onMouseMove.bind(this))
+    // this.canvas.on('mouse:move', this._onMouseMove.bind(this))
     this.canvas.on('mouse:up', this._onMouseUp.bind(this))
     this.canvas.on(
       'object:moving',

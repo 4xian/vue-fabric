@@ -15,6 +15,8 @@ export interface FabricPaintOptions {
   width?: number
   height?: number
   backgroundColor?: string
+  hoverCursor?: string
+  moveCursor?: string
   backgroundImage?: string | BackgroundImageOptions
   lineColor?: string
   fillColor?: string
@@ -22,6 +24,7 @@ export interface FabricPaintOptions {
   preserveObjectStacking?: boolean
   perPixelTargetFind?: boolean
   targetFindTolerance?: number
+  defaultShowHelpers?: boolean
 }
 
 export interface CanvasManagerOptions extends FabricPaintOptions {
@@ -35,20 +38,25 @@ export interface CanvasManagerOptions extends FabricPaintOptions {
 export interface BaseToolOptions {
   activeCursor?: string
   deactiveCursor?: string
+  hasBorders?: boolean
+  hasControls?: boolean
+  lockMovementX?: boolean
+  lockMovementY?: boolean
 }
 
 export interface AreaToolOptions extends BaseToolOptions {
-  activeCursor?: string
-  deactiveCursor?: string
   closeThreshold?: number
   pointRadius?: number
   labelFontSize?: number
+  labelFillColor?: string
   pointFillColor?: string
   pointHoverColor?: string
   defaultShowHelpers?: boolean
   allowOverlap?: boolean
   enableFill?: boolean
   perPixelTargetFind?: boolean
+  strokeWidth?: number
+  helperStrokeWidth?: number
 }
 
 export interface SelectToolOptions extends BaseToolOptions {
@@ -67,20 +75,26 @@ export interface CurveToolOptions extends BaseToolOptions {
   pointRadius?: number
   closeThreshold?: number
   labelFontSize?: number
+  labelFillColor?: string
   pointFillColor?: string
   pointHoverColor?: string
   defaultShowHelpers?: boolean
   enableFill?: boolean
   perPixelTargetFind?: boolean
+  strokeWidth?: number
+  helperStrokeWidth?: number
 }
 
 export interface LineToolOptions extends BaseToolOptions {
   pointRadius?: number
   labelFontSize?: number
+  labelFillColor?: string
   pointFillColor?: string
   pointHoverColor?: string
   defaultShowHelpers?: boolean
   perPixelTargetFind?: boolean
+  strokeWidth?: number
+  helperStrokeWidth?: number
 }
 
 export interface ImageToolOptions extends BaseToolOptions {
@@ -221,7 +235,7 @@ export interface PersonData {
   trajectory?: Point[]
 }
 
-export interface TrajectoryOptions {
+export interface TraceOptions {
   radius?: number
   strokeWidth?: number
   fontSize?: number
@@ -230,13 +244,10 @@ export interface TrajectoryOptions {
   lineWidth?: number
   pathType?: 'line' | 'curve'
   blinkInterval?: number
-}
-
-export interface PersonClickEventData extends PersonData {}
-
-export interface TrajectoryMarkerClickEventData extends PersonData {
-  trajectory: Point[]
+  displayDuration?: number
 }
 
 export type ToolName = 'select' | 'area' | 'curve' | 'line' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
 export type EventCallback = (data?: unknown) => void
+
+export const SERIALIZATION_PROPERTIES: string[]

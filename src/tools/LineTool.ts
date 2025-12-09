@@ -31,17 +31,7 @@ export default class LineTool extends BaseTool {
 
   constructor(options: LineToolOptions = {}) {
     super('line', options)
-    this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_LINETOOL_OPTIONS.activeCursor!,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_LINETOOL_OPTIONS.deactiveCursor!,
-      pointRadius: options.pointRadius ?? DEFAULT_LINETOOL_OPTIONS.pointRadius!,
-      labelFontSize: options.labelFontSize ?? DEFAULT_LINETOOL_OPTIONS.labelFontSize!,
-      pointFillColor: options.pointFillColor ?? DEFAULT_LINETOOL_OPTIONS.pointFillColor!,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_LINETOOL_OPTIONS.pointHoverColor!,
-      defaultShowHelpers:
-        options.defaultShowHelpers ?? DEFAULT_LINETOOL_OPTIONS.defaultShowHelpers!,
-      perPixelTargetFind: options.perPixelTargetFind ?? DEFAULT_LINETOOL_OPTIONS.perPixelTargetFind!
-    }
+    this.options = { ...DEFAULT_LINETOOL_OPTIONS, ...options } as Required<LineToolOptions>
     this.isDrawingState = false
     this.startPoint = null
     this.endPoint = null
@@ -200,7 +190,7 @@ export default class LineTool extends BaseTool {
       radius: this.options.pointRadius,
       fill: this.options.pointFillColor,
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.helperStrokeWidth,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -221,7 +211,7 @@ export default class LineTool extends BaseTool {
       [this.startPoint.x, this.startPoint.y, pointer.x, pointer.y],
       {
         stroke: this.paintBoard.lineColor,
-        strokeWidth: 2,
+        strokeWidth: this.options.strokeWidth,
         selectable: false,
         evented: false
       }
@@ -235,7 +225,7 @@ export default class LineTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#000',
+      fill: this.options.labelFillColor,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -268,7 +258,7 @@ export default class LineTool extends BaseTool {
       [this.startPoint.x, this.startPoint.y, this.endPoint.x, this.endPoint.y],
       {
         stroke: this.paintBoard.lineColor,
-        strokeWidth: 2,
+        strokeWidth: this.options.strokeWidth,
         selectable: true,
         evented: true,
         hasBorders: false,
@@ -289,7 +279,7 @@ export default class LineTool extends BaseTool {
       radius: this.options.pointRadius,
       fill: this.options.pointFillColor,
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.helperStrokeWidth,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -308,7 +298,7 @@ export default class LineTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#666',
+      fill: this.options.labelFillColor,
       originX: 'center',
       originY: 'center',
       selectable: false,

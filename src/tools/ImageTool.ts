@@ -15,18 +15,7 @@ export default class ImageTool extends BaseTool {
 
   constructor(options: ImageToolOptions = {}) {
     super('image', options)
-    this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_IMAGETOOL_OPTIONS.activeCursor!,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_IMAGETOOL_OPTIONS.deactiveCursor!,
-      defaultSelectable: options.defaultSelectable ?? DEFAULT_IMAGETOOL_OPTIONS.defaultSelectable!,
-      defaultHasControls:
-        options.defaultHasControls ?? DEFAULT_IMAGETOOL_OPTIONS.defaultHasControls!,
-      defaultHasBorders: options.defaultHasBorders ?? DEFAULT_IMAGETOOL_OPTIONS.defaultHasBorders!,
-      defaultLockMovement:
-        options.defaultLockMovement ?? DEFAULT_IMAGETOOL_OPTIONS.defaultLockMovement!,
-      defaultLockScaling:
-        options.defaultLockScaling ?? DEFAULT_IMAGETOOL_OPTIONS.defaultLockScaling!
-    }
+    this.options = { ...DEFAULT_IMAGETOOL_OPTIONS, ...options } as Required<ImageToolOptions>
     this._fileInput = null
   }
 
@@ -167,7 +156,7 @@ export default class ImageTool extends BaseTool {
         this.canvas!.add(fabricImg)
         this.canvas!.renderAll()
 
-        this.eventBus!.emit('custom:image:created', {
+        this.eventBus!.emit('image:created', {
           customImageId: customData.customImageId,
           x,
           y
@@ -192,7 +181,7 @@ export default class ImageTool extends BaseTool {
     if (!this.canvas || !this.eventBus) return
 
     imageObj.on('mousedown', () => {
-      this.eventBus!.emit('custom:image:clicked', {
+      this.eventBus!.emit('image:clicked', {
         id: imageObj.customData.customImageId,
         object: imageObj
       })
@@ -207,7 +196,7 @@ export default class ImageTool extends BaseTool {
     })
 
     imageObj.on('modified', () => {
-      this.eventBus!.emit('custom:image:modified', {
+      this.eventBus!.emit('image:modified', {
         id: imageObj.customData.customImageId,
         object: imageObj
       })
@@ -219,7 +208,7 @@ export default class ImageTool extends BaseTool {
     if (!imageObj) return false
     imageObj.set('angle', angle)
     this.canvas?.renderAll()
-    this.eventBus?.emit('custom:image:updated', { id, property: 'angle', value: angle })
+    this.eventBus?.emit('image:updated', { id, property: 'angle', value: angle })
     return true
   }
 
@@ -228,7 +217,7 @@ export default class ImageTool extends BaseTool {
     if (!imageObj) return false
     imageObj.set('opacity', Math.max(0, Math.min(1, opacity)))
     this.canvas?.renderAll()
-    this.eventBus?.emit('custom:image:updated', { id, property: 'opacity', value: opacity })
+    this.eventBus?.emit('image:updated', { id, property: 'opacity', value: opacity })
     return true
   }
 
@@ -237,7 +226,7 @@ export default class ImageTool extends BaseTool {
     if (!imageObj) return false
     imageObj.set({ left: x, top: y })
     this.canvas?.renderAll()
-    this.eventBus?.emit('custom:image:updated', { id, property: 'position', value: { x, y } })
+    this.eventBus?.emit('image:updated', { id, property: 'position', value: { x, y } })
     return true
   }
 
@@ -246,7 +235,7 @@ export default class ImageTool extends BaseTool {
     if (!imageObj) return false
     imageObj.set({ scaleX, scaleY: scaleY ?? scaleX })
     this.canvas?.renderAll()
-    this.eventBus?.emit('custom:image:updated', {
+    this.eventBus?.emit('image:updated', {
       id,
       property: 'scale',
       value: { scaleX, scaleY: scaleY ?? scaleX }
@@ -266,7 +255,7 @@ export default class ImageTool extends BaseTool {
 
     imageObj.set({ scaleX, scaleY })
     this.canvas?.renderAll()
-    this.eventBus?.emit('custom:image:updated', {
+    this.eventBus?.emit('image:updated', {
       id,
       property: 'size',
       value: { width, height: height ?? width * (imgHeight / imgWidth) }

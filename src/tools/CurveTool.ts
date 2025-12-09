@@ -27,21 +27,7 @@ export default class CurveTool extends BaseTool {
 
   constructor(options: CurveToolOptions = {}) {
     super('curve', options)
-    this.options = {
-      activeCursor: options.activeCursor ?? 'crosshair',
-      deactiveCursor: options.deactiveCursor ?? 'default',
-      tension: options.tension ?? DEFAULT_CURVETOOL_OPTIONS.tension!,
-      pointRadius: options.pointRadius ?? DEFAULT_CURVETOOL_OPTIONS.pointRadius!,
-      closeThreshold: options.closeThreshold ?? DEFAULT_CURVETOOL_OPTIONS.closeThreshold!,
-      labelFontSize: options.labelFontSize ?? DEFAULT_CURVETOOL_OPTIONS.labelFontSize!,
-      pointFillColor: options.pointFillColor ?? DEFAULT_CURVETOOL_OPTIONS.pointFillColor!,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_CURVETOOL_OPTIONS.pointHoverColor!,
-      defaultShowHelpers:
-        options.defaultShowHelpers ?? DEFAULT_CURVETOOL_OPTIONS.defaultShowHelpers!,
-      enableFill: options.enableFill ?? DEFAULT_CURVETOOL_OPTIONS.enableFill!,
-      perPixelTargetFind:
-        options.perPixelTargetFind ?? DEFAULT_CURVETOOL_OPTIONS.perPixelTargetFind!
-    }
+    this.options = { ...DEFAULT_CURVETOOL_OPTIONS, ...options } as Required<CurveToolOptions>
     this.points = []
     this.circles = []
     this.labels = []
@@ -159,7 +145,7 @@ export default class CurveTool extends BaseTool {
       radius: this.options.pointRadius,
       fill: this.options.pointFillColor,
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.helperStrokeWidth,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -205,7 +191,7 @@ export default class CurveTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#333',
+      fill: this.options.labelFillColor,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -234,7 +220,7 @@ export default class CurveTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#333',
+      fill: this.options.labelFillColor,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -346,7 +332,7 @@ export default class CurveTool extends BaseTool {
     this.previewPath = new fabric.Path(pathData, {
       fill: '',
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.strokeWidth,
       selectable: false,
       evented: false
     })
@@ -362,7 +348,7 @@ export default class CurveTool extends BaseTool {
         left: midPoint.x,
         top: midPoint.y,
         fontSize: this.options.labelFontSize,
-        fill: '#666',
+        fill: this.options.labelFillColor,
         originX: 'center',
         originY: 'center',
         selectable: false,
@@ -484,7 +470,7 @@ export default class CurveTool extends BaseTool {
     const curve = new fabric.Path(pathData, {
       fill: fillColor,
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.strokeWidth,
       selectable: true,
       evented: true,
       hasBorders: false,
@@ -513,6 +499,9 @@ export default class CurveTool extends BaseTool {
 
     ;(curve as Path & { customType: string; customData: CurveCustomData }).customType = 'curve'
     ;(curve as Path & { customType: string; customData: CurveCustomData }).customData = customData
+
+    this.circles.forEach(c => ((c as any).curveId = customData.curveId))
+    this.labels.forEach(l => ((l as any).curveId = customData.curveId))
 
     this.canvas.add(curve)
 
@@ -702,7 +691,7 @@ export default class CurveTool extends BaseTool {
         height: rectSize,
         fill: 'transparent',
         stroke: hoverColor,
-        strokeWidth: 2,
+        strokeWidth: this.options.helperStrokeWidth,
         originX: 'center',
         originY: 'center',
         selectable: false,

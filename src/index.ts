@@ -11,6 +11,7 @@ import CurveTool from './tools/CurveTool'
 import LineTool from './tools/LineTool'
 import ImageTool from './tools/ImageTool'
 import PersonTracker from './utils/PersonTracker'
+import { SERIALIZATION_PROPERTIES } from './utils/settings'
 import './styles/ui.css'
 
 export {
@@ -26,7 +27,8 @@ export {
   CurveTool,
   LineTool,
   ImageTool,
-  PersonTracker
+  PersonTracker,
+  SERIALIZATION_PROPERTIES
 }
 
 export default FabricPaint
@@ -47,5 +49,5 @@ export type {
   ToolName,
   EventCallback,
   PersonData,
-  TrajectoryOptions
+  TraceOptions
 } from '../types'

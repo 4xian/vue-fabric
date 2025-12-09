@@ -17,16 +17,13 @@ export default class BaseTool {
   protected _onMouseUp!: (opt: TPointerEventInfo<TPointerEvent>) => void
   protected _onKeyDown!: (e: KeyboardEvent) => void
 
-  constructor(name: string, options: BaseToolOptions = {}) {
+  constructor(name: string, options: BaseToolOptions) {
     this.name = name
     this.canvas = null
     this.eventBus = null
     this.paintBoard = null
     this.isActive = false
-    this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_BASETOOL_OPTIONS.activeCursor!,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_BASETOOL_OPTIONS.deactiveCursor!
-    }
+    this.options = { ...DEFAULT_BASETOOL_OPTIONS, ...options } as Required<BaseToolOptions>
     this._bindHandlers()
   }
 

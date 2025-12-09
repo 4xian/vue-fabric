@@ -8,11 +8,7 @@ export default class SelectTool extends BaseTool {
 
   constructor(options: SelectToolOptions = {}) {
     super('select', options)
-    this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_SELECTTOOL_OPTIONS.activeCursor!,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_SELECTTOOL_OPTIONS.deactiveCursor!,
-      allowSelection: options.allowSelection ?? DEFAULT_SELECTTOOL_OPTIONS.allowSelection!
-    }
+    this.options = { ...DEFAULT_SELECTTOOL_OPTIONS, ...options } as Required<SelectToolOptions>
   }
 
   onActivate(): void {

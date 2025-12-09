@@ -26,22 +26,9 @@ export default class AreaTool extends BaseTool {
   private _hoverRect: Rect | null
   private _undoStack: UndoState[]
 
-  constructor(options: AreaToolOptions = {}) {
+  constructor(options: AreaToolOptions) {
     super('area', options)
-    this.options = {
-      activeCursor: options.activeCursor ?? DEFAULT_AREATOOL_OPTIONS.activeCursor!,
-      deactiveCursor: options.deactiveCursor ?? DEFAULT_AREATOOL_OPTIONS.deactiveCursor!,
-      closeThreshold: options.closeThreshold ?? DEFAULT_AREATOOL_OPTIONS.closeThreshold!,
-      pointRadius: options.pointRadius ?? DEFAULT_AREATOOL_OPTIONS.pointRadius!,
-      labelFontSize: options.labelFontSize ?? DEFAULT_AREATOOL_OPTIONS.labelFontSize!,
-      pointFillColor: options.pointFillColor ?? DEFAULT_AREATOOL_OPTIONS.pointFillColor!,
-      pointHoverColor: options.pointHoverColor ?? DEFAULT_AREATOOL_OPTIONS.pointHoverColor!,
-      defaultShowHelpers:
-        options.defaultShowHelpers ?? DEFAULT_AREATOOL_OPTIONS.defaultShowHelpers!,
-      allowOverlap: options.allowOverlap ?? DEFAULT_AREATOOL_OPTIONS.allowOverlap!,
-      enableFill: options.enableFill ?? DEFAULT_AREATOOL_OPTIONS.enableFill!,
-      perPixelTargetFind: options.perPixelTargetFind ?? DEFAULT_AREATOOL_OPTIONS.perPixelTargetFind!
-    }
+    this.options = { ...DEFAULT_AREATOOL_OPTIONS, ...options } as Required<AreaToolOptions>
     this.isDrawingState = false
     this.points = []
     this.circles = []
@@ -175,7 +162,7 @@ export default class AreaTool extends BaseTool {
       radius: this.options.pointRadius,
       fill: this.options.pointFillColor,
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.helperStrokeWidth,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -207,7 +194,7 @@ export default class AreaTool extends BaseTool {
 
     const line = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.strokeWidth,
       selectable: false,
       evented: false,
       hasBorders: false,
@@ -227,7 +214,7 @@ export default class AreaTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#333',
+      fill: this.options.labelFillColor,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -251,7 +238,7 @@ export default class AreaTool extends BaseTool {
 
     this.previewLine = new fabric.Line([lastPoint.x, lastPoint.y, pointer.x, pointer.y], {
       stroke: this.paintBoard.lineColor,
-      strokeWidth: 2,
+      strokeWidth: this.options.strokeWidth,
       selectable: false,
       evented: false,
       hasBorders: false,
@@ -268,7 +255,7 @@ export default class AreaTool extends BaseTool {
       left: midPoint.x,
       top: midPoint.y,
       fontSize: this.options.labelFontSize,
-      fill: '#666',
+      fill: this.options.labelFillColor,
       originX: 'center',
       originY: 'center',
       selectable: false,
@@ -317,7 +304,7 @@ export default class AreaTool extends BaseTool {
       {
         fill: this.options.enableFill ? this.paintBoard.fillColor : 'transparent',
         stroke: this.paintBoard.lineColor,
-        strokeWidth: 2,
+        strokeWidth: this.options.strokeWidth,
         selectable: true,
         hasBorders: false,
         hasControls: false,
@@ -343,6 +330,10 @@ export default class AreaTool extends BaseTool {
     ;(polygon as Polygon & { customType: string; customData: AreaCustomData }).customType = 'area'
     ;(polygon as Polygon & { customType: string; customData: AreaCustomData }).customData =
       customData
+
+    this.circles.forEach(c => ((c as any).areaId = customData.areaId))
+    this.lines.forEach(l => ((l as any).areaId = customData.areaId))
+    this.labels.forEach(l => ((l as any).areaId = customData.areaId))
 
     this.canvas.add(polygon)
 
@@ -579,7 +570,7 @@ export default class AreaTool extends BaseTool {
         height: rectSize,
         fill: 'transparent',
         stroke: hoverColor,
-        strokeWidth: 2,
+        strokeWidth: this.options.helperStrokeWidth,
         originX: 'center',
         originY: 'center',
         selectable: false,

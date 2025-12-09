@@ -26,8 +26,10 @@
     #canvas-container {
       position: relative;
       border: 1px solid #ccc;
-      background: #fff;
       overflow: hidden;
+      height: 600px;
+      background: url(../demo/static/draw-bg.png) left top no-repeat;
+      background-size: 100% 100%;
     }
 
     .toolbar-top {
@@ -81,10 +83,6 @@
       color: #666;
     }
 
-    #canvas-container {
-      height: 600px;
-    }
-
     .mouse-position {
       position: fixed;
       top: 20px;
@@ -115,7 +113,9 @@
     </div>
     <div class="toolbar-row">
       <button onclick="board.clear()">清空画布</button>
-      <!-- <button onclick="exportCanvas()">导出JSON</button> -->
+      <button onclick="exportCanvas()">导出JSON</button>
+      <button onclick="document.getElementById('jsonFileInput').click()">导入JSON</button>
+      <input type="file" id="jsonFileInput" accept=".json" onchange="handleJsonFileImport(event)" style="display:none">
       <!-- <button onclick="board.exportToImage()">下载图片</button> -->
     </div>
     <!-- <div class="toolbar-row">
@@ -135,10 +135,11 @@
     </div> -->
     <!-- <div class="toolbar-row">
       <label>人员追踪:</label>
-      <button onclick="initPersons()">初始化人员</button>
-      <button onclick="updatePersonPositions()">更新位置</button>
-      <button onclick="showTrajectoryDemo('line')">直线轨迹</button>
-      <button onclick="showTrajectoryDemo('curve')">曲线轨迹</button>
+      <button onclick="createSinglePerson()">一次一人</button>
+      <button onclick="createMultiplePersons()">一次多人</button>
+      <button onclick="updatePersonPositions()">更新多人位置</button>
+      <button onclick="showTraceDemo('line')">直线轨迹</button>
+      <button onclick="showTraceDemo('curve')">曲线轨迹</button>
       <button onclick="clearPersons()">清除人员</button>
     </div> -->
     <!-- <div class="toolbar-row">
@@ -158,7 +159,7 @@
   </div>
 
   <div id="canvas-container"></div>
-  <!-- <div class="mouse-position" id="mousePosition">X: 0, Y: 0</div> -->
+  <div class="mouse-position" id="mousePosition">X: 0, Y: 0</div>
 
   <!-- <div class="info">
     <p>操作提示：</p>
@@ -183,7 +184,7 @@
       height: container.clientHeight,
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
-      backgroundColor: '#ffffff',
+      backgroundColor: 'transparent',
       // backgroundImage: '../demo/static/draw-bg.png'
     }).init()
 
@@ -197,17 +198,16 @@
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      tools: ['lineColor', 'fillColor', 'select', 'line'],
+      tools: ['select', 'line', 'area'],
       // tools: ['lineColor', 'fillColor', 'select', 'line', 'area', 'curve', 'image', 'toggleHelpers', 'undo', 'redo'],
       visible: true
-      // tools: ['select', 'area', 'toggleHelpers']
     }).init()
 
     // 监听鼠标移动事件，实时显示坐标
-    // const mousePositionEl = document.getElementById('mousePosition')
-    // board.on('mouse:move', (data) => {
-    //   mousePositionEl.textContent = `X: ${data.x}, Y: ${data.y}`
-    // })
+    const mousePositionEl = document.getElementById('mousePosition')
+    board.on('mouse:move', (data) => {
+      mousePositionEl.textContent = `X: ${data.x}, Y: ${data.y}`
+    })
 
     board.on('line:created', (data) => {
       console.log('直线已创建:', data)
@@ -225,10 +225,6 @@
       console.log('区域已选中:', data)
     })
 
-    board.on('text:created', (data) => {
-      console.log('文本已创建:', data)
-    })
-
     board.on('curve:created', (data) => {
       console.log('曲线已创建:', data)
     })
@@ -237,13 +233,53 @@
       console.log('曲线已选择:', data)
     })
 
-    board.on('custom:image:created', (data) => {
+    board.on('text:created', (data) => {
+      console.log('文本已创建:', data)
+    })
+
+    board.on('text:clicked', (data) => {
+      console.log('文字被点击:', data)
+    })
+
+    board.on('text:modified', (data) => {
+      console.log('文字被修改:', data)
+    })
+
+    board.on('image:created', (data) => {
       console.log('图片已创建:', data)
+    })
+
+    board.on('image:clicked', (data) => {
+      console.log('图片被点击:', data)
     })
 
     function exportCanvas() {
       const json = board.exportToJSON()
       console.log('导出数据:', JSON.parse(json))
+    }
+
+    function handleJsonFileImport(event) {
+      const file = event.target.files[0]
+      if (!file) return
+
+      const reader = new FileReader()
+      reader.onload = function(e) {
+        try {
+          const json = e.target.result
+          board.clear()
+          board.importFromJSON(json).then(() => {
+            console.log('JSON文件导入成功')
+          }).catch((error) => {
+            console.error('导入失败:', error)
+            alert('导入失败: ' + error.message)
+          })
+        } catch (error) {
+          console.error('解析JSON文件失败:', error)
+          alert('解析JSON文件失败')
+        }
+      }
+      reader.readAsText(file)
+      event.target.value = ''
     }
 
     function createSampleImage() {
@@ -280,35 +316,21 @@
         lastCreatedTextId = text.customData.textId
       }
       textCounter++
-      console.log('新增文字:', text, '文字ID:', lastCreatedTextId)
     }
 
     // 新增图片
     async function addCustomImage() {
       const img = await board.addImage({
         id: 'image-1',
-        x: 30,
-        y: 20,
-        width: 50,
+        x: 200,
+        y: 200,
+        width: 20,
         src: '/demo/static/logo.png'
       })
       if (img && img.customData) {
         lastCreatedImageId = img.customData.customImageId
       }
       console.log('新增图片:', img, '图片ID:', lastCreatedImageId)
-    }
-
-    // 删除选中的对象
-    function deleteSelected() {
-      const canvas = board.getCanvas()
-      const activeObj = canvas.getActiveObject()
-      if (activeObj) {
-        canvas.remove(activeObj)
-        canvas.renderAll()
-        console.log('已删除对象:', activeObj)
-      } else {
-        alert('请先选中要删除的对象')
-      }
     }
 
     // 通过ID删除对象
@@ -381,35 +403,6 @@
       }
     }
 
-    // 监听自定义内容事件
-    board.on('custom:text:created', (data) => {
-      console.log('自定义文字已创建:', data)
-    })
-
-    board.on('custom:text:clicked', (data) => {
-      console.log('自定义文字被点击:', data)
-    })
-
-    board.on('custom:text:modified', (data) => {
-      console.log('自定义文字被修改:', data)
-    })
-
-    board.on('custom:image:created', (data) => {
-      console.log('自定义图片已创建:', data)
-    })
-
-    board.on('custom:image:clicked', (data) => {
-      console.log('自定义图片被点击:', data)
-    })
-
-    board.on('custom:image:modified', (data) => {
-      console.log('自定义图片被修改:', data)
-    })
-
-    board.on('custom:selected', (data) => {
-      console.log('自定义内容被选中:', data)
-    })
-
     // 背景图相关函数
     function setBackgroundImage() {
       const source = document.getElementById('bgImageInput').value.trim()
@@ -466,22 +459,43 @@
     })
 
     // 人员追踪示例
-    let tracker = board.createPersonTracker({
-      animationSpeed: 0.1,
-      pathType: 'line'
-    })
+    let tracker = board.createPersonTracker()
+
+    // 创建单人员示例
+    function createSinglePerson() {
+      let personId = 0
+      let timer = null
+      timer = setInterval(() => {
+        if (personId >= 3) {
+          clearInterval(timer)
+          return
+        }
+        personId++
+        const person = {
+          id: `person-${personId}`,
+          name: `人员${personId}`,
+          x: 100 + Math.random() * 800,
+          y: 100 + Math.random() * 400,
+          status: personId % 2 === 0 ? 'fainted' : 'normal',
+          lineColor: `hsl(${Math.random() * 360}, 70%, 50%)`
+        }
+        tracker.createSinglePerson(person)
+        console.log('单个人员已创建:', person)
+      }, 2000)
+    }
 
     const mockPersons = [
-      { id: 'p1', name: '张三', x: 100, y: 100, lineColor: '#ff0000' },
-      { id: 'p2', name: '李四', x: 200, y: 150, lineColor: '#00ff00' },
-      { id: 'p3', name: '王五', x: 300, y: 200, lineColor: '#0000ff' }
+      { id: 'p1', name: '张三', x: 100, y: 100, lineColor: '#ff0000', status: 'normal' },
+      { id: 'p2', name: '李四', x: 200, y: 150, lineColor: '#00ff00', status: 'fainted' },
+      { id: 'p3', name: '王五', x: 300, y: 200, lineColor: '#0000ff', status: 'normal' }
     ]
-
-    function initPersons() {
-      tracker.setPersons(mockPersons)
+    // 创建多人员示例
+    function createMultiplePersons() {
+      tracker.createMultiplePersons(mockPersons)
       console.log('人员已初始化:', mockPersons)
     }
 
+    // 更新多人位置示例
     function updatePersonPositions() {
       mockPersons.forEach(p => {
         p.x += Math.random() * 50 - 25
@@ -489,17 +503,18 @@
         p.x = Math.max(50, Math.min(p.x, 700))
         p.y = Math.max(50, Math.min(p.y, 500))
       })
-      tracker.setPersons(mockPersons)
+      tracker.createMultiplePersons(mockPersons)
       console.log('位置已更新:', mockPersons)
     }
 
-    function showTrajectoryDemo(pathType) {
+    // 显示人员轨迹示例
+    function showTraceDemo(pathType) {
       tracker.clearAll()
       tracker = board.createPersonTracker({
         animationSpeed: 0.1,
         pathType: pathType
       })
-      const trajectory = [
+      const traces = [
         { x: 100, y: 300 },
         { x: 200, y: 250 },
         { x: 350, y: 280 },
@@ -507,13 +522,13 @@
         { x: 550, y: 250 },
         { x: 650, y: 300 }
       ]
-      tracker.showTrajectory('t1', {
+      tracker.showTrace('t1', {
         id: 't1',
         name: '巡检员',
-        x: trajectory[0].x,
-        y: trajectory[0].y,
+        x: traces[0].x,
+        y: traces[0].y,
         lineColor: '#ff6600'
-      }, trajectory)
+      }, traces)
       console.log('轨迹动画已启动, 模式:', pathType)
     }
 
@@ -522,12 +537,16 @@
       console.log('人员已清除')
     }
 
-    board.on('persons:updated', (data) => {
-      console.log('人员更新事件:', data)
+    board.on('person:updated', (data) => {
+      console.log('人员更新:', data)
     })
 
-    board.on('trajectory:shown', (data) => {
+    board.on('trace:shown', (data) => {
       console.log('轨迹显示事件:', data)
+    })
+
+    board.on('person:click', (data) => {
+      console.log('人员点击事件:', data)
     })
 
     console.log('PaintBoard 已初始化:', board)

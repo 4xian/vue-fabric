@@ -1,8 +1,8 @@
 import * as fabric from 'fabric'
 import type { Canvas, Group, Circle, Polyline, Path } from 'fabric'
-import type { Point, PersonData, TrajectoryOptions } from '../../types'
+import type { Point, PersonData, TraceOptions } from '../../types'
 import EventBus from '../core/EventBus'
-import { DEFAULT_PERSON_TRACKER_OPTIONS } from '../utils/settings'
+import { DEFAULT_PERSON_TRACKER_OPTIONS, SHOULD_BLINK_LIST } from '../utils/settings'
 
 interface PersonMarker {
   group: Group
@@ -12,13 +12,13 @@ interface PersonMarker {
   personData?: PersonData
 }
 
-interface TrajectoryData {
+interface TraceData {
   pathLine: Polyline | Path
   startMarker: PersonMarker
   endMarker: PersonMarker
   movingMarker: PersonMarker
   animationId: number | null
-  trajectory: Point[]
+  traces: Point[]
   curvePoints?: Point[]
 }
 
@@ -26,10 +26,11 @@ export default class PersonTracker {
   private canvas: Canvas
   private eventBus: EventBus
   private persons: Map<string, PersonMarker> = new Map()
-  private trajectories: Map<string, TrajectoryData> = new Map()
-  private options: Required<TrajectoryOptions>
+  private traces: Map<string, TraceData> = new Map()
+  private displayTimers: Map<string, number> = new Map()
+  private options: Required<TraceOptions>
 
-  constructor(canvas: Canvas, eventBus: EventBus, options?: Partial<TrajectoryOptions>) {
+  constructor(canvas: Canvas, eventBus: EventBus, options?: Partial<TraceOptions>) {
     this.canvas = canvas
     this.eventBus = eventBus
     this.options = {
@@ -40,11 +41,12 @@ export default class PersonTracker {
       textColor: options?.textColor ?? DEFAULT_PERSON_TRACKER_OPTIONS.textColor!,
       lineWidth: options?.lineWidth ?? DEFAULT_PERSON_TRACKER_OPTIONS.lineWidth!,
       pathType: options?.pathType ?? DEFAULT_PERSON_TRACKER_OPTIONS.pathType!,
-      blinkInterval: options?.blinkInterval ?? DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!
+      blinkInterval: options?.blinkInterval ?? DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!,
+      displayDuration: options?.displayDuration ?? DEFAULT_PERSON_TRACKER_OPTIONS.displayDuration!
     }
   }
 
-  setPersons(persons: PersonData[]): void {
+  createMultiplePersons(persons: PersonData[]): void {
     const currentIds = new Set(this.persons.keys())
     const newIds = new Set(persons.map(p => p.id))
 
@@ -57,43 +59,30 @@ export default class PersonTracker {
     persons.forEach(person => {
       if (this.persons.has(person.id)) {
         this._updatePersonMarker(person)
+        this._startDisplayTimer(person.id)
       } else {
         this._createPersonMarker(person)
       }
     })
 
     this.canvas.renderAll()
-    this.eventBus.emit('persons:updated', { count: persons.length })
   }
 
-  updatePerson(id: string, data: Partial<PersonData>): boolean {
-    const marker = this.persons.get(id)
-    if (!marker) return false
-
-    if (data.x !== undefined || data.y !== undefined) {
-      const x = data.x ?? marker.group.left ?? 0
-      const y = data.y ?? marker.group.top ?? 0
-      marker.group.set({ left: x, top: y })
-      marker.group.setCoords()
+  createSinglePerson(person: PersonData): void {
+    if (this.persons.has(person.id)) {
+      this._updatePersonMarker(person)
+      this._startDisplayTimer(person.id)
+    } else {
+      this._createPersonMarker(person)
     }
-
-    if (data.lineColor !== undefined) {
-      marker.circle.set({ stroke: data.lineColor })
-    }
-
-    if (data.name !== undefined) {
-      marker.text.set({ text: data.name })
-    }
-
     this.canvas.renderAll()
-    this.eventBus.emit('person:updated', { id })
-    return true
   }
 
   removePerson(id: string): boolean {
     const marker = this.persons.get(id)
     if (!marker) return false
 
+    this._stopDisplayTimer(id)
     this._stopBlinkAnimation(id)
     this.canvas.remove(marker.group)
     this.persons.delete(id)
@@ -103,7 +92,8 @@ export default class PersonTracker {
   }
 
   clearAll(): void {
-    this.trajectories.forEach((_, id) => this.hideTrajectory(id))
+    this.traces.forEach((_, id) => this.hideTrace(id))
+    this.persons.forEach((_, id) => this._stopDisplayTimer(id))
     this.persons.forEach((_, id) => this._stopBlinkAnimation(id))
     this.persons.forEach(marker => this.canvas.remove(marker.group))
     this.persons.clear()
@@ -111,41 +101,41 @@ export default class PersonTracker {
     this.eventBus.emit('persons:cleared')
   }
 
-  showTrajectory(id: string, person: PersonData, trajectory: Point[]): void {
-    if (trajectory.length < 2) return
+  showTrace(id: string, person: PersonData, traces: Point[]): void {
+    if (traces.length < 2) return
 
-    this.hideTrajectory(id)
+    this.hideTrace(id)
 
     const isCurve = this.options.pathType === 'curve'
     const pathLine = isCurve
-      ? this._createCurvePath(trajectory, person.lineColor)
-      : this._createPathLine(trajectory, person.lineColor)
+      ? this._createCurvePath(traces, person.lineColor)
+      : this._createPathLine(traces, person.lineColor)
 
-    const curvePoints = isCurve ? this._generateCurvePoints(trajectory, 100) : undefined
+    const curvePoints = isCurve ? this._generateCurvePoints(traces, 100) : undefined
 
     const startMarker = this._createMarkerGroup(
-      trajectory[0].x,
-      trajectory[0].y,
+      traces[0].x,
+      traces[0].y,
       person.name,
       person.lineColor,
       true
     )
     const endMarker = this._createMarkerGroup(
-      trajectory[trajectory.length - 1].x,
-      trajectory[trajectory.length - 1].y,
+      traces[traces.length - 1].x,
+      traces[traces.length - 1].y,
       person.name,
       person.lineColor,
       true
     )
     const movingMarker = this._createMarkerGroup(
-      trajectory[0].x,
-      trajectory[0].y,
+      traces[0].x,
+      traces[0].y,
       person.name,
       person.lineColor
     )
 
     const clickHandler = () => {
-      this.eventBus.emit('trajectory:click', { ...person, trajectory })
+      this.eventBus.emit('person:click', { ...person })
     }
     startMarker.group.on('mousedown', clickHandler)
     endMarker.group.on('mousedown', clickHandler)
@@ -155,24 +145,24 @@ export default class PersonTracker {
     this.canvas.add(endMarker.group)
     this.canvas.add(movingMarker.group)
 
-    const trajectoryData: TrajectoryData = {
+    const traceData: TraceData = {
       pathLine,
       startMarker,
       endMarker,
       movingMarker,
       animationId: null,
-      trajectory,
+      traces,
       curvePoints
     }
 
-    this.trajectories.set(id, trajectoryData)
-    this._startTrajectoryAnimation(id)
+    this.traces.set(id, traceData)
+    this._startTraceAnimation(id)
     this.canvas.renderAll()
-    this.eventBus.emit('trajectory:shown', { id })
+    this.eventBus.emit('trace:shown', { id })
   }
 
-  hideTrajectory(id: string): void {
-    const data = this.trajectories.get(id)
+  hideTrace(id: string): void {
+    const data = this.traces.get(id)
     if (!data) return
 
     if (data.animationId !== null) {
@@ -184,9 +174,9 @@ export default class PersonTracker {
     this.canvas.remove(data.endMarker.group)
     this.canvas.remove(data.movingMarker.group)
 
-    this.trajectories.delete(id)
+    this.traces.delete(id)
     this.canvas.renderAll()
-    this.eventBus.emit('trajectory:hidden', { id })
+    this.eventBus.emit('trace:hidden', { id })
   }
 
   getPersonById(id: string): PersonMarker | undefined {
@@ -211,7 +201,9 @@ export default class PersonTracker {
       this._startBlinkAnimation(person.id)
     }
 
-    this.eventBus.emit('person:created', { id: person.id })
+    this._startDisplayTimer(person.id)
+
+    this.eventBus.emit('person:created', { ...person })
   }
 
   private _updatePersonMarker(person: PersonData): void {
@@ -231,9 +223,16 @@ export default class PersonTracker {
     } else if (!this._shouldBlink(person.status) && this._shouldBlink(prevStatus)) {
       this._stopBlinkAnimation(person.id)
     }
+    this.eventBus.emit('person:updated', { ...person })
   }
 
-  private _createMarkerGroup(x: number, y: number, name: string, lineColor: string, evented: boolean = false): PersonMarker {
+  private _createMarkerGroup(
+    x: number,
+    y: number,
+    name: string,
+    lineColor: string,
+    evented: boolean = false
+  ): PersonMarker {
     const circle = new fabric.Circle({
       radius: this.options.radius,
       fill: 'transparent',
@@ -376,11 +375,11 @@ export default class PersonTracker {
     }
   }
 
-  private _startTrajectoryAnimation(id: string): void {
-    const data = this.trajectories.get(id)
-    if (!data || data.trajectory.length < 2) return
+  private _startTraceAnimation(id: string): void {
+    const data = this.traces.get(id)
+    if (!data || data.traces.length < 2) return
 
-    const animationPoints = data.curvePoints || data.trajectory
+    const animationPoints = data.curvePoints || data.traces
     const totalLength = this._calculateTotalLength(animationPoints)
     const segmentLengths = this._calculateSegmentLengths(animationPoints)
     const speed = this.options.animationSpeed
@@ -389,7 +388,7 @@ export default class PersonTracker {
     let currentDistance = 0
 
     const animate = (timestamp: number) => {
-      if (!this.trajectories.has(id)) return
+      if (!this.traces.has(id)) return
 
       if (lastTime === null) lastTime = timestamp
       const deltaTime = timestamp - lastTime
@@ -469,7 +468,7 @@ export default class PersonTracker {
       visible = !visible
       marker.group.set({ opacity: visible ? 1 : 0 })
       this.canvas.renderAll()
-    }, DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!);
+    }, DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!)
   }
 
   private _stopBlinkAnimation(id: string): void {
@@ -483,6 +482,26 @@ export default class PersonTracker {
   }
 
   private _shouldBlink(status?: string): boolean {
-    return status === 'fainted'
+    return SHOULD_BLINK_LIST.includes(status || '')
+  }
+
+  private _startDisplayTimer(id: string): void {
+    this._stopDisplayTimer(id)
+
+    if (this.options.displayDuration <= 0) return
+
+    const timerId = window.setTimeout(() => {
+      this.removePerson(id)
+    }, this.options.displayDuration)
+
+    this.displayTimers.set(id, timerId)
+  }
+
+  private _stopDisplayTimer(id: string): void {
+    const timerId = this.displayTimers.get(id)
+    if (timerId !== undefined) {
+      clearTimeout(timerId)
+      this.displayTimers.delete(id)
+    }
   }
 }

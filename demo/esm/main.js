@@ -28,7 +28,7 @@ board.on('curve:created', (data) => {
   console.log('曲线已创建:', data)
 })
 
-board.on('custom:image:created', (data) => {
+board.on('image:created', (data) => {
   console.log('图片已创建:', data)
 })
 
