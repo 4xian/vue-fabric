@@ -176,7 +176,7 @@
   <script src="/demo/static/fabric.js"></script>
   <script src="/dist/index.umd.js"></script>
   <script>
-    const { FabricPaint, AreaTool, SelectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
+    const { FabricPaint, AreaTool, DragTool, SelectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
     console.log(VueFabric)
     const container = document.getElementById('canvas-container')
     const board = new FabricPaint('#canvas-container', {
@@ -184,8 +184,7 @@
       height: container.clientHeight,
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
-      backgroundColor: 'transparent',
-      // backgroundImage: '../demo/static/draw-bg.png'
+      backgroundColor: 'transparent'
     }).init()
 
     board
@@ -195,10 +194,11 @@
       .registerTool('curve', new CurveTool())
       .registerTool('text', new TextTool())
       .registerTool('image', new ImageTool())
+      .registerTool('drag', new DragTool())
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      tools: ['select', 'line', 'area'],
+      tools: ['drag', 'select', 'line', 'area'],
       // tools: ['lineColor', 'fillColor', 'select', 'line', 'area', 'curve', 'image', 'toggleHelpers', 'undo', 'redo'],
       visible: true
     }).init()
@@ -263,7 +263,7 @@
       if (!file) return
 
       const reader = new FileReader()
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         try {
           const json = e.target.result
           board.clear()
@@ -313,7 +313,7 @@
         // fill: 'red'
       })
       if (text && text.customData) {
-        lastCreatedTextId = text.customData.textId
+        lastCreatedTextId = text.customData.drawId
       }
       textCounter++
     }
@@ -321,16 +321,15 @@
     // 新增图片
     async function addCustomImage() {
       const img = await board.addImage({
-        id: 'image-1',
         x: 200,
         y: 200,
         width: 20,
-        src: '/demo/static/logo.png'
+        // src: '/demo/static/camera.png'
+        base64: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAUCAYAAABmvqYOAAACsUlEQVR4AbRUW08TQRg9M7vbmy1YrFDk8sADJl5SNFpIGiDGRBISisToL9CE+KDRmPgi/gATY0z4A8ZnnohibCRCVC7aSCCioKigRNS2JNKyrbQdZ6YrgW4bXuhmzzfzne/M2dnZmaX+wTHdPzjOdhsnB8f7KQOJowQXA0tRApYogTf4rJMUjJTEnFGSpIyw0iwL4+bxWJTGI7+x29Bjv3TqrPDEnZ79yIdVVUycs5DOohXU2d2eBco/5grHtptl0vgbi2zjCiXZVBIbq9FCJRAoEUoYm4LpIiamIEEVECrmZ66mrNZZyqCM55eIosB2oC6fNuVU02CprDbxfI/PTHf4EvR10D/Ct+P1LNhEMhZZSSx9TccXP0P/8R2JhbkdoS9/g9ALbKwn5rnxM8Jot3iifKfJYPM9gF2JjY3+jLwcVqOvniM6EkJ0+PHOGH0Kqedj4nPvXvzJZnq435dNc9FJg64SVdVFX6LIWsra1rBFR22OtblgYPPcyJkLrQJ1WbHZY6IvoWpgslM8yDrX/Vc4vNVhECJpwW2ah7tOrFsrKkOClCAEsDmKPkA68DpIzkJ1lr3X3J5pOdYIuYqR2I/6Hmmu8hkjBcSsHC4wixVMUcH41pMtz8F5WTfEjtr6UEyJfjBS2VAZjTDV1fLR7fPfpKq2alCAWFOqApoFEKaqaG053hDZqmqGypqO3f3U2ZkyKNlQGbeEmcvnh1yNjdfs3tonfL+vgZ9CsCw0jnKrBhAA67lvZnHvm9xT3zDgbe+4EQ62LvHKtttkLqrzt64+cAdO91a2n+mDoqaRyWAjk0VCTwLpNMAPmd1bE6rq6L7jDjT3TpxtmRXj8lHQXIjengssTl/sue9qOt7mPOzrcx481G9raHzoPNJ0W/PWXdrb2nbhTbBlINx1quhP6B8AAAD//7KfP7kAAAAGSURBVAMAHm58isoK8SwAAAAASUVORK5CYII='
       })
       if (img && img.customData) {
-        lastCreatedImageId = img.customData.customImageId
+        lastCreatedImageId = img.customData.drawId
       }
-      console.log('新增图片:', img, '图片ID:', lastCreatedImageId)
     }
 
     // 通过ID删除对象

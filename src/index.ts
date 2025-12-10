@@ -6,12 +6,13 @@ import ColorPicker from './ui/ColorPicker'
 import BaseTool from './tools/BaseTool'
 import AreaTool from './tools/AreaTool'
 import SelectTool from './tools/SelectTool'
+import DragTool from './tools/DragTool'
 import TextTool from './tools/TextTool'
 import CurveTool from './tools/CurveTool'
 import LineTool from './tools/LineTool'
 import ImageTool from './tools/ImageTool'
 import PersonTracker from './utils/PersonTracker'
-import { SERIALIZATION_PROPERTIES } from './utils/settings'
+import { SERIALIZATION_PROPERTIES, CustomType } from './utils/settings'
 import './styles/ui.css'
 
 export {
@@ -23,12 +24,14 @@ export {
   BaseTool,
   AreaTool,
   SelectTool,
+  DragTool,
   TextTool,
   CurveTool,
   LineTool,
   ImageTool,
   PersonTracker,
-  SERIALIZATION_PROPERTIES
+  SERIALIZATION_PROPERTIES,
+  CustomType
 }
 
 export default FabricPaint

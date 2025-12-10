@@ -2,7 +2,8 @@ import * as fabric from 'fabric'
 import type { TPointerEventInfo, TPointerEvent, IText, FabricObject } from 'fabric'
 import type { TextCustomData, TextToolOptions, AddTextOptions } from '../../types'
 import BaseTool from './BaseTool'
-import { DEFAULT_TEXTTOOL_OPTIONS } from '../utils/settings'
+import { DEFAULT_TEXTTOOL_OPTIONS, CustomType } from '../utils/settings'
+import { generateDrawId } from '../utils/generateId'
 
 export interface CreateTextResult {
   textObj: IText & { customType: string; customData: TextCustomData }
@@ -21,7 +22,7 @@ export default class TextTool extends BaseTool {
     if (!this.canvas) return
     this.canvas.selection = false
     this.canvas.forEachObject((obj: FabricObject & { customType?: string }) => {
-      if (obj.customType !== 'text') {
+      if (obj.customType !== CustomType.Text) {
         obj.set({ selectable: false, evented: false })
       }
     })
@@ -38,7 +39,7 @@ export default class TextTool extends BaseTool {
 
   onMouseDown(opt: TPointerEventInfo<TPointerEvent>): void {
     const target = opt.target as FabricObject & { customType?: string }
-    if (target && target.customType === 'text') {
+    if (target && target.customType === CustomType.Text) {
       return
     }
 
@@ -68,11 +69,12 @@ export default class TextTool extends BaseTool {
     })
 
     const customData: TextCustomData = {
-      textId: `text-${Date.now()}`,
+      drawId: generateDrawId(),
       createdAt: Date.now()
     }
 
-    ;(text as IText & { customType: string; customData: TextCustomData }).customType = 'text'
+    ;(text as IText & { customType: string; customData: TextCustomData }).customType =
+      CustomType.Text
     ;(text as IText & { customType: string; customData: TextCustomData }).customData = customData
 
     this.canvas.add(text)
@@ -84,7 +86,7 @@ export default class TextTool extends BaseTool {
     this._bindTextEvents(text as IText & { customType: string; customData: TextCustomData })
 
     this.eventBus.emit('text:created', {
-      textId: customData.textId,
+      drawId: customData.drawId,
       text: text.text
     })
   }
@@ -101,14 +103,14 @@ export default class TextTool extends BaseTool {
 
     textObj.on('changed', () => {
       this.eventBus!.emit('text:changed', {
-        textId: textObj.customData.textId,
+        drawId: textObj.customData.drawId,
         text: textObj.text
       })
     })
 
     textObj.on('mousedown', () => {
       this.eventBus!.emit('text:clicked', {
-        textId: textObj.customData.textId,
+        drawId: textObj.customData.drawId,
         text: textObj.text,
         object: textObj
       })
@@ -116,7 +118,7 @@ export default class TextTool extends BaseTool {
 
     textObj.on('selected', () => {
       this.eventBus!.emit('text:selected', {
-        textId: textObj.customData.textId,
+        drawId: textObj.customData.drawId,
         text: textObj.text,
         object: textObj
       })
@@ -138,7 +140,7 @@ export default class TextTool extends BaseTool {
     if (!this.canvas) return
     this.options.fontSize = size
     const activeObject = this.canvas.getActiveObject() as FabricObject & { customType?: string }
-    if (activeObject && activeObject.customType === 'text') {
+    if (activeObject && activeObject.customType === CustomType.Text) {
       activeObject.set('fontSize', size)
       this.canvas.renderAll()
     }
@@ -148,7 +150,7 @@ export default class TextTool extends BaseTool {
     if (!this.canvas) return
     this.options.fontFamily = family
     const activeObject = this.canvas.getActiveObject() as FabricObject & { customType?: string }
-    if (activeObject && activeObject.customType === 'text') {
+    if (activeObject && activeObject.customType === CustomType.Text) {
       activeObject.set('fontFamily', family)
       this.canvas.renderAll()
     }
@@ -157,7 +159,7 @@ export default class TextTool extends BaseTool {
   setTextColor(color: string): void {
     if (!this.canvas) return
     const activeObject = this.canvas.getActiveObject() as FabricObject & { customType?: string }
-    if (activeObject && activeObject.customType === 'text') {
+    if (activeObject && activeObject.customType === CustomType.Text) {
       activeObject.set('fill', color)
       this.canvas.renderAll()
     }
@@ -205,11 +207,12 @@ export default class TextTool extends BaseTool {
     })
 
     const customData: TextCustomData = {
-      textId: options.id || `text-${Date.now()}`,
+      drawId: options.id || generateDrawId(),
       createdAt: Date.now()
     }
 
-    ;(textObj as IText & { customType: string; customData: TextCustomData }).customType = 'text'
+    ;(textObj as IText & { customType: string; customData: TextCustomData }).customType =
+      CustomType.Text
     ;(textObj as IText & { customType: string; customData: TextCustomData }).customData = customData
 
     this.canvas.add(textObj)
@@ -218,7 +221,7 @@ export default class TextTool extends BaseTool {
     this._bindTextEvents(textObj as IText & { customType: string; customData: TextCustomData })
 
     this.eventBus.emit('text:created', {
-      textId: customData.textId,
+      drawId: customData.drawId,
       text: textObj.text
     })
 

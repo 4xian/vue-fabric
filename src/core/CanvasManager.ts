@@ -6,7 +6,7 @@ import type {
   BasicTransformEvent,
   FabricObject
 } from 'fabric'
-import type { CanvasManagerOptions } from '../../types'
+import type { CanvasManagerOptions, ZoomOrigin } from '../../types'
 import { throttle } from '../utils/throttle'
 import EventBus from './EventBus'
 import { DEFAULT_CANVAS_MANAGER_OPTIONS } from '../utils/settings'
@@ -17,7 +17,10 @@ export default class CanvasManager {
   private canvas: Canvas
   private eventBus: EventBus
   private options: Required<
-    Pick<CanvasManagerOptions, 'zoomStep' | 'minZoom' | 'maxZoom' | 'expandMargin' | 'expandSize'>
+    Pick<
+      CanvasManagerOptions,
+      'zoomStep' | 'minZoom' | 'maxZoom' | 'expandMargin' | 'expandSize' | 'zoomOrigin'
+    >
   >
   private isDragging: boolean
   private lastPosX: number
@@ -32,7 +35,8 @@ export default class CanvasManager {
       minZoom: options.minZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.minZoom!,
       maxZoom: options.maxZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.maxZoom!,
       expandMargin: options.expandMargin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandMargin!,
-      expandSize: options.expandSize ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandSize!
+      expandSize: options.expandSize ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandSize!,
+      zoomOrigin: options.zoomOrigin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomOrigin!
     }
     this.isDragging = false
     this.lastPosX = 0
@@ -43,13 +47,13 @@ export default class CanvasManager {
 
   private _bindEvents(): void {
     // this.canvas.on('mouse:wheel', this._onMouseWheel.bind(this))
-    this.canvas.on('mouse:down', this._onMouseDown.bind(this))
+    // this.canvas.on('mouse:down', this._onMouseDown.bind(this))
     // this.canvas.on('mouse:move', this._onMouseMove.bind(this))
-    this.canvas.on('mouse:up', this._onMouseUp.bind(this))
-    this.canvas.on(
-      'object:moving',
-      this._onObjectMoving.bind(this) as (opt: ObjectMovingEvent) => void
-    )
+    // this.canvas.on('mouse:up', this._onMouseUp.bind(this))
+    // this.canvas.on(
+    //   'object:moving',
+    //   this._onObjectMoving.bind(this) as (opt: ObjectMovingEvent) => void
+    // )
   }
 
   private _onMouseWheel(opt: TPointerEventInfo<WheelEvent>): void {
@@ -146,19 +150,19 @@ export default class CanvasManager {
     }
   }
 
-  zoomIn(): void {
-    const center = this._getCanvasCenter()
+  zoomIn(origin?: ZoomOrigin): void {
+    const point = this._getZoomPoint(origin)
     let zoom = this.canvas.getZoom() * this.options.zoomStep
     zoom = Math.min(zoom, this.options.maxZoom)
-    this.canvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom)
+    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
     this.eventBus.emit('canvas:zoomed', zoom)
   }
 
-  zoomOut(): void {
-    const center = this._getCanvasCenter()
+  zoomOut(origin?: ZoomOrigin): void {
+    const point = this._getZoomPoint(origin)
     let zoom = this.canvas.getZoom() / this.options.zoomStep
     zoom = Math.max(zoom, this.options.minZoom)
-    this.canvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom)
+    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
     this.eventBus.emit('canvas:zoomed', zoom)
   }
 
@@ -174,10 +178,18 @@ export default class CanvasManager {
     }
   }
 
-  setZoom(zoom: number): void {
-    const center = this._getCanvasCenter()
+  private _getZoomPoint(origin?: ZoomOrigin): { x: number; y: number } {
+    const effectiveOrigin = origin ?? this.options.zoomOrigin
+    if (effectiveOrigin === 'topLeft') {
+      return { x: 0, y: 0 }
+    }
+    return this._getCanvasCenter()
+  }
+
+  setZoom(zoom: number, origin?: ZoomOrigin): void {
+    const point = this._getZoomPoint(origin)
     zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
-    this.canvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom)
+    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
     this.eventBus.emit('canvas:zoomed', zoom)
   }
 

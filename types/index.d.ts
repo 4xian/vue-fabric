@@ -9,6 +9,7 @@ export interface BackgroundImageOptions {
   source: string
   scaleMode?: 'fill' | 'fit' | 'stretch' | 'center' | 'repeat'
   opacity?: number
+  backgroundVpt?: boolean
 }
 
 export interface FabricPaintOptions {
@@ -27,12 +28,15 @@ export interface FabricPaintOptions {
   defaultShowHelpers?: boolean
 }
 
+export type ZoomOrigin = 'center' | 'topLeft'
+
 export interface CanvasManagerOptions extends FabricPaintOptions {
   zoomStep?: number
   minZoom?: number
   maxZoom?: number
   expandMargin?: number
   expandSize?: number
+  zoomOrigin?: ZoomOrigin
 }
 
 export interface BaseToolOptions {
@@ -113,8 +117,15 @@ export interface ExportImageOptions {
   filename?: string
 }
 
+export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image'
+
+export interface ExportJSONOptions {
+  additionalProperties?: string[]
+  excludeTypes?: MainCustomType[]
+}
+
 export interface AreaCustomData {
-  areaId: string
+  drawId: string
   points: Point[]
   distances: number[]
   lineColor: string
@@ -125,12 +136,12 @@ export interface AreaCustomData {
 }
 
 export interface TextCustomData {
-  textId: string
+  drawId: string
   createdAt: number
 }
 
 export interface CurveCustomData {
-  curveId: string
+  drawId: string
   points: Point[]
   isClosed: boolean
   lineColor: string
@@ -141,7 +152,7 @@ export interface CurveCustomData {
 }
 
 export interface LineCustomData {
-  lineId: string
+  drawId: string
   startPoint: Point
   endPoint: Point
   distance: number
@@ -198,7 +209,8 @@ export interface AddImageOptions {
   id?: string
   x: number
   y: number
-  src: string
+  src?: string
+  base64?: string
   width?: number
   height?: number
   selectable?: boolean
@@ -221,8 +233,9 @@ export interface CustomTextData {
 }
 
 export interface CustomImageData {
-  customImageId: string
+  drawId: string
   createdAt: number
+  base64?: string
 }
 
 export interface PersonData {
@@ -247,7 +260,27 @@ export interface TraceOptions {
   displayDuration?: number
 }
 
-export type ToolName = 'select' | 'area' | 'curve' | 'line' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
+export type ToolName = 'select' | 'drag' | 'area' | 'curve' | 'line' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
 export type EventCallback = (data?: unknown) => void
 
 export const SERIALIZATION_PROPERTIES: string[]
+
+export const CustomType: {
+  readonly Line: 'line'
+  readonly Area: 'area'
+  readonly Curve: 'curve'
+  readonly Text: 'text'
+  readonly Image: 'image'
+  readonly LineHelper: 'lineHelper'
+  readonly LineHelperLabel: 'lineHelperLabel'
+  readonly AreaPoint: 'areaPoint'
+  readonly AreaLine: 'areaLine'
+  readonly AreaLabel: 'areaLabel'
+  readonly CurveHelper: 'curveHelper'
+  readonly CurveHelperLabel: 'curveHelperLabel'
+  readonly CurvePreview: 'curvePreview'
+  readonly PersonMarker: 'personMarker'
+  readonly TracePath: 'tracePath'
+}
+
+export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]

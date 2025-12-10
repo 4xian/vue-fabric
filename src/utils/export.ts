@@ -9,11 +9,39 @@ import type {
   ExportImageOptions
 } from '../../types'
 import EventBus from '../core/EventBus'
-import { SERIALIZATION_PROPERTIES } from './settings'
+import {
+  SERIALIZATION_PROPERTIES,
+  CustomType,
+  CUSTOM_TYPE_HELPER_MAP,
+  type MainCustomType
+} from './settings'
+import type { ExportJSONOptions } from '../../types'
 
-export function exportToJSON(canvas: Canvas, additionalProperties: string[] = []): string {
+export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string[] = []): string {
+  const normalizedOptions: ExportJSONOptions = Array.isArray(options)
+    ? { additionalProperties: options }
+    : options
+
+  const { additionalProperties = [], excludeTypes = ['text', 'image'] } = normalizedOptions
   const propertiesToInclude = [...SERIALIZATION_PROPERTIES, ...additionalProperties]
-  return JSON.stringify(canvas.toObject(propertiesToInclude))
+  const canvasData = canvas.toObject(propertiesToInclude)
+
+  if (excludeTypes.length > 0) {
+    const typesToExclude = new Set<string>()
+    excludeTypes.forEach(type => {
+      typesToExclude.add(type)
+      const helpers = CUSTOM_TYPE_HELPER_MAP[type as MainCustomType]
+      if (helpers) {
+        helpers.forEach(helper => typesToExclude.add(helper))
+      }
+    })
+
+    canvasData.objects = canvasData.objects.filter(
+      (obj: { customType?: string }) => !obj.customType || !typesToExclude.has(obj.customType)
+    )
+  }
+
+  return JSON.stringify(canvasData)
 }
 
 export function importFromJSON(
@@ -53,18 +81,18 @@ function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: 
     if (!customObj.customType) return
 
     switch (customObj.customType) {
-      case 'area':
+      case CustomType.Area:
         rebindAreaEvents(customObj as Polygon & { customData: AreaCustomData }, canvas, eventBus)
         applyHelperVisibility(customObj as Polygon & { customData: AreaCustomData }, helpersVisible)
         break
-      case 'line':
+      case CustomType.Line:
         rebindLineEvents(customObj as Line & { customData: LineCustomData }, canvas, eventBus)
         applyLineHelperVisibility(
           customObj as Line & { customData: LineCustomData },
           helpersVisible
         )
         break
-      case 'curve':
+      case CustomType.Curve:
         rebindCurveEvents(
           customObj as fabric.FabricObject & { customData: CurveCustomData },
           canvas,
@@ -75,10 +103,10 @@ function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: 
           helpersVisible
         )
         break
-      case 'text':
+      case CustomType.Text:
         rebindTextEvents(customObj as IText & { customData: TextCustomData }, canvas, eventBus)
         break
-      case 'customImage':
+      case CustomType.Image:
         rebindImageEvents(
           customObj as FabricImage & { customData: CustomImageData },
           canvas,
@@ -157,7 +185,6 @@ function applyCurveHelperVisibility(
 function relinkHelperElements(canvas: Canvas): void {
   const objects = canvas.getObjects()
 
-  // 收集所有主对象和辅助元素
   const areas: Map<string, Polygon & { customData: AreaCustomData }> = new Map()
   const lines: Map<string, Line & { customData: LineCustomData }> = new Map()
   const curves: Map<string, fabric.FabricObject & { customData: CurveCustomData }> = new Map()
@@ -175,92 +202,93 @@ function relinkHelperElements(canvas: Canvas): void {
   objects.forEach(obj => {
     const customObj = obj as fabric.FabricObject & {
       customType?: string
-      customData?: AreaCustomData | LineCustomData | CurveCustomData
-      areaId?: string
-      lineId?: string
-      curveId?: string
+      customData?:
+        | AreaCustomData
+        | LineCustomData
+        | CurveCustomData
+        | { drawId?: string; drawPid?: string }
     }
 
     if (!customObj.customType) return
 
     switch (customObj.customType) {
-      case 'area':
+      case CustomType.Area:
         // eslint-disable-next-line
         const areaData = customObj.customData as AreaCustomData
-        if (areaData?.areaId) {
-          areas.set(areaData.areaId, customObj as Polygon & { customData: AreaCustomData })
-          if (!areaHelpers.has(areaData.areaId)) {
-            areaHelpers.set(areaData.areaId, { circles: [], labels: [], lines: [] })
+        if (areaData?.drawId) {
+          areas.set(areaData.drawId, customObj as Polygon & { customData: AreaCustomData })
+          if (!areaHelpers.has(areaData.drawId)) {
+            areaHelpers.set(areaData.drawId, { circles: [], labels: [], lines: [] })
           }
         }
         break
 
-      case 'line':
+      case CustomType.Line:
         // eslint-disable-next-line
         const lineData = customObj.customData as LineCustomData
-        if (lineData?.lineId) {
-          lines.set(lineData.lineId, customObj as Line & { customData: LineCustomData })
-          if (!lineHelpers.has(lineData.lineId)) {
-            lineHelpers.set(lineData.lineId, {})
+        if (lineData?.drawId) {
+          lines.set(lineData.drawId, customObj as Line & { customData: LineCustomData })
+          if (!lineHelpers.has(lineData.drawId)) {
+            lineHelpers.set(lineData.drawId, {})
           }
         }
         break
 
-      case 'curve':
+      case CustomType.Curve:
         // eslint-disable-next-line
         const curveData = customObj.customData as CurveCustomData
-        if (curveData?.curveId) {
+        if (curveData?.drawId) {
           curves.set(
-            curveData.curveId,
+            curveData.drawId,
             customObj as fabric.FabricObject & { customData: CurveCustomData }
           )
-          if (!curveHelpers.has(curveData.curveId)) {
-            curveHelpers.set(curveData.curveId, { circles: [], labels: [] })
+          if (!curveHelpers.has(curveData.drawId)) {
+            curveHelpers.set(curveData.drawId, { circles: [], labels: [] })
           }
         }
         break
 
-      case 'areaPoint':
+      case CustomType.AreaPoint:
         // eslint-disable-next-line
-        const areaPointId = customObj.areaId
-        if (areaPointId) {
-          if (!areaHelpers.has(areaPointId)) {
-            areaHelpers.set(areaPointId, { circles: [], labels: [], lines: [] })
+        const areaPointPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (areaPointPid) {
+          if (!areaHelpers.has(areaPointPid)) {
+            areaHelpers.set(areaPointPid, { circles: [], labels: [], lines: [] })
           }
-          areaHelpers.get(areaPointId)!.circles.push(obj as fabric.Circle)
+          areaHelpers.get(areaPointPid)!.circles.push(obj as fabric.Circle)
         }
         break
 
-      case 'areaLine':
+      case CustomType.AreaLine:
         // eslint-disable-next-line
-        const areaLineId = customObj.areaId
-        if (areaLineId) {
-          if (!areaHelpers.has(areaLineId)) {
-            areaHelpers.set(areaLineId, { circles: [], labels: [], lines: [] })
+        const areaLinePid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (areaLinePid) {
+          if (!areaHelpers.has(areaLinePid)) {
+            areaHelpers.set(areaLinePid, { circles: [], labels: [], lines: [] })
           }
-          areaHelpers.get(areaLineId)!.lines.push(obj as fabric.Line)
+          areaHelpers.get(areaLinePid)!.lines.push(obj as fabric.Line)
         }
         break
 
-      case 'areaLabel':
+      case CustomType.AreaLabel:
         // eslint-disable-next-line
-        const areaLabelId = customObj.areaId
-        if (areaLabelId) {
-          if (!areaHelpers.has(areaLabelId)) {
-            areaHelpers.set(areaLabelId, { circles: [], labels: [], lines: [] })
+        const areaLabelPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (areaLabelPid) {
+          if (!areaHelpers.has(areaLabelPid)) {
+            areaHelpers.set(areaLabelPid, { circles: [], labels: [], lines: [] })
           }
-          areaHelpers.get(areaLabelId)!.labels.push(obj as fabric.Text)
+          areaHelpers.get(areaLabelPid)!.labels.push(obj as fabric.Text)
         }
         break
 
-      case 'lineHelper':
+      case CustomType.LineHelper:
         // eslint-disable-next-line
-        const lineHelperId = customObj.lineId
-        if (lineHelperId) {
-          if (!lineHelpers.has(lineHelperId)) {
-            lineHelpers.set(lineHelperId, {})
+        const lineHelperPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (lineHelperPid) {
+          if (!lineHelpers.has(lineHelperPid)) {
+            lineHelpers.set(lineHelperPid, {})
           }
-          const helper = lineHelpers.get(lineHelperId)!
+          const helper = lineHelpers.get(lineHelperPid)!
           if (!helper.startCircle) {
             helper.startCircle = obj as fabric.Circle
           } else {
@@ -269,44 +297,43 @@ function relinkHelperElements(canvas: Canvas): void {
         }
         break
 
-      case 'lineHelperLabel':
+      case CustomType.LineHelperLabel:
         // eslint-disable-next-line
-        const lineLabelId = customObj.lineId
-        if (lineLabelId) {
-          if (!lineHelpers.has(lineLabelId)) {
-            lineHelpers.set(lineLabelId, {})
+        const lineLabelPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (lineLabelPid) {
+          if (!lineHelpers.has(lineLabelPid)) {
+            lineHelpers.set(lineLabelPid, {})
           }
-          lineHelpers.get(lineLabelId)!.label = obj as fabric.Text
+          lineHelpers.get(lineLabelPid)!.label = obj as fabric.Text
         }
         break
 
-      case 'curveHelper':
+      case CustomType.CurveHelper:
         // eslint-disable-next-line
-        const curveHelperId = customObj.curveId
-        if (curveHelperId) {
-          if (!curveHelpers.has(curveHelperId)) {
-            curveHelpers.set(curveHelperId, { circles: [], labels: [] })
+        const curveHelperPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (curveHelperPid) {
+          if (!curveHelpers.has(curveHelperPid)) {
+            curveHelpers.set(curveHelperPid, { circles: [], labels: [] })
           }
-          curveHelpers.get(curveHelperId)!.circles.push(obj as fabric.Circle)
+          curveHelpers.get(curveHelperPid)!.circles.push(obj as fabric.Circle)
         }
         break
 
-      case 'curveHelperLabel':
+      case CustomType.CurveHelperLabel:
         // eslint-disable-next-line
-        const curveLabelId = customObj.curveId
-        if (curveLabelId) {
-          if (!curveHelpers.has(curveLabelId)) {
-            curveHelpers.set(curveLabelId, { circles: [], labels: [] })
+        const curveLabelPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (curveLabelPid) {
+          if (!curveHelpers.has(curveLabelPid)) {
+            curveHelpers.set(curveLabelPid, { circles: [], labels: [] })
           }
-          curveHelpers.get(curveLabelId)!.labels.push(obj as fabric.Text)
+          curveHelpers.get(curveLabelPid)!.labels.push(obj as fabric.Text)
         }
         break
     }
   })
 
-  // 重新关联 area 的辅助元素
-  areas.forEach((area, areaId) => {
-    const helpers = areaHelpers.get(areaId)
+  areas.forEach((area, drawId) => {
+    const helpers = areaHelpers.get(drawId)
     if (helpers && area.customData) {
       area.customData.circles = helpers.circles.length > 0 ? helpers.circles : undefined
       area.customData.labels = helpers.labels.length > 0 ? helpers.labels : undefined
@@ -314,9 +341,8 @@ function relinkHelperElements(canvas: Canvas): void {
     }
   })
 
-  // 重新关联 line 的辅助元素
-  lines.forEach((line, lineId) => {
-    const helpers = lineHelpers.get(lineId)
+  lines.forEach((line, drawId) => {
+    const helpers = lineHelpers.get(drawId)
     if (helpers && line.customData) {
       line.customData.startCircle = helpers.startCircle
       line.customData.endCircle = helpers.endCircle
@@ -324,9 +350,8 @@ function relinkHelperElements(canvas: Canvas): void {
     }
   })
 
-  // 重新关联 curve 的辅助元素
-  curves.forEach((curve, curveId) => {
-    const helpers = curveHelpers.get(curveId)
+  curves.forEach((curve, drawId) => {
+    const helpers = curveHelpers.get(drawId)
     if (helpers && curve.customData) {
       curve.customData.circles = helpers.circles.length > 0 ? helpers.circles : undefined
       curve.customData.labels = helpers.labels.length > 0 ? helpers.labels : undefined
@@ -347,7 +372,7 @@ function rebindAreaEvents(
     lastTop = polygon.top || 0
     showHelpers(polygon, canvas)
     eventBus.emit('area:selected', {
-      areaId: polygon.customData.areaId,
+      drawId: polygon.customData.drawId,
       points: polygon.customData.points,
       distances: polygon.customData.distances
     })
@@ -379,7 +404,7 @@ function rebindLineEvents(
     lastLeft = line.left || 0
     lastTop = line.top || 0
     eventBus.emit('line:selected', {
-      lineId: line.customData.lineId,
+      drawId: line.customData.drawId,
       startPoint: line.customData.startPoint,
       endPoint: line.customData.endPoint,
       distance: line.customData.distance
@@ -407,7 +432,7 @@ function rebindCurveEvents(
     lastLeft = curve.left || 0
     lastTop = curve.top || 0
     eventBus.emit('curve:selected', {
-      curveId: curve.customData.curveId,
+      drawId: curve.customData.drawId,
       points: curve.customData.points,
       isClosed: curve.customData.isClosed
     })
@@ -438,14 +463,14 @@ function rebindTextEvents(
 
   textObj.on('changed', () => {
     eventBus.emit('text:changed', {
-      textId: textObj.customData.textId,
+      drawId: textObj.customData.drawId,
       text: textObj.text
     })
   })
 
   textObj.on('mousedown', () => {
     eventBus.emit('text:clicked', {
-      textId: textObj.customData.textId,
+      drawId: textObj.customData.drawId,
       text: textObj.text,
       object: textObj
     })
@@ -453,7 +478,7 @@ function rebindTextEvents(
 
   textObj.on('selected', () => {
     eventBus.emit('text:selected', {
-      textId: textObj.customData.textId,
+      drawId: textObj.customData.drawId,
       text: textObj.text,
       object: textObj
     })
@@ -469,7 +494,7 @@ function rebindImageEvents(
 
   imageObj.on('mousedown', () => {
     eventBus.emit('image:clicked', {
-      id: imageObj.customData.customImageId,
+      id: imageObj.customData.drawId,
       object: imageObj
     })
   })
@@ -477,14 +502,14 @@ function rebindImageEvents(
   imageObj.on('selected', () => {
     eventBus.emit('custom:selected', {
       type: 'image',
-      id: imageObj.customData.customImageId,
+      id: imageObj.customData.drawId,
       object: imageObj
     })
   })
 
   imageObj.on('modified', () => {
     eventBus.emit('image:modified', {
-      id: imageObj.customData.customImageId,
+      id: imageObj.customData.drawId,
       object: imageObj
     })
   })
@@ -670,9 +695,9 @@ export function getAreasData(canvas: Canvas): AreaCustomData[] {
       customType?: string
       customData?: AreaCustomData
     }
-    if (customObj.customType === 'area' && customObj.customData) {
+    if (customObj.customType === CustomType.Area && customObj.customData) {
       areas.push({
-        areaId: customObj.customData.areaId,
+        drawId: customObj.customData.drawId,
         points: customObj.customData.points,
         distances: customObj.customData.distances,
         lineColor: customObj.customData.lineColor,
@@ -684,7 +709,7 @@ export function getAreasData(canvas: Canvas): AreaCustomData[] {
 }
 
 interface TextData {
-  textId: string
+  drawId: string
   text: string
   left: number
   top: number
@@ -696,10 +721,10 @@ interface TextData {
 export function getTextsData(canvas: Canvas): TextData[] {
   const texts: TextData[] = []
   canvas.getObjects().forEach(obj => {
-    const customObj = obj as fabric.IText & { customType?: string; customData?: { textId: string } }
-    if (customObj.customType === 'text' && customObj.customData) {
+    const customObj = obj as fabric.IText & { customType?: string; customData?: { drawId: string } }
+    if (customObj.customType === CustomType.Text && customObj.customData) {
       texts.push({
-        textId: customObj.customData.textId,
+        drawId: customObj.customData.drawId,
         text: customObj.text || '',
         left: customObj.left || 0,
         top: customObj.top || 0,

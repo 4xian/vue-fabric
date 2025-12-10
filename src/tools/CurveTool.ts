@@ -2,7 +2,8 @@ import * as fabric from 'fabric'
 import type { TPointerEventInfo, TPointerEvent, Circle, Path, Rect, Text } from 'fabric'
 import type { Point, CurveCustomData, CurveToolOptions } from '../../types'
 import BaseTool from './BaseTool'
-import { DEFAULT_CURVETOOL_OPTIONS } from '../utils/settings'
+import { DEFAULT_CURVETOOL_OPTIONS, CustomType } from '../utils/settings'
+import { generateDrawId } from '../utils/generateId'
 
 interface CurveUndoState {
   point: Point
@@ -87,16 +88,16 @@ export default class CurveTool extends BaseTool {
     this._updatePreview(pointer)
   }
 
-  onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      this._cancelDrawing()
-    } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-      e.preventDefault()
-      this._undoLastPoint()
-    } else if (e.key === 'Enter') {
-      this._finishCurve()
-    }
-  }
+  // onKeyDown(e: KeyboardEvent): void {
+  //   if (e.key === 'Escape') {
+  //     this._cancelDrawing()
+  //   } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+  //     e.preventDefault()
+  //     this._undoLastPoint()
+  //   } else if (e.key === 'Enter') {
+  //     this._finishCurve()
+  //   }
+  // }
 
   override isDrawing(): boolean {
     return this.isDrawingState
@@ -156,7 +157,8 @@ export default class CurveTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: 'pointer'
     })
-    ;(circle as Circle & { customType: string; isStartPoint?: boolean }).customType = 'curveHelper'
+    ;(circle as Circle & { customType: string; isStartPoint?: boolean }).customType =
+      CustomType.CurveHelper
     ;(circle as Circle & { customType: string; isStartPoint?: boolean }).isStartPoint = isFirstPoint
     if (isFirstPoint) {
       this._bindCircleHoverEvents(circle)
@@ -202,7 +204,7 @@ export default class CurveTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: 'default'
     })
-    ;(label as Text & { customType: string }).customType = 'curveHelperLabel'
+    ;(label as Text & { customType: string }).customType = CustomType.CurveHelperLabel
     this.canvas.add(label)
     this.labels.push(label)
   }
@@ -231,7 +233,7 @@ export default class CurveTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: 'default'
     })
-    ;(label as Text & { customType: string }).customType = 'curveHelperLabel'
+    ;(label as Text & { customType: string }).customType = CustomType.CurveHelperLabel
     this.canvas.add(label)
     this.labels.push(label)
   }
@@ -336,7 +338,7 @@ export default class CurveTool extends BaseTool {
       selectable: false,
       evented: false
     })
-    ;(this.previewPath as Path & { customType: string }).customType = 'curvePreview'
+    ;(this.previewPath as Path & { customType: string }).customType = CustomType.CurvePreview
     this.canvas.add(this.previewPath)
 
     if (mousePoint && this.points.length >= 1) {
@@ -486,8 +488,10 @@ export default class CurveTool extends BaseTool {
       this._addClosingDistanceLabel()
     }
 
+    const drawId = generateDrawId()
+
     const customData: CurveCustomData = {
-      curveId: `curve-${Date.now()}`,
+      drawId,
       points: [...this.points],
       isClosed: isClosed,
       lineColor: this.paintBoard.lineColor,
@@ -497,11 +501,18 @@ export default class CurveTool extends BaseTool {
       distances: [...this.distances]
     }
 
-    ;(curve as Path & { customType: string; customData: CurveCustomData }).customType = 'curve'
+    ;(curve as Path & { customType: string; customData: CurveCustomData }).customType =
+      CustomType.Curve
     ;(curve as Path & { customType: string; customData: CurveCustomData }).customData = customData
 
-    this.circles.forEach(c => ((c as any).curveId = customData.curveId))
-    this.labels.forEach(l => ((l as any).curveId = customData.curveId))
+    this.circles.forEach(c => {
+      const circleData = { drawId: generateDrawId(), drawPid: drawId }
+      ;(c as any).customData = circleData
+    })
+    this.labels.forEach(l => {
+      const labelData = { drawId: generateDrawId(), drawPid: drawId }
+      ;(l as any).customData = labelData
+    })
 
     this.canvas.add(curve)
 
@@ -515,7 +526,7 @@ export default class CurveTool extends BaseTool {
     this._setupCurveEvents(curve as Path & { customType: string; customData: CurveCustomData })
 
     this.eventBus.emit('curve:created', {
-      curveId: customData.curveId,
+      drawId: customData.drawId,
       points: customData.points,
       isClosed
     })
@@ -606,7 +617,7 @@ export default class CurveTool extends BaseTool {
       lastLeft = curve.left || 0
       lastTop = curve.top || 0
       this.eventBus!.emit('curve:selected', {
-        curveId: curve.customData.curveId,
+        drawId: curve.customData.drawId,
         points: curve.customData.points,
         isClosed: curve.customData.isClosed
       })

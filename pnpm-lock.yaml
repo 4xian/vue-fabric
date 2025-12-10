@@ -78,6 +78,9 @@ importers:
       rollup-plugin-postcss:
         specifier: ^4.0.2
         version: 4.0.2(postcss@8.5.6)
+      rollup-plugin-svg-import:
+        specifier: ^3.0.0
+        version: 3.0.0(rollup@4.53.3)
       semantic-release:
         specifier: ^25.0.2
         version: 25.0.2(typescript@5.9.3)
@@ -3008,6 +3011,12 @@ packages:
     engines: {node: '>=10'}
     peerDependencies:
       postcss: 8.x
+
+  rollup-plugin-svg-import@3.0.0:
+    resolution: {integrity: sha512-5fUESTM5hdqJojrwO53JQUO7NespLNx4iLeMsToQfuaGGqGT5sz85Ns5gCDNxLO6yBPbn7p0A/6YA+Rq3clg4Q==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      rollup: ^3.0.0||^4.0.0
 
   rollup-pluginutils@2.8.2:
     resolution: {integrity: sha512-EEp9NhnUkwY8aif6bxgovPHMoMoNr2FulJziTndpt5H9RdwC47GSGuII9XxpSdzVGM0GWrNPHV6ie1LTNJPaLQ==}
@@ -6655,6 +6664,11 @@ snapshots:
       style-inject: 0.3.0
     transitivePeerDependencies:
       - ts-node
+
+  rollup-plugin-svg-import@3.0.0(rollup@4.53.3):
+    dependencies:
+      '@rollup/pluginutils': 5.3.0(rollup@4.53.3)
+      rollup: 4.53.3
 
   rollup-pluginutils@2.8.2:
     dependencies:

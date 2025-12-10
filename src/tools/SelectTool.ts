@@ -1,7 +1,7 @@
 import type { FabricObject } from 'fabric'
 import type { SelectToolOptions } from '../../types'
 import BaseTool from './BaseTool'
-import { DEFAULT_SELECTTOOL_OPTIONS } from '../utils/settings'
+import { DEFAULT_SELECTTOOL_OPTIONS, CustomType } from '../utils/settings'
 
 export default class SelectTool extends BaseTool {
   protected override options: Required<SelectToolOptions>
@@ -16,7 +16,7 @@ export default class SelectTool extends BaseTool {
     this.canvas.defaultCursor = this.options.activeCursor
     this.canvas.selection = this.options.allowSelection
     this.canvas.forEachObject((obj: FabricObject & { customType?: string }) => {
-      if (obj.customType === 'area') {
+      if (obj.customType === CustomType.Area) {
         obj.set({ selectable: true, evented: true })
       }
     })

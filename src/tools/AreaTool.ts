@@ -3,7 +3,8 @@ import type { TPointerEventInfo, TPointerEvent, Circle, Line, Text, Polygon, Rec
 import type { Point, AreaCustomData, AreaToolOptions } from '../../types'
 import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
-import { DEFAULT_AREATOOL_OPTIONS } from '../utils/settings'
+import { DEFAULT_AREATOOL_OPTIONS, CustomType } from '../utils/settings'
+import { generateDrawId } from '../utils/generateId'
 
 interface UndoState {
   point: Point
@@ -63,7 +64,7 @@ export default class AreaTool extends BaseTool {
       customData?: AreaCustomData
     }
 
-    if (target && target.customType === 'area') {
+    if (target && target.customType === CustomType.Area) {
       if (!this.options.allowOverlap) {
         this.canvas?.setActiveObject(target)
         this.canvas?.renderAll()
@@ -72,7 +73,7 @@ export default class AreaTool extends BaseTool {
       this.canvas?.discardActiveObject()
     }
 
-    if (target && target.customType === 'areaPoint') {
+    if (target && target.customType === CustomType.AreaPoint) {
       const circleTarget = target as Circle
       const point: Point = { x: circleTarget.left || 0, y: circleTarget.top || 0 }
 
@@ -105,14 +106,14 @@ export default class AreaTool extends BaseTool {
     this._updatePreview(pointer)
   }
 
-  onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      this._cancelDrawing()
-    } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-      e.preventDefault()
-      this._undoLastPoint()
-    }
-  }
+  // onKeyDown(e: KeyboardEvent): void {
+  //   if (e.key === 'Escape') {
+  //     this._cancelDrawing()
+  //   } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+  //     e.preventDefault()
+  //     this._undoLastPoint()
+  //   }
+  // }
 
   override isDrawing(): boolean {
     return this.isDrawingState
@@ -173,7 +174,8 @@ export default class AreaTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: 'pointer'
     })
-    ;(circle as Circle & { customType: string; isStartPoint?: boolean }).customType = 'areaPoint'
+    ;(circle as Circle & { customType: string; isStartPoint?: boolean }).customType =
+      CustomType.AreaPoint
     ;(circle as Circle & { customType: string; isStartPoint?: boolean }).isStartPoint = isFirstPoint
     if (isFirstPoint) {
       this._bindCircleHoverEvents(circle)
@@ -202,7 +204,7 @@ export default class AreaTool extends BaseTool {
       lockMovementX: true,
       lockMovementY: true
     })
-    ;(line as Line & { customType: string }).customType = 'areaLine'
+    ;(line as Line & { customType: string }).customType = CustomType.AreaLine
     this.canvas.add(line)
     this.lines.push(line)
 
@@ -225,7 +227,7 @@ export default class AreaTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: 'default'
     })
-    ;(label as Text & { customType: string }).customType = 'areaLabel'
+    ;(label as Text & { customType: string }).customType = CustomType.AreaLabel
     this.canvas.add(label)
     this.labels.push(label)
   }
@@ -316,8 +318,10 @@ export default class AreaTool extends BaseTool {
       }
     )
 
+    const drawId = generateDrawId()
+
     const customData: AreaCustomData = {
-      areaId: `area-${Date.now()}`,
+      drawId,
       points: [...this.points],
       distances: [...this.distances],
       lineColor: this.paintBoard.lineColor,
@@ -327,13 +331,23 @@ export default class AreaTool extends BaseTool {
       lines: [...this.lines]
     }
 
-    ;(polygon as Polygon & { customType: string; customData: AreaCustomData }).customType = 'area'
+    ;(polygon as Polygon & { customType: string; customData: AreaCustomData }).customType =
+      CustomType.Area
     ;(polygon as Polygon & { customType: string; customData: AreaCustomData }).customData =
       customData
 
-    this.circles.forEach(c => ((c as any).areaId = customData.areaId))
-    this.lines.forEach(l => ((l as any).areaId = customData.areaId))
-    this.labels.forEach(l => ((l as any).areaId = customData.areaId))
+    this.circles.forEach(c => {
+      const circleData = { drawId: generateDrawId(), drawPid: drawId }
+      ;(c as any).customData = circleData
+    })
+    this.lines.forEach(l => {
+      const lineData = { drawId: generateDrawId(), drawPid: drawId }
+      ;(l as any).customData = lineData
+    })
+    this.labels.forEach(l => {
+      const labelData = { drawId: generateDrawId(), drawPid: drawId }
+      ;(l as any).customData = labelData
+    })
 
     this.canvas.add(polygon)
 
@@ -347,7 +361,7 @@ export default class AreaTool extends BaseTool {
     this._setupAreaEvents(polygon as Polygon & { customType: string; customData: AreaCustomData })
 
     this.eventBus.emit('area:created', {
-      areaId: customData.areaId,
+      drawId: customData.drawId,
       points: customData.points,
       distances: customData.distances
     })
@@ -367,7 +381,7 @@ export default class AreaTool extends BaseTool {
       lastLeft = polygon.left || 0
       lastTop = polygon.top || 0
       this.eventBus!.emit('area:selected', {
-        areaId: polygon.customData.areaId,
+        drawId: polygon.customData.drawId,
         points: polygon.customData.points,
         distances: polygon.customData.distances
       })

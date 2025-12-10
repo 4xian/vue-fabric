@@ -3,6 +3,7 @@ import type { Canvas, FabricObject, Circle, Line, Text, FabricImage } from 'fabr
 import type {
   FabricPaintOptions,
   ExportImageOptions,
+  ExportJSONOptions,
   EventCallback,
   AreaCustomData,
   AddTextOptions,
@@ -12,7 +13,8 @@ import type {
   BackgroundImageOptions,
   CurveCustomData,
   LineCustomData,
-  TraceOptions
+  TraceOptions,
+  ZoomOrigin
 } from '../../types'
 import PersonTracker from '../utils/PersonTracker'
 import TextTool from '../tools/TextTool'
@@ -22,7 +24,7 @@ import CanvasManager from './CanvasManager'
 import UndoRedoManager from '../utils/UndoRedoManager'
 import * as exportUtils from '../utils/export'
 import BaseTool from '../tools/BaseTool'
-import { PROJECT_NAME, DEFAULT_VUEFABRIC_OPTIONS } from '../utils/settings'
+import { PROJECT_NAME, DEFAULT_VUEFABRIC_OPTIONS, CustomType } from '../utils/settings'
 
 export default class VueFabric {
   container: HTMLElement | null
@@ -87,7 +89,6 @@ export default class VueFabric {
       backgroundColor: this.options.backgroundColor,
       hoverCursor: this.options.hoverCursor,
       moveCursor: this.options.moveCursor,
-      // backgroundImage: this.options.backgroundImage,
       selection: this.options.selection,
       preserveObjectStacking: this.options.preserveObjectStacking,
       perPixelTargetFind: this.options.perPixelTargetFind,
@@ -108,7 +109,7 @@ export default class VueFabric {
     this.undoRedoManager = new UndoRedoManager(this.canvas, this.eventBus, {
       excludeTypes: [
         'text',
-        'customImage',
+        'image',
         'area',
         'areaPoint',
         'areaLine',
@@ -197,19 +198,28 @@ export default class VueFabric {
     return this
   }
 
-  zoomIn(): this {
-    this.canvasManager?.zoomIn()
+  zoomIn(origin?: ZoomOrigin): this {
+    this.canvasManager?.zoomIn(origin)
     return this
   }
 
-  zoomOut(): this {
-    this.canvasManager?.zoomOut()
+  zoomOut(origin?: ZoomOrigin): this {
+    this.canvasManager?.zoomOut(origin)
     return this
   }
 
   resetZoom(): this {
     this.canvasManager?.resetZoom()
     return this
+  }
+
+  setZoom(zoom: number, origin?: ZoomOrigin): this {
+    this.canvasManager?.setZoom(zoom, origin)
+    return this
+  }
+
+  getZoom(): number {
+    return this.canvasManager?.getZoom() ?? 1
   }
 
   undo(): boolean {
@@ -419,9 +429,9 @@ export default class VueFabric {
     return this._backgroundImage
   }
 
-  exportToJSON(additionalProperties: string[] = []): string {
+  exportToJSON(options: ExportJSONOptions | string[] = []): string {
     if (!this.canvas) return '{}'
-    return exportUtils.exportToJSON(this.canvas, additionalProperties)
+    return exportUtils.exportToJSON(this.canvas, options)
   }
 
   async importFromJSON(json: string | object): Promise<void> {
@@ -476,7 +486,7 @@ export default class VueFabric {
           customData?: AreaCustomData | CurveCustomData | LineCustomData
         }
       ) => {
-        if (obj.customType === 'area' && obj.customData) {
+        if (obj.customType === CustomType.Area && obj.customData) {
           const data = obj.customData as AreaCustomData
           data.lines?.forEach((line: Line) => {
             line.set({ visible: true, opacity: 1 })
@@ -490,7 +500,7 @@ export default class VueFabric {
             label.set({ visible: true, opacity: 1 })
             this.canvas!.bringObjectToFront(label)
           })
-        } else if (obj.customType === 'curve' && obj.customData) {
+        } else if (obj.customType === CustomType.Curve && obj.customData) {
           const data = obj.customData as CurveCustomData
           data.circles?.forEach((circle: Circle) => {
             circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
@@ -500,7 +510,7 @@ export default class VueFabric {
             label.set({ visible: true, opacity: 1 })
             this.canvas!.bringObjectToFront(label)
           })
-        } else if (obj.customType === 'line' && obj.customData) {
+        } else if (obj.customType === CustomType.Line && obj.customData) {
           const data = obj.customData as LineCustomData
           if (data.startCircle) {
             data.startCircle.set({ visible: true, opacity: 1 })
@@ -532,7 +542,7 @@ export default class VueFabric {
           customData?: AreaCustomData | CurveCustomData | LineCustomData
         }
       ) => {
-        if (obj.customType === 'area' && obj.customData) {
+        if (obj.customType === CustomType.Area && obj.customData) {
           const data = obj.customData as AreaCustomData
           data.circles?.forEach((circle: Circle) => {
             circle.set({ visible: false })
@@ -543,7 +553,7 @@ export default class VueFabric {
           data.lines?.forEach((line: Line) => {
             line.set({ visible: false })
           })
-        } else if (obj.customType === 'curve' && obj.customData) {
+        } else if (obj.customType === CustomType.Curve && obj.customData) {
           const data = obj.customData as CurveCustomData
           data.circles?.forEach((circle: Circle) => {
             circle.set({ visible: false })
@@ -551,7 +561,7 @@ export default class VueFabric {
           data.labels?.forEach((label: Text) => {
             label.set({ visible: false })
           })
-        } else if (obj.customType === 'line' && obj.customData) {
+        } else if (obj.customType === CustomType.Line && obj.customData) {
           const data = obj.customData as LineCustomData
           if (data.startCircle) {
             data.startCircle.set({ visible: false })
@@ -631,31 +641,31 @@ export default class VueFabric {
         let objId: string | undefined
 
         switch (customObj.customType) {
-          case 'text':
-            objId = (customObj.customData as TextCustomData).textId
+          case CustomType.Text:
+            objId = (customObj.customData as TextCustomData).drawId
             break
-          case 'customImage':
-            objId = (customObj.customData as CustomImageData).customImageId
+          case CustomType.Image:
+            objId = (customObj.customData as CustomImageData).drawId
             break
-          case 'area':
-            objId = (customObj.customData as AreaCustomData).areaId
+          case CustomType.Area:
+            objId = (customObj.customData as AreaCustomData).drawId
             break
-          case 'curve':
-            objId = (customObj.customData as CurveCustomData).curveId
+          case CustomType.Curve:
+            objId = (customObj.customData as CurveCustomData).drawId
             break
-          case 'line':
-            objId = (customObj.customData as LineCustomData).lineId
+          case CustomType.Line:
+            objId = (customObj.customData as LineCustomData).drawId
             break
         }
 
         if (objId === id) {
-          if (customObj.customType === 'area') {
+          if (customObj.customType === CustomType.Area) {
             this._removeAreaWithHelpers(customObj as FabricObject & { customData: AreaCustomData })
-          } else if (customObj.customType === 'curve') {
+          } else if (customObj.customType === CustomType.Curve) {
             this._removeCurveWithHelpers(
               customObj as FabricObject & { customData: CurveCustomData }
             )
-          } else if (customObj.customType === 'line') {
+          } else if (customObj.customType === CustomType.Line) {
             this._removeLineWithHelpers(customObj as FabricObject & { customData: LineCustomData })
           } else {
             this.canvas.remove(obj)
@@ -738,20 +748,20 @@ export default class VueFabric {
         let id: string | undefined
 
         switch (customObj.customType) {
-          case 'text':
-            id = (customObj.customData as TextCustomData).textId
+          case CustomType.Text:
+            id = (customObj.customData as TextCustomData).drawId
             break
-          case 'customImage':
-            id = (customObj.customData as CustomImageData).customImageId
+          case CustomType.Image:
+            id = (customObj.customData as CustomImageData).drawId
             break
-          case 'area':
-            id = (customObj.customData as AreaCustomData).areaId
+          case CustomType.Area:
+            id = (customObj.customData as AreaCustomData).drawId
             break
-          case 'curve':
-            id = (customObj.customData as CurveCustomData).curveId
+          case CustomType.Curve:
+            id = (customObj.customData as CurveCustomData).drawId
             break
-          case 'line':
-            id = (customObj.customData as LineCustomData).lineId
+          case CustomType.Line:
+            id = (customObj.customData as LineCustomData).drawId
             break
         }
 
@@ -777,7 +787,7 @@ export default class VueFabric {
     const objects = this.canvas.getObjects()
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: TextCustomData }
-      if (customObj.customType === 'text' && customObj.customData?.textId === id) {
+      if (customObj.customType === CustomType.Text && customObj.customData?.drawId === id) {
         const textObj = obj as fabric.IText
 
         if (options.text !== undefined) textObj.set('text', options.text)
@@ -812,7 +822,7 @@ export default class VueFabric {
     const objects = this.canvas.getObjects()
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: CustomImageData }
-      if (customObj.customType === 'customImage' && customObj.customData?.customImageId === id) {
+      if (customObj.customType === CustomType.Image && customObj.customData?.drawId === id) {
         if (options.x !== undefined) obj.set('left', options.x)
         if (options.y !== undefined) obj.set('top', options.y)
         if (options.angle !== undefined) obj.set('angle', options.angle)
@@ -847,20 +857,20 @@ export default class VueFabric {
         let objId: string | undefined
 
         switch (customObj.customType) {
-          case 'text':
-            objId = (customObj.customData as TextCustomData).textId
+          case CustomType.Text:
+            objId = (customObj.customData as TextCustomData).drawId
             break
-          case 'customImage':
-            objId = (customObj.customData as CustomImageData).customImageId
+          case CustomType.Image:
+            objId = (customObj.customData as CustomImageData).drawId
             break
-          case 'area':
-            objId = (customObj.customData as AreaCustomData).areaId
+          case CustomType.Area:
+            objId = (customObj.customData as AreaCustomData).drawId
             break
-          case 'curve':
-            objId = (customObj.customData as CurveCustomData).curveId
+          case CustomType.Curve:
+            objId = (customObj.customData as CurveCustomData).drawId
             break
-          case 'line':
-            objId = (customObj.customData as LineCustomData).lineId
+          case CustomType.Line:
+            objId = (customObj.customData as LineCustomData).drawId
             break
         }
 

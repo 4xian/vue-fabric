@@ -2,7 +2,8 @@ import * as fabric from 'fabric'
 import type { FabricImage, FabricObject } from 'fabric'
 import type { ImageToolOptions, AddImageOptions, CustomImageData } from '../../types'
 import BaseTool from './BaseTool'
-import { DEFAULT_IMAGETOOL_OPTIONS } from '../utils/settings'
+import { DEFAULT_IMAGETOOL_OPTIONS, CustomType } from '../utils/settings'
+import { generateDrawId } from '../utils/generateId'
 
 export interface CreateImageResult {
   imageObj: FabricImage & { customType: string; customData: CustomImageData }
@@ -19,11 +20,27 @@ export default class ImageTool extends BaseTool {
     this._fileInput = null
   }
 
+  private _isBase64(str: string): boolean {
+    return str.startsWith('data:')
+  }
+
+  private _convertToBase64(img: HTMLImageElement): string {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth || img.width
+    canvas.height = img.naturalHeight || img.height
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.drawImage(img, 0, 0)
+      return canvas.toDataURL('image/png')
+    }
+    return ''
+  }
+
   onActivate(): void {
     if (!this.canvas) return
     this.canvas.selection = false
     this.canvas.forEachObject((obj: FabricObject & { customType?: string }) => {
-      if (obj.customType !== 'customImage') {
+      if (obj.customType !== CustomType.Image) {
         obj.set({ selectable: false, evented: false })
       }
     })
@@ -86,6 +103,7 @@ export default class ImageTool extends BaseTool {
         x,
         y,
         src,
+        base64,
         width,
         height,
         selectable = this.options.defaultSelectable,
@@ -100,6 +118,15 @@ export default class ImageTool extends BaseTool {
         scaleY = 1,
         opacity = 1
       } = options
+
+      const imageSource = base64 || src
+      if (!imageSource) {
+        console.error('Either src or base64 must be provided')
+        resolve(null)
+        return
+      }
+
+      const isBase64Input = base64 || this._isBase64(imageSource)
 
       const img = new Image()
       img.crossOrigin = 'anonymous'
@@ -139,14 +166,17 @@ export default class ImageTool extends BaseTool {
           originY: 'center'
         })
 
+        const base64Data = isBase64Input ? imageSource : this._convertToBase64(img)
+
         const customData: CustomImageData = {
-          customImageId: id || `custom-image-${Date.now()}`,
-          createdAt: Date.now()
+          drawId: id || generateDrawId(),
+          createdAt: Date.now(),
+          base64: base64Data
         }
 
         ;(
           fabricImg as FabricImage & { customType: string; customData: CustomImageData }
-        ).customType = 'customImage'
+        ).customType = CustomType.Image
         ;(
           fabricImg as FabricImage & { customType: string; customData: CustomImageData }
         ).customData = customData
@@ -157,9 +187,10 @@ export default class ImageTool extends BaseTool {
         this.canvas!.renderAll()
 
         this.eventBus!.emit('image:created', {
-          customImageId: customData.customImageId,
+          drawId: customData.drawId,
           x,
-          y
+          y,
+          base64: base64Data
         })
 
         resolve({
@@ -173,7 +204,7 @@ export default class ImageTool extends BaseTool {
         resolve(null)
       }
 
-      img.src = src
+      img.src = imageSource
     })
   }
 
@@ -182,7 +213,7 @@ export default class ImageTool extends BaseTool {
 
     imageObj.on('mousedown', () => {
       this.eventBus!.emit('image:clicked', {
-        id: imageObj.customData.customImageId,
+        id: imageObj.customData.drawId,
         object: imageObj
       })
     })
@@ -190,14 +221,14 @@ export default class ImageTool extends BaseTool {
     imageObj.on('selected', () => {
       this.eventBus!.emit('custom:selected', {
         type: 'image',
-        id: imageObj.customData.customImageId,
+        id: imageObj.customData.drawId,
         object: imageObj
       })
     })
 
     imageObj.on('modified', () => {
       this.eventBus!.emit('image:modified', {
-        id: imageObj.customData.customImageId,
+        id: imageObj.customData.drawId,
         object: imageObj
       })
     })
@@ -304,7 +335,7 @@ export default class ImageTool extends BaseTool {
     const objects = this.canvas.getObjects()
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: CustomImageData }
-      if (customObj.customType === 'customImage' && customObj.customData?.customImageId === id) {
+      if (customObj.customType === CustomType.Image && customObj.customData?.drawId === id) {
         return obj as FabricImage
       }
     }

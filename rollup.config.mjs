@@ -5,6 +5,7 @@ import terser from '@rollup/plugin-terser'
 import peerDepsExternal from 'rollup-plugin-peer-deps-external'
 import dts from 'rollup-plugin-dts'
 import postcss from 'rollup-plugin-postcss'
+import svgImport from 'rollup-plugin-svg-import'
 
 const external = ['fabric']
 
@@ -12,6 +13,7 @@ const commonPlugins = [
   peerDepsExternal(),
   resolve(),
   commonjs(),
+  svgImport({ stringify: true }),
   postcss({
     extract: 'style.css',
     minimize: true
@@ -59,6 +61,7 @@ export default [
       peerDepsExternal(),
       resolve(),
       commonjs(),
+      svgImport({ stringify: true }),
       postcss({
         extract: false,
         inject: false

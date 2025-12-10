@@ -3,7 +3,8 @@ import type { TPointerEventInfo, TPointerEvent, Circle, Line, Text, Rect } from 
 import type { Point, LineToolOptions, LineCustomData } from '../../types'
 import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
-import { DEFAULT_LINETOOL_OPTIONS } from '../utils/settings'
+import { DEFAULT_LINETOOL_OPTIONS, CustomType } from '../utils/settings'
+import { generateDrawId } from '../utils/generateId'
 
 interface LineUndoState {
   type: 'drawing' | 'complete'
@@ -13,7 +14,7 @@ interface LineUndoState {
   endCircle?: Circle
   line?: Line & { customType: string; customData: LineCustomData }
   label?: Text
-  lineId?: string
+  drawId?: string
 }
 
 export default class LineTool extends BaseTool {
@@ -81,14 +82,14 @@ export default class LineTool extends BaseTool {
     this._updatePreview(pointer)
   }
 
-  onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      this._cancelDrawing()
-    } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-      e.preventDefault()
-      this._cancelDrawing()
-    }
-  }
+  // onKeyDown(e: KeyboardEvent): void {
+  //   if (e.key === 'Escape') {
+  //     this._cancelDrawing()
+  //   } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+  //     e.preventDefault()
+  //     this._cancelDrawing()
+  //   }
+  // }
 
   override isDrawing(): boolean {
     return this.isDrawingState
@@ -198,7 +199,7 @@ export default class LineTool extends BaseTool {
       hasBorders: false,
       hasControls: false
     })
-    ;(this.startCircle as Circle & { customType: string }).customType = 'lineHelper'
+    ;(this.startCircle as Circle & { customType: string }).customType = CustomType.LineHelper
     this.canvas.add(this.startCircle)
     this.canvas.renderAll()
   }
@@ -252,7 +253,7 @@ export default class LineTool extends BaseTool {
 
     this._clearPreview()
     this.endPoint = point
-    const lineId = `line-${Date.now()}`
+    const drawId = generateDrawId()
 
     const line = new fabric.Line(
       [this.startPoint.x, this.startPoint.y, this.endPoint.x, this.endPoint.y],
@@ -271,7 +272,15 @@ export default class LineTool extends BaseTool {
       }
     )
 
-    ;(this.startCircle as Circle & { customType: string; lineId: string }).lineId = lineId
+    ;(
+      this.startCircle as Circle & {
+        customType: string
+        customData: { drawId: string; drawPid: string }
+      }
+    ).customData = {
+      drawId: generateDrawId(),
+      drawPid: drawId
+    }
 
     this.endCircle = new fabric.Circle({
       left: this.endPoint.x,
@@ -287,8 +296,21 @@ export default class LineTool extends BaseTool {
       hasBorders: false,
       hasControls: false
     })
-    ;(this.endCircle as Circle & { customType: string; lineId: string }).customType = 'lineHelper'
-    ;(this.endCircle as Circle & { customType: string; lineId: string }).lineId = lineId
+    ;(
+      this.endCircle as Circle & {
+        customType: string
+        customData: { drawId: string; drawPid: string }
+      }
+    ).customType = CustomType.LineHelper
+    ;(
+      this.endCircle as Circle & {
+        customType: string
+        customData: { drawId: string; drawPid: string }
+      }
+    ).customData = {
+      drawId: generateDrawId(),
+      drawPid: drawId
+    }
     this.canvas.add(this.endCircle)
 
     const distance = calculateDistance(this.startPoint, this.endPoint)
@@ -306,12 +328,19 @@ export default class LineTool extends BaseTool {
       hasBorders: false,
       hasControls: false
     })
-    ;(label as Text & { customType: string; lineId: string }).customType = 'lineHelperLabel'
-    ;(label as Text & { customType: string; lineId: string }).lineId = lineId
+    ;(
+      label as Text & { customType: string; customData: { drawId: string; drawPid: string } }
+    ).customType = CustomType.LineHelperLabel
+    ;(
+      label as Text & { customType: string; customData: { drawId: string; drawPid: string } }
+    ).customData = {
+      drawId: generateDrawId(),
+      drawPid: drawId
+    }
     this.canvas.add(label)
 
     const customData: LineCustomData = {
-      lineId,
+      drawId,
       startPoint: { ...this.startPoint },
       endPoint: { ...this.endPoint },
       distance,
@@ -321,7 +350,8 @@ export default class LineTool extends BaseTool {
       label
     }
 
-    ;(line as Line & { customType: string; customData: LineCustomData }).customType = 'line'
+    ;(line as Line & { customType: string; customData: LineCustomData }).customType =
+      CustomType.Line
     ;(line as Line & { customType: string; customData: LineCustomData }).customData = customData
 
     this.canvas.add(line)
@@ -336,7 +366,7 @@ export default class LineTool extends BaseTool {
     this._setupLineEvents(line as Line & { customType: string; customData: LineCustomData })
 
     this.eventBus.emit('line:created', {
-      lineId: customData.lineId,
+      drawId: customData.drawId,
       startPoint: customData.startPoint,
       endPoint: customData.endPoint,
       distance: customData.distance
@@ -350,7 +380,7 @@ export default class LineTool extends BaseTool {
       endCircle: this.endCircle!,
       line: line as Line & { customType: string; customData: LineCustomData },
       label,
-      lineId
+      drawId
     }
     this._undoStack.push(completedState)
 
@@ -369,7 +399,7 @@ export default class LineTool extends BaseTool {
       lastLeft = line.left || 0
       lastTop = line.top || 0
       this.eventBus!.emit('line:selected', {
-        lineId: line.customData.lineId,
+        drawId: line.customData.drawId,
         startPoint: line.customData.startPoint,
         endPoint: line.customData.endPoint,
         distance: line.customData.distance

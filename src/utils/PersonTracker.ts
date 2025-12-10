@@ -2,7 +2,7 @@ import * as fabric from 'fabric'
 import type { Canvas, Group, Circle, Polyline, Path } from 'fabric'
 import type { Point, PersonData, TraceOptions } from '../../types'
 import EventBus from '../core/EventBus'
-import { DEFAULT_PERSON_TRACKER_OPTIONS, SHOULD_BLINK_LIST } from '../utils/settings'
+import { DEFAULT_PERSON_TRACKER_OPTIONS, SHOULD_BLINK_LIST, CustomType } from '../utils/settings'
 
 interface PersonMarker {
   group: Group
@@ -265,7 +265,7 @@ export default class PersonTracker {
       hoverCursor: 'pointer'
     })
 
-    ;(group as Group & { customType: string }).customType = 'personMarker'
+    ;(group as Group & { customType: string }).customType = CustomType.PersonMarker
 
     return { group, circle, text }
   }
@@ -279,7 +279,7 @@ export default class PersonTracker {
       selectable: false,
       evented: false
     })
-    ;(polyline as Polyline & { customType: string }).customType = 'trajectoryPath'
+    ;(polyline as Polyline & { customType: string }).customType = CustomType.TracePath
     return polyline
   }
 
@@ -292,7 +292,7 @@ export default class PersonTracker {
       selectable: false,
       evented: false
     })
-    ;(path as Path & { customType: string }).customType = 'trajectoryPath'
+    ;(path as Path & { customType: string }).customType = CustomType.TracePath
     return path
   }
 

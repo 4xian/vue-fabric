@@ -11,6 +11,42 @@ import type {
   TraceOptions
 } from '../../types'
 
+// 自定义类型枚举
+export const CustomType = {
+  // 主要类型
+  Line: 'line',
+  Area: 'area',
+  Curve: 'curve',
+  Text: 'text',
+  Image: 'image',
+  // 直线辅助类型
+  LineHelper: 'lineHelper',
+  LineHelperLabel: 'lineHelperLabel',
+  // 区域辅助类型
+  AreaPoint: 'areaPoint',
+  AreaLine: 'areaLine',
+  AreaLabel: 'areaLabel',
+  // 曲线辅助类型
+  CurveHelper: 'curveHelper',
+  CurveHelperLabel: 'curveHelperLabel',
+  CurvePreview: 'curvePreview',
+  // 人员轨迹类型
+  PersonMarker: 'personMarker',
+  TracePath: 'tracePath'
+} as const
+
+export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]
+
+export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image'
+
+export const CUSTOM_TYPE_HELPER_MAP: Record<MainCustomType, CustomTypeValue[]> = {
+  line: [CustomType.LineHelper, CustomType.LineHelperLabel],
+  area: [CustomType.AreaPoint, CustomType.AreaLine, CustomType.AreaLabel],
+  curve: [CustomType.CurveHelper, CustomType.CurveHelperLabel, CustomType.CurvePreview],
+  text: [],
+  image: []
+}
+
 // 项目名称
 export const PROJECT_NAME = 'vue-fabric'
 
@@ -36,7 +72,8 @@ export const DEFAULT_CANVAS_MANAGER_OPTIONS: CanvasManagerOptions = {
   minZoom: 0.2,
   maxZoom: 5,
   expandMargin: 50,
-  expandSize: 200
+  expandSize: 200,
+  zoomOrigin: 'center'
 }
 
 // 默认基础工具配置
@@ -125,7 +162,7 @@ export const DEFAULT_TEXTTOOL_OPTIONS: TextToolOptions = {
   deactiveCursor: 'default',
   fontSize: 14,
   fontFamily: 'Arial',
-  fill: '#333',
+  fill: '#0000BF',
   perPixelTargetFind: false,
   hasBorders: false,
   hasControls: false,
@@ -142,6 +179,16 @@ export const DEFAULT_IMAGETOOL_OPTIONS: ImageToolOptions = {
   defaultHasBorders: false,
   defaultLockMovement: true,
   defaultLockScaling: true,
+  hasBorders: false,
+  hasControls: false,
+  lockMovementX: true,
+  lockMovementY: true
+}
+
+// 默认拖拽工具配置
+export const DEFAULT_DRAGTOOL_OPTIONS: BaseToolOptions = {
+  activeCursor: 'grab',
+  deactiveCursor: 'default',
   hasBorders: false,
   hasControls: false,
   lockMovementX: true,
@@ -168,9 +215,6 @@ export const SHOULD_BLINK_LIST = ['fainted']
 export const SERIALIZATION_PROPERTIES = [
   'customType',
   'customData',
-  'areaId',
-  'lineId',
-  'curveId',
   'hasControls',
   'hasBorders',
   'lockMovementX',
