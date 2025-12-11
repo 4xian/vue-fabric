@@ -1,18 +1,21 @@
 import * as fabric from 'fabric'
-import type { Canvas, Line, Polygon, IText, FabricImage } from 'fabric'
+import type { Canvas, Line, Polygon, IText, FabricImage, Rect } from 'fabric'
 import type {
   AreaCustomData,
   LineCustomData,
   CurveCustomData,
   TextCustomData,
-  CustomImageData,
-  ExportImageOptions
+  ImageCustomData,
+  RectCustomData,
+  ExportImageOptions,
+  CustomData
 } from '../../types'
 import EventBus from '../core/EventBus'
 import {
   SERIALIZATION_PROPERTIES,
   CustomType,
   CUSTOM_TYPE_HELPER_MAP,
+  DEFAULT_RECTTOOL_OPTIONS,
   type MainCustomType
 } from './settings'
 import type { ExportJSONOptions } from '../../types'
@@ -70,12 +73,7 @@ function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: 
   canvas.getObjects().forEach(obj => {
     const customObj = obj as fabric.FabricObject & {
       customType?: string
-      customData?:
-        | AreaCustomData
-        | LineCustomData
-        | CurveCustomData
-        | TextCustomData
-        | CustomImageData
+      customData?: CustomData
     }
 
     if (!customObj.customType) return
@@ -103,12 +101,20 @@ function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: 
           helpersVisible
         )
         break
+      case CustomType.Rect:
+        rebindRectEvents(customObj as Rect & { customData: RectCustomData }, canvas, eventBus)
+        applyRectHelperVisibility(
+          customObj as Rect & { customData: RectCustomData },
+          helpersVisible,
+          canvas
+        )
+        break
       case CustomType.Text:
         rebindTextEvents(customObj as IText & { customData: TextCustomData }, canvas, eventBus)
         break
       case CustomType.Image:
         rebindImageEvents(
-          customObj as FabricImage & { customData: CustomImageData },
+          customObj as FabricImage & { customData: ImageCustomData },
           canvas,
           eventBus
         )
@@ -182,12 +188,29 @@ function applyCurveHelperVisibility(
   }
 }
 
+function applyRectHelperVisibility(
+  obj: Rect & { customData: RectCustomData },
+  visible: boolean,
+  canvas: Canvas
+): void {
+  const { widthLabel, heightLabel } = obj.customData || {}
+  if (widthLabel && typeof widthLabel.set === 'function') {
+    widthLabel.set({ visible })
+    if (visible) canvas.bringObjectToFront(widthLabel)
+  }
+  if (heightLabel && typeof heightLabel.set === 'function') {
+    heightLabel.set({ visible })
+    if (visible) canvas.bringObjectToFront(heightLabel)
+  }
+}
+
 function relinkHelperElements(canvas: Canvas): void {
   const objects = canvas.getObjects()
 
   const areas: Map<string, Polygon & { customData: AreaCustomData }> = new Map()
   const lines: Map<string, Line & { customData: LineCustomData }> = new Map()
   const curves: Map<string, fabric.FabricObject & { customData: CurveCustomData }> = new Map()
+  const rects: Map<string, Rect & { customData: RectCustomData }> = new Map()
 
   const areaHelpers: Map<
     string,
@@ -198,15 +221,13 @@ function relinkHelperElements(canvas: Canvas): void {
     { startCircle?: fabric.Circle; endCircle?: fabric.Circle; label?: fabric.Text }
   > = new Map()
   const curveHelpers: Map<string, { circles: fabric.Circle[]; labels: fabric.Text[] }> = new Map()
+  const rectHelpers: Map<string, { widthLabel?: fabric.Text; heightLabel?: fabric.Text }> =
+    new Map()
 
   objects.forEach(obj => {
     const customObj = obj as fabric.FabricObject & {
       customType?: string
-      customData?:
-        | AreaCustomData
-        | LineCustomData
-        | CurveCustomData
-        | { drawId?: string; drawPid?: string }
+      customData?: CustomData | { drawId?: string; drawPid?: string }
     }
 
     if (!customObj.customType) return
@@ -329,6 +350,33 @@ function relinkHelperElements(canvas: Canvas): void {
           curveHelpers.get(curveLabelPid)!.labels.push(obj as fabric.Text)
         }
         break
+
+      case CustomType.Rect:
+        // eslint-disable-next-line
+        const rectData = customObj.customData as RectCustomData
+        if (rectData?.drawId) {
+          rects.set(rectData.drawId, customObj as Rect & { customData: RectCustomData })
+          if (!rectHelpers.has(rectData.drawId)) {
+            rectHelpers.set(rectData.drawId, {})
+          }
+        }
+        break
+
+      case CustomType.RectLabel:
+        // eslint-disable-next-line
+        const rectLabelData = customObj.customData as { drawPid?: string; labelType?: string }
+        if (rectLabelData?.drawPid) {
+          if (!rectHelpers.has(rectLabelData.drawPid)) {
+            rectHelpers.set(rectLabelData.drawPid, {})
+          }
+          const helper = rectHelpers.get(rectLabelData.drawPid)!
+          if (rectLabelData.labelType === 'width') {
+            helper.widthLabel = obj as fabric.Text
+          } else if (rectLabelData.labelType === 'height') {
+            helper.heightLabel = obj as fabric.Text
+          }
+        }
+        break
     }
   })
 
@@ -357,6 +405,14 @@ function relinkHelperElements(canvas: Canvas): void {
       curve.customData.labels = helpers.labels.length > 0 ? helpers.labels : undefined
     }
   })
+
+  rects.forEach((rect, drawId) => {
+    const helpers = rectHelpers.get(drawId)
+    if (helpers && rect.customData) {
+      rect.customData.widthLabel = helpers.widthLabel
+      rect.customData.heightLabel = helpers.heightLabel
+    }
+  })
 }
 
 function rebindAreaEvents(
@@ -372,6 +428,17 @@ function rebindAreaEvents(
     lastTop = polygon.top || 0
     showHelpers(polygon, canvas)
     eventBus.emit('area:selected', {
+      drawId: polygon.customData.drawId,
+      points: polygon.customData.points,
+      distances: polygon.customData.distances
+    })
+  })
+
+  polygon.on('mousedown', () => {
+    lastLeft = polygon.left || 0
+    lastTop = polygon.top || 0
+    showHelpers(polygon, canvas)
+    eventBus.emit('area:clicked', {
       drawId: polygon.customData.drawId,
       points: polygon.customData.points,
       distances: polygon.customData.distances
@@ -411,6 +478,17 @@ function rebindLineEvents(
     })
   })
 
+  line.on('mousedown', () => {
+    lastLeft = line.left || 0
+    lastTop = line.top || 0
+    eventBus.emit('line:clicked', {
+      drawId: line.customData.drawId,
+      startPoint: line.customData.startPoint,
+      endPoint: line.customData.endPoint,
+      distance: line.customData.distance
+    })
+  })
+
   line.on('moving', () => {
     const dx = (line.left || 0) - lastLeft
     const dy = (line.top || 0) - lastTop
@@ -427,6 +505,16 @@ function rebindCurveEvents(
 ): void {
   let lastLeft = curve.left || 0
   let lastTop = curve.top || 0
+
+  curve.on('mousedown', () => {
+    lastLeft = curve.left || 0
+    lastTop = curve.top || 0
+    eventBus.emit('curve:clicked', {
+      drawId: curve.customData.drawId,
+      points: curve.customData.points,
+      isClosed: curve.customData.isClosed
+    })
+  })
 
   curve.on('selected', () => {
     lastLeft = curve.left || 0
@@ -445,6 +533,90 @@ function rebindCurveEvents(
     lastLeft = curve.left || 0
     lastTop = curve.top || 0
   })
+}
+
+function rebindRectEvents(
+  rect: Rect & { customData: RectCustomData },
+  canvas: Canvas,
+  eventBus: EventBus
+): void {
+  rect.setControlsVisibility({
+    mtr: false,
+    ml: true,
+    mr: true,
+    mt: true,
+    mb: true,
+    tl: true,
+    tr: true,
+    bl: true,
+    br: true
+  })
+  rect.set({
+    cornerStyle: DEFAULT_RECTTOOL_OPTIONS.cornerStyle || 'rect',
+    cornerSize: DEFAULT_RECTTOOL_OPTIONS.cornerSize || 10,
+    lockRotation: true,
+    lockMovementX: true,
+    lockMovementY: true
+  })
+
+  rect.on('mousedown', () => {
+    eventBus.emit('rect:clicked', {
+      ...rect.customData,
+      object: rect
+    })
+  })
+
+  rect.on('selected', () => {
+    eventBus.emit('rect:selected', {
+      ...rect.customData,
+      object: rect
+    })
+  })
+
+  rect.on('scaling', () => {
+    updateRectLabelsPosition(rect, canvas)
+  })
+
+  rect.on('modified', () => {
+    updateRectLabelsPosition(rect, canvas)
+    eventBus.emit('rect:modified', {
+      ...rect.customData,
+      object: rect
+    })
+  })
+}
+
+function updateRectLabelsPosition(
+  rect: Rect & { customData: RectCustomData },
+  canvas: Canvas
+): void {
+  const { widthLabel, heightLabel } = rect.customData || {}
+  const scaleX = rect.scaleX || 1
+  const scaleY = rect.scaleY || 1
+  const width = (rect.width || 0) * scaleX
+  const height = (rect.height || 0) * scaleY
+  const left = rect.left || 0
+  const top = rect.top || 0
+
+  if (widthLabel && typeof widthLabel.set === 'function') {
+    widthLabel.set({
+      text: `${Math.round(width)}px`,
+      left: left + width / 2,
+      top: top
+    })
+    widthLabel.setCoords()
+  }
+
+  if (heightLabel && typeof heightLabel.set === 'function') {
+    heightLabel.set({
+      text: `${Math.round(height)}px`,
+      left: left,
+      top: top + height / 2
+    })
+    heightLabel.setCoords()
+  }
+
+  canvas.renderAll()
 }
 
 function rebindTextEvents(
@@ -486,7 +658,7 @@ function rebindTextEvents(
 }
 
 function rebindImageEvents(
-  imageObj: FabricImage & { customData: CustomImageData },
+  imageObj: FabricImage & { customData: ImageCustomData },
   canvas: Canvas,
   eventBus: EventBus
 ): void {
@@ -500,7 +672,7 @@ function rebindImageEvents(
   })
 
   imageObj.on('selected', () => {
-    eventBus.emit('custom:selected', {
+    eventBus.emit('image:selected', {
       type: 'image',
       id: imageObj.customData.drawId,
       object: imageObj

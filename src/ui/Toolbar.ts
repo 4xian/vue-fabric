@@ -9,8 +9,9 @@ const TOOL_TITLES: Record<string, string> = {
   select: '选择',
   drag: '拖拽画布',
   line: '画直线',
-  area: '画区域',
+  area: '画任意区域',
   curve: '画曲线',
+  rect: '画矩形区域',
   text: '写文字',
   image: '上传图片',
   undo: '撤销',
@@ -21,7 +22,7 @@ const TOOL_TITLES: Record<string, string> = {
   download: '下载图片',
   lineColor: '线段颜色',
   fillColor: '填充颜色',
-  toggleHelpers: '显示/隐藏距离提示'
+  helpers: '显示/隐藏距离提示'
 }
 
 const DEFAULT_TOOLS: ToolName[] = [
@@ -32,6 +33,7 @@ const DEFAULT_TOOLS: ToolName[] = [
   'line',
   'area',
   'curve',
+  'rect',
   'text',
   'image',
   'undo',
@@ -40,7 +42,7 @@ const DEFAULT_TOOLS: ToolName[] = [
   'zoomOut',
   'fitZoom',
   'download',
-  'toggleHelpers'
+  'helpers'
 ]
 
 export default class Toolbar {
@@ -110,6 +112,7 @@ export default class Toolbar {
       case 'line':
       case 'area':
       case 'curve':
+      case 'rect':
       case 'text':
         this._createToolButton(toolName, TOOL_TITLES[toolName], TOOL_ICONS[toolName], () => {
           this.paintBoard.setTool(toolName)
@@ -147,22 +150,17 @@ export default class Toolbar {
           this.paintBoard.exportToImage()
         })
         break
-      case 'toggleHelpers':
-        this._createToggleButton(
-          'toggleHelpers',
-          TOOL_TITLES.toggleHelpers,
-          TOOL_ICONS.toggleHelpers,
-          () => {
-            this.helpersVisible = !this.helpersVisible
-            if (this.helpersVisible) {
-              this.paintBoard.showAllAreaHelpers()
-            } else {
-              this.paintBoard.hideAllAreaHelpers()
-            }
-            const btn = this.buttons.get('toggleHelpers')
-            btn?.classList.toggle('active', this.helpersVisible)
+      case 'helpers':
+        this._createToggleButton('helpers', TOOL_TITLES.helpers, TOOL_ICONS.helpers, () => {
+          this.helpersVisible = !this.helpersVisible
+          if (this.helpersVisible) {
+            this.paintBoard.showAllAreaHelpers()
+          } else {
+            this.paintBoard.hideAllAreaHelpers()
           }
-        )
+          const btn = this.buttons.get('helpers')
+          btn?.classList.toggle('active', this.helpersVisible)
+        })
         break
       case 'image':
         this._createActionButton('image', TOOL_TITLES.image, TOOL_ICONS.image, () => {
@@ -357,6 +355,10 @@ export default class Toolbar {
       this._updateUndoRedoState()
     })
 
+    this.paintBoard.on('rect:created', () => {
+      this._updateUndoRedoState()
+    })
+
     this._updateUndoRedoState()
 
     if (this.paintBoard.currentTool) {
@@ -376,7 +378,7 @@ export default class Toolbar {
     } else {
       this.paintBoard.hideAllAreaHelpers()
     }
-    const btn = this.buttons.get('toggleHelpers')
+    const btn = this.buttons.get('helpers')
     btn?.classList.toggle('active', visible)
   }
 

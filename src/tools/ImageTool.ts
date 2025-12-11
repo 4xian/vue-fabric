@@ -1,13 +1,13 @@
 import * as fabric from 'fabric'
 import type { FabricImage, FabricObject } from 'fabric'
-import type { ImageToolOptions, AddImageOptions, CustomImageData } from '../../types'
+import type { ImageToolOptions, AddImageOptions, ImageCustomData } from '../../types'
 import BaseTool from './BaseTool'
 import { DEFAULT_IMAGETOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
 
 export interface CreateImageResult {
-  imageObj: FabricImage & { customType: string; customData: CustomImageData }
-  customData: CustomImageData
+  imageObj: FabricImage & { customType: string; customData: ImageCustomData }
+  customData: ImageCustomData
 }
 
 export default class ImageTool extends BaseTool {
@@ -168,20 +168,20 @@ export default class ImageTool extends BaseTool {
 
         const base64Data = isBase64Input ? imageSource : this._convertToBase64(img)
 
-        const customData: CustomImageData = {
+        const customData: ImageCustomData = {
           drawId: id || generateDrawId(),
           createdAt: Date.now(),
           base64: base64Data
         }
 
         ;(
-          fabricImg as FabricImage & { customType: string; customData: CustomImageData }
+          fabricImg as FabricImage & { customType: string; customData: ImageCustomData }
         ).customType = CustomType.Image
         ;(
-          fabricImg as FabricImage & { customType: string; customData: CustomImageData }
+          fabricImg as FabricImage & { customType: string; customData: ImageCustomData }
         ).customData = customData
 
-        this._bindImageEvents(fabricImg as FabricImage & { customData: CustomImageData })
+        this._bindImageEvents(fabricImg as FabricImage & { customData: ImageCustomData })
 
         this.canvas!.add(fabricImg)
         this.canvas!.renderAll()
@@ -194,7 +194,7 @@ export default class ImageTool extends BaseTool {
         })
 
         resolve({
-          imageObj: fabricImg as FabricImage & { customType: string; customData: CustomImageData },
+          imageObj: fabricImg as FabricImage & { customType: string; customData: ImageCustomData },
           customData
         })
       }
@@ -208,7 +208,7 @@ export default class ImageTool extends BaseTool {
     })
   }
 
-  private _bindImageEvents(imageObj: FabricImage & { customData: CustomImageData }): void {
+  private _bindImageEvents(imageObj: FabricImage & { customData: ImageCustomData }): void {
     if (!this.canvas || !this.eventBus) return
 
     imageObj.on('mousedown', () => {
@@ -219,7 +219,7 @@ export default class ImageTool extends BaseTool {
     })
 
     imageObj.on('selected', () => {
-      this.eventBus!.emit('custom:selected', {
+      this.eventBus!.emit('image:selected', {
         type: 'image',
         id: imageObj.customData.drawId,
         object: imageObj
@@ -334,7 +334,7 @@ export default class ImageTool extends BaseTool {
 
     const objects = this.canvas.getObjects()
     for (const obj of objects) {
-      const customObj = obj as FabricObject & { customType?: string; customData?: CustomImageData }
+      const customObj = obj as FabricObject & { customType?: string; customData?: ImageCustomData }
       if (customObj.customType === CustomType.Image && customObj.customData?.drawId === id) {
         return obj as FabricImage
       }

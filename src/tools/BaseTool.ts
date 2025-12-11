@@ -46,7 +46,7 @@ export default class BaseTool {
     this.canvas.on('mouse:down', this._onMouseDown)
     this.canvas.on('mouse:move', this._onMouseMove)
     this.canvas.on('mouse:up', this._onMouseUp)
-    // document.addEventListener('keydown', this._onKeyDown)
+    document.addEventListener('keydown', this._onKeyDown)
     this.canvas.defaultCursor = this.options.activeCursor
     this.onActivate()
   }
@@ -57,7 +57,7 @@ export default class BaseTool {
     this.canvas.off('mouse:down', this._onMouseDown)
     this.canvas.off('mouse:move', this._onMouseMove)
     this.canvas.off('mouse:up', this._onMouseUp)
-    // document.removeEventListener('keydown', this._onKeyDown)
+    document.removeEventListener('keydown', this._onKeyDown)
     this.canvas.defaultCursor = this.options.deactiveCursor
     this.onDeactivate()
   }

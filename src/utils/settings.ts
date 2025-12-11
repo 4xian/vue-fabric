@@ -7,6 +7,7 @@ import type {
   ImageToolOptions,
   TextToolOptions,
   LineToolOptions,
+  RectToolOptions,
   SelectToolOptions,
   TraceOptions
 } from '../../types'
@@ -19,6 +20,7 @@ export const CustomType = {
   Curve: 'curve',
   Text: 'text',
   Image: 'image',
+  Rect: 'rect',
   // 直线辅助类型
   LineHelper: 'lineHelper',
   LineHelperLabel: 'lineHelperLabel',
@@ -30,6 +32,8 @@ export const CustomType = {
   CurveHelper: 'curveHelper',
   CurveHelperLabel: 'curveHelperLabel',
   CurvePreview: 'curvePreview',
+  // 矩形辅助类型
+  RectLabel: 'rectLabel',
   // 人员轨迹类型
   PersonMarker: 'personMarker',
   TracePath: 'tracePath'
@@ -37,14 +41,15 @@ export const CustomType = {
 
 export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]
 
-export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image'
+export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image' | 'rect'
 
 export const CUSTOM_TYPE_HELPER_MAP: Record<MainCustomType, CustomTypeValue[]> = {
   line: [CustomType.LineHelper, CustomType.LineHelperLabel],
   area: [CustomType.AreaPoint, CustomType.AreaLine, CustomType.AreaLabel],
   curve: [CustomType.CurveHelper, CustomType.CurveHelperLabel, CustomType.CurvePreview],
   text: [],
-  image: []
+  image: [],
+  rect: [CustomType.RectLabel]
 }
 
 // 项目名称
@@ -83,7 +88,7 @@ export const DEFAULT_BASETOOL_OPTIONS: BaseToolOptions = {
 }
 
 // 默认选择工具配置
-export const DEFAULT_SELECTTOOL_OPTIONS: Required<SelectToolOptions> = {
+export const DEFAULT_SELECTTOOL_OPTIONS: SelectToolOptions = {
   activeCursor: 'default',
   deactiveCursor: 'default',
   allowSelection: false,
@@ -103,13 +108,31 @@ export const DEFAULT_LINETOOL_OPTIONS: LineToolOptions = {
   pointFillColor: '#ff0000',
   pointHoverColor: '#ff0000',
   perPixelTargetFind: true,
-  defaultShowHelpers: true,
+  defaultShowHelpers: false,
   strokeWidth: 2,
   helperStrokeWidth: 2,
   hasBorders: false,
   hasControls: false,
   lockMovementX: true,
   lockMovementY: true
+}
+
+// 默认矩形工具配置
+export const DEFAULT_RECTTOOL_OPTIONS: RectToolOptions = {
+  activeCursor: 'crosshair',
+  deactiveCursor: 'default',
+  enableFill: true,
+  strokeWidth: 2,
+  perPixelTargetFind: true,
+  hasBorders: true,
+  hasControls: true,
+  lockMovementX: true,
+  lockMovementY: true,
+  labelFontSize: 12,
+  labelFillColor: '#000',
+  defaultShowHelpers: false,
+  cornerStyle: 'rect',
+  cornerSize: 10
 }
 
 // 默认区域工具配置
@@ -122,7 +145,7 @@ export const DEFAULT_AREATOOL_OPTIONS: AreaToolOptions = {
   labelFillColor: '#333',
   pointFillColor: '#ff0000',
   pointHoverColor: '#ff0000',
-  defaultShowHelpers: true,
+  defaultShowHelpers: false,
   allowOverlap: true,
   enableFill: true,
   perPixelTargetFind: true,
@@ -145,7 +168,7 @@ export const DEFAULT_CURVETOOL_OPTIONS: CurveToolOptions = {
   labelFillColor: '#333',
   pointFillColor: '#ff0000',
   pointHoverColor: '#ff0000',
-  defaultShowHelpers: true,
+  defaultShowHelpers: false,
   enableFill: true,
   perPixelTargetFind: true,
   strokeWidth: 2,
@@ -162,7 +185,7 @@ export const DEFAULT_TEXTTOOL_OPTIONS: TextToolOptions = {
   deactiveCursor: 'default',
   fontSize: 14,
   fontFamily: 'Arial',
-  fill: '#0000BF',
+  fill: '#333',
   perPixelTargetFind: false,
   hasBorders: false,
   hasControls: false,

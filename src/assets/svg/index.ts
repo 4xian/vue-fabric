@@ -11,12 +11,14 @@ import download from './download.svg'
 import select from './select.svg'
 import undo from './undo.svg'
 import redo from './redo.svg'
-import toggleHelpers from './toggleHelpers.svg'
+import helpers from './helpers.svg'
+import rect from './rect.svg'
 
 export const TOOL_ICONS: Record<string, string> = {
   line,
   area,
   curve,
+  rect,
   text,
   image,
   drag,
@@ -27,13 +29,14 @@ export const TOOL_ICONS: Record<string, string> = {
   select,
   undo,
   redo,
-  toggleHelpers
+  helpers
 }
 
 export {
   line,
   area,
   curve,
+  rect,
   text,
   image,
   drag,
@@ -44,5 +47,5 @@ export {
   select,
   undo,
   redo,
-  toggleHelpers
+  helpers
 }

@@ -372,7 +372,7 @@ import type {
   LineCustomData,
   CurveCustomData,
   TextCustomData,
-  CustomImageData,
+  ImageCustomData,
   PersonData,
   TrajectoryOptions,
   ExportImageOptions

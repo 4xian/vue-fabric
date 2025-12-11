@@ -82,14 +82,15 @@ export default class LineTool extends BaseTool {
     this._updatePreview(pointer)
   }
 
-  // onKeyDown(e: KeyboardEvent): void {
-  //   if (e.key === 'Escape') {
-  //     this._cancelDrawing()
-  //   } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-  //     e.preventDefault()
-  //     this._cancelDrawing()
-  //   }
-  // }
+  onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      this._cancelDrawing()
+    }
+    // else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    //   e.preventDefault()
+    //   this._cancelDrawing()
+    // }
+  }
 
   override isDrawing(): boolean {
     return this.isDrawingState
@@ -399,6 +400,17 @@ export default class LineTool extends BaseTool {
       lastLeft = line.left || 0
       lastTop = line.top || 0
       this.eventBus!.emit('line:selected', {
+        drawId: line.customData.drawId,
+        startPoint: line.customData.startPoint,
+        endPoint: line.customData.endPoint,
+        distance: line.customData.distance
+      })
+    })
+
+    line.on('mousedown', () => {
+      lastLeft = line.left || 0
+      lastTop = line.top || 0
+      this.eventBus!.emit('line:clicked', {
         drawId: line.customData.drawId,
         startPoint: line.customData.startPoint,
         endPoint: line.customData.endPoint,

@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vue-Fabric</title>
+  <link rel="icon" href="./static/favicon.ico">
   <style>
     * {
       margin: 0;
@@ -176,8 +177,7 @@
   <script src="/demo/static/fabric.js"></script>
   <script src="/dist/index.umd.js"></script>
   <script>
-    const { FabricPaint, AreaTool, DragTool, SelectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
-    console.log(VueFabric)
+    const { FabricPaint, AreaTool, DragTool, SelectTool, RectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
     const container = document.getElementById('canvas-container')
     const board = new FabricPaint('#canvas-container', {
       width: container.clientWidth,
@@ -192,14 +192,17 @@
       .registerTool('line', new LineTool())
       .registerTool('area', new AreaTool())
       .registerTool('curve', new CurveTool())
-      .registerTool('text', new TextTool())
+      .registerTool('rect', new RectTool())
+      .registerTool('text', new TextTool({
+        fill: '#0000BF'
+      }))
       .registerTool('image', new ImageTool())
       .registerTool('drag', new DragTool())
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      tools: ['drag', 'select', 'line', 'area'],
-      // tools: ['lineColor', 'fillColor', 'select', 'line', 'area', 'curve', 'image', 'toggleHelpers', 'undo', 'redo'],
+      // tools: ['select', 'rect', 'undo', 'redo', 'helpers'],
+      tools: ['lineColor', 'fillColor', 'drag', 'select', 'line', 'area', 'rect', 'curve', 'image', 'helpers', 'undo', 'redo'],
       visible: true
     }).init()
 
@@ -233,6 +236,14 @@
       console.log('曲线已选择:', data)
     })
 
+    board.on('rect:created', (data) => {
+      console.log('矩形已创建:', data)
+    })
+
+    board.on('rect:clicked', (data) => {
+      console.log('矩形被点击:', data)
+    })
+
     board.on('text:created', (data) => {
       console.log('文本已创建:', data)
     })
@@ -251,6 +262,10 @@
 
     board.on('image:clicked', (data) => {
       console.log('图片被点击:', data)
+    })
+
+    board.on('canvas:zoomed', (e) => {
+      console.log('缩放倍率：', e)
     })
 
     function exportCanvas() {

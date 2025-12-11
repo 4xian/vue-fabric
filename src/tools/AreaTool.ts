@@ -106,14 +106,15 @@ export default class AreaTool extends BaseTool {
     this._updatePreview(pointer)
   }
 
-  // onKeyDown(e: KeyboardEvent): void {
-  //   if (e.key === 'Escape') {
-  //     this._cancelDrawing()
-  //   } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-  //     e.preventDefault()
-  //     this._undoLastPoint()
-  //   }
-  // }
+  onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      this._cancelDrawing()
+    }
+    // else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    //   e.preventDefault()
+    //   this._undoLastPoint()
+    // }
+  }
 
   override isDrawing(): boolean {
     return this.isDrawingState
@@ -381,6 +382,16 @@ export default class AreaTool extends BaseTool {
       lastLeft = polygon.left || 0
       lastTop = polygon.top || 0
       this.eventBus!.emit('area:selected', {
+        drawId: polygon.customData.drawId,
+        points: polygon.customData.points,
+        distances: polygon.customData.distances
+      })
+    })
+
+    polygon.on('mousedown', () => {
+      lastLeft = polygon.left || 0
+      lastTop = polygon.top || 0
+      this.eventBus!.emit('area:clicked', {
         drawId: polygon.customData.drawId,
         points: polygon.customData.points,
         distances: polygon.customData.distances

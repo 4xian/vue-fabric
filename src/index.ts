@@ -10,6 +10,7 @@ import DragTool from './tools/DragTool'
 import TextTool from './tools/TextTool'
 import CurveTool from './tools/CurveTool'
 import LineTool from './tools/LineTool'
+import RectTool from './tools/RectTool'
 import ImageTool from './tools/ImageTool'
 import PersonTracker from './utils/PersonTracker'
 import { SERIALIZATION_PROPERTIES, CustomType } from './utils/settings'
@@ -28,6 +29,7 @@ export {
   TextTool,
   CurveTool,
   LineTool,
+  RectTool,
   ImageTool,
   PersonTracker,
   SERIALIZATION_PROPERTIES,
@@ -45,6 +47,8 @@ export type {
   TextCustomData,
   CurveCustomData,
   LineCustomData,
+  RectCustomData,
+  RectToolOptions,
   HistoryState,
   ColorPickerOptions,
   ColorState,

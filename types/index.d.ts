@@ -46,6 +46,8 @@ export interface BaseToolOptions {
   hasControls?: boolean
   lockMovementX?: boolean
   lockMovementY?: boolean
+  cornerStyle?: 'rect' | 'circle'
+  cornerSize?: number
 }
 
 export interface AreaToolOptions extends BaseToolOptions {
@@ -101,6 +103,15 @@ export interface LineToolOptions extends BaseToolOptions {
   helperStrokeWidth?: number
 }
 
+export interface RectToolOptions extends BaseToolOptions {
+  enableFill?: boolean
+  strokeWidth?: number
+  perPixelTargetFind?: boolean
+  labelFontSize?: number
+  labelFillColor?: string
+  defaultShowHelpers?: boolean
+}
+
 export interface ImageToolOptions extends BaseToolOptions {
   defaultSelectable?: boolean
   defaultHasControls?: boolean
@@ -117,7 +128,7 @@ export interface ExportImageOptions {
   filename?: string
 }
 
-export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image'
+export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image' | 'rect'
 
 export interface ExportJSONOptions {
   additionalProperties?: string[]
@@ -160,6 +171,18 @@ export interface LineCustomData {
   startCircle?: Circle
   endCircle?: Circle
   label?: Text
+}
+
+export interface RectCustomData {
+  drawId: string
+  startPoint: Point
+  endPoint: Point
+  width: number
+  height: number
+  lineColor: string
+  fillColor: string | null
+  widthLabel?: Text
+  heightLabel?: Text
 }
 
 export interface HistoryState {
@@ -226,13 +249,7 @@ export interface AddImageOptions {
   lockScalingY?: boolean
 }
 
-export interface CustomTextData {
-  customTextId: string
-  editable: boolean
-  createdAt: number
-}
-
-export interface CustomImageData {
+export interface ImageCustomData {
   drawId: string
   createdAt: number
   base64?: string
@@ -260,8 +277,10 @@ export interface TraceOptions {
   displayDuration?: number
 }
 
-export type ToolName = 'select' | 'drag' | 'area' | 'curve' | 'line' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'toggleHelpers' | 'uploadImage'
+export type ToolName = 'select' | 'drag' | 'area' | 'curve' | 'line' | 'rect' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'helpers' | 'uploadImage'
 export type EventCallback = (data?: unknown) => void
+
+export type CustomData = AreaCustomData | TextCustomData | CurveCustomData | LineCustomData | RectCustomData | ImageCustomData
 
 export const SERIALIZATION_PROPERTIES: string[]
 
@@ -271,6 +290,7 @@ export const CustomType: {
   readonly Curve: 'curve'
   readonly Text: 'text'
   readonly Image: 'image'
+  readonly Rect: 'rect'
   readonly LineHelper: 'lineHelper'
   readonly LineHelperLabel: 'lineHelperLabel'
   readonly AreaPoint: 'areaPoint'
@@ -279,6 +299,7 @@ export const CustomType: {
   readonly CurveHelper: 'curveHelper'
   readonly CurveHelperLabel: 'curveHelperLabel'
   readonly CurvePreview: 'curvePreview'
+  readonly RectLabel: 'rectLabel'
   readonly PersonMarker: 'personMarker'
   readonly TracePath: 'tracePath'
 }

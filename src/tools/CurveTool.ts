@@ -88,16 +88,18 @@ export default class CurveTool extends BaseTool {
     this._updatePreview(pointer)
   }
 
-  // onKeyDown(e: KeyboardEvent): void {
-  //   if (e.key === 'Escape') {
-  //     this._cancelDrawing()
-  //   } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-  //     e.preventDefault()
-  //     this._undoLastPoint()
-  //   } else if (e.key === 'Enter') {
-  //     this._finishCurve()
-  //   }
-  // }
+  onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      this._cancelDrawing()
+    }
+    // else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    //   e.preventDefault()
+    //   this._undoLastPoint()
+    // }
+    else if (e.key === 'Enter') {
+      this._finishCurve()
+    }
+  }
 
   override isDrawing(): boolean {
     return this.isDrawingState
@@ -617,6 +619,16 @@ export default class CurveTool extends BaseTool {
       lastLeft = curve.left || 0
       lastTop = curve.top || 0
       this.eventBus!.emit('curve:selected', {
+        drawId: curve.customData.drawId,
+        points: curve.customData.points,
+        isClosed: curve.customData.isClosed
+      })
+    })
+
+    curve.on('mousedown', () => {
+      lastLeft = curve.left || 0
+      lastTop = curve.top || 0
+      this.eventBus!.emit('curve:clicked', {
         drawId: curve.customData.drawId,
         points: curve.customData.points,
         isClosed: curve.customData.isClosed
