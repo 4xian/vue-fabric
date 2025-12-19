@@ -16,7 +16,10 @@ import type {
   RectCustomData,
   TraceOptions,
   ZoomOrigin,
-  CustomData
+  ZoomScale,
+  CustomData,
+  ResizeReference,
+  ResizeOrigin
 } from '../../types'
 import PersonTracker from '../utils/PersonTracker'
 import TextTool from '../tools/TextTool'
@@ -44,6 +47,10 @@ export default class VueFabric {
   private _backgroundImage: FabricImage | null
   private _bgImageOptions: BackgroundImageOptions | null
   private _personTracker: PersonTracker | null
+  private _resizeObserver: ResizeObserver | null
+  private _originalWidth: number
+  private _originalHeight: number
+  private _pixelRatio: number
 
   constructor(container: string | HTMLElement, options: FabricPaintOptions = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container
@@ -61,6 +68,18 @@ export default class VueFabric {
     this._backgroundImage = null
     this._bgImageOptions = null
     this._personTracker = null
+    this._resizeObserver = null
+    this._originalWidth = this.options.width
+    this._originalHeight = this.options.height
+    this._pixelRatio = this._getPixelRatio()
+  }
+
+  private _getPixelRatio(): number {
+    const ratio = this.options.pixelRatio
+    if (ratio === 'auto' || ratio === undefined) {
+      return typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    }
+    return ratio
   }
 
   init(): this {
@@ -75,6 +94,10 @@ export default class VueFabric {
     //   this.setBackgroundImage(this.options.backgroundImage)
     // }
 
+    if (this.options.autoResize) {
+      this.enableAutoResize()
+    }
+
     return this
   }
 
@@ -85,9 +108,13 @@ export default class VueFabric {
     canvasEl.id = `${PROJECT_NAME}-${Date.now()}`
     this.container.appendChild(canvasEl)
 
+    const logicalWidth = this.options.width
+    const logicalHeight = this.options.height
+    const ratio = this._pixelRatio
+
     this.canvas = new fabric.Canvas(canvasEl, {
-      width: this.options.width,
-      height: this.options.height,
+      width: logicalWidth * ratio,
+      height: logicalHeight * ratio,
       backgroundColor: this.options.backgroundColor,
       hoverCursor: this.options.hoverCursor,
       moveCursor: this.options.moveCursor,
@@ -97,8 +124,32 @@ export default class VueFabric {
       targetFindTolerance: this.options.targetFindTolerance,
       stopContextMenu: true,
       fireRightClick: true,
-      skipOffscreen: false
+      skipOffscreen: false,
+      enableRetinaScaling: false,
+      imageSmoothingEnabled: true
     })
+
+    const wrapper = this.canvas.wrapperEl
+    if (wrapper) {
+      wrapper.style.width = `${logicalWidth}px`
+      wrapper.style.height = `${logicalHeight}px`
+    }
+
+    const upperCanvas = this.canvas.upperCanvasEl
+    const lowerCanvas = this.canvas.lowerCanvasEl
+
+    if (upperCanvas) {
+      upperCanvas.style.width = `${logicalWidth}px`
+      upperCanvas.style.height = `${logicalHeight}px`
+    }
+    if (lowerCanvas) {
+      lowerCanvas.style.width = `${logicalWidth}px`
+      lowerCanvas.style.height = `${logicalHeight}px`
+    }
+
+    if (ratio !== 1) {
+      this.canvas.setZoom(ratio)
+    }
   }
 
   private _initCanvasManager(): void {
@@ -216,13 +267,113 @@ export default class VueFabric {
     return this
   }
 
-  setZoom(zoom: number, origin?: ZoomOrigin): this {
+  setZoom(zoom: number | ZoomScale, origin?: ZoomOrigin): this {
     this.canvasManager?.setZoom(zoom, origin)
     return this
   }
 
   getZoom(): number {
     return this.canvasManager?.getZoom() ?? 1
+  }
+
+  getPixelRatio(): number {
+    return this._pixelRatio
+  }
+
+  resize(
+    width?: number,
+    height?: number,
+    reference?: ResizeReference,
+    origin: ResizeOrigin = 'topLeft'
+  ): this {
+    if (!this.canvas || !this.container) return this
+
+    const newWidth = width ?? this.container.clientWidth
+    const newHeight = height ?? this.container.clientHeight
+
+    if (newWidth <= 0 || newHeight <= 0) return this
+
+    const ratio = this._pixelRatio
+    const oldLogicalWidth = this.canvas.getWidth() / ratio
+    const oldLogicalHeight = this.canvas.getHeight() / ratio
+
+    if (oldLogicalWidth === newWidth && oldLogicalHeight === newHeight) return this
+
+    const scaleX = newWidth / (reference ? reference.width : oldLogicalWidth)
+    const scaleY = newHeight / (reference ? reference.height : oldLogicalHeight)
+
+    const objects = this.canvas.getObjects()
+    objects.forEach(obj => {
+      if (obj === this._backgroundImage) return
+
+      obj.scaleX = (obj.scaleX || 1) * scaleX
+      obj.scaleY = (obj.scaleY || 1) * scaleY
+      obj.left = (obj.left || 0) * scaleX
+      obj.top = (obj.top || 0) * scaleY
+      obj.setCoords()
+    })
+
+    if (this._backgroundImage) {
+      this._backgroundImage.scaleX = (this._backgroundImage.scaleX || 1) * scaleX
+      this._backgroundImage.scaleY = (this._backgroundImage.scaleY || 1) * scaleY
+    }
+
+    this.canvas.setDimensions({ width: newWidth * ratio, height: newHeight * ratio })
+
+    const wrapper = this.canvas.wrapperEl
+    if (wrapper) {
+      wrapper.style.width = `${newWidth}px`
+      wrapper.style.height = `${newHeight}px`
+    }
+
+    const upperCanvas = this.canvas.upperCanvasEl
+    const lowerCanvas = this.canvas.lowerCanvasEl
+    if (upperCanvas) {
+      upperCanvas.style.width = `${newWidth}px`
+      upperCanvas.style.height = `${newHeight}px`
+    }
+    if (lowerCanvas) {
+      lowerCanvas.style.width = `${newWidth}px`
+      lowerCanvas.style.height = `${newHeight}px`
+    }
+
+    this.canvas.renderAll()
+
+    this.eventBus.emit('canvas:resized', {
+      width: newWidth,
+      height: newHeight,
+      scaleX,
+      scaleY,
+      origin
+    })
+
+    return this
+  }
+
+  enableAutoResize(): this {
+    if (!this.container || this._resizeObserver) return this
+
+    this._resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.target === this.container) {
+          const { width, height } = entry.contentRect
+          if (width > 0 && height > 0) {
+            this.resize(width, height)
+          }
+        }
+      }
+    })
+
+    this._resizeObserver.observe(this.container)
+    return this
+  }
+
+  disableAutoResize(): this {
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect()
+      this._resizeObserver = null
+    }
+    return this
   }
 
   undo(): boolean {
@@ -288,6 +439,22 @@ export default class VueFabric {
       }
     })
     this.canvas.backgroundColor = this.options.backgroundColor
+    this.canvas.renderAll()
+    this.undoRedoManager?.clear()
+    this.eventBus.emit('canvas:cleared')
+    return this
+  }
+
+  originClear(): this {
+    if (!this.canvas) return this
+    const bgImage = this._backgroundImage
+    const bgOptions = this._bgImageOptions
+    this.canvas.clear()
+    this.canvas.backgroundColor = this.options.backgroundColor
+    if (bgImage && bgOptions) {
+      this.canvas.add(bgImage)
+      this.canvas.sendObjectToBack(bgImage)
+    }
     this.canvas.renderAll()
     this.undoRedoManager?.clear()
     this.eventBus.emit('canvas:cleared')
@@ -643,6 +810,44 @@ export default class VueFabric {
     return result.imageObj
   }
 
+  insertText(
+    options: AddTextOptions
+  ): (Text & { customType: string; customData: TextCustomData }) | null {
+    if (!this.canvas) return null
+
+    if (options.id) {
+      const existingObj = this.getObjectById(options.id)
+      if (existingObj) {
+        const customObj = existingObj as FabricObject & { customType?: string }
+        if (customObj.customType === CustomType.Text) {
+          this.updateTextById(options.id, options)
+          return existingObj as Text & { customType: string; customData: TextCustomData }
+        }
+      } else {
+        return this.addText(options)
+      }
+    }
+
+    return this.addText(options)
+  }
+
+  async insertImage(options: AddImageOptions): Promise<FabricImage | null> {
+    if (!this.canvas) return null
+
+    if (options.id) {
+      const existingObj = this.getObjectById(options.id)
+      if (existingObj) {
+        const customObj = existingObj as FabricObject & { customType?: string }
+        if (customObj.customType === CustomType.Image) {
+          this.updateImageById(options.id, options)
+          return existingObj as FabricImage
+        }
+      } else return this.addImage(options)
+    }
+
+    return this.addImage(options)
+  }
+
   removeById(id: string): boolean {
     if (!this.canvas) return false
 
@@ -684,6 +889,8 @@ export default class VueFabric {
             )
           } else if (customObj.customType === CustomType.Line) {
             this._removeLineWithHelpers(customObj as FabricObject & { customData: LineCustomData })
+          } else if (customObj.customType === CustomType.Rect) {
+            this._removeRectWithHelpers(customObj as FabricObject & { customData: RectCustomData })
           } else {
             this.canvas.remove(obj)
           }
@@ -746,6 +953,19 @@ export default class VueFabric {
     this.canvas.remove(lineObj)
   }
 
+  private _removeRectWithHelpers(rectObj: FabricObject & { customData: RectCustomData }): void {
+    if (!this.canvas) return
+
+    const data = rectObj.customData
+    if (data.widthLabel) {
+      this.canvas.remove(data.widthLabel)
+    }
+    if (data.heightLabel) {
+      this.canvas.remove(data.heightLabel)
+    }
+    this.canvas.remove(rectObj)
+  }
+
   getCustomObjects(): Array<{ id: string; type: string; object: FabricObject }> {
     if (!this.canvas) return []
 
@@ -791,6 +1011,10 @@ export default class VueFabric {
     return result
   }
 
+  getObjects(): Array<FabricObject> | undefined {
+    return this.canvas?.getObjects()
+  }
+
   updateTextById(
     id: string,
     options: Partial<Omit<AddTextOptions, 'x' | 'y'>> & { x?: number; y?: number }
@@ -818,7 +1042,7 @@ export default class VueFabric {
         }
 
         this.canvas.renderAll()
-        this.eventBus.emit('text:updated', { id, options })
+        this.eventBus.emit('text:updated', { id, textObj })
         return true
       }
     }
@@ -845,7 +1069,302 @@ export default class VueFabric {
         if (options.selectable !== undefined) obj.set('selectable', options.selectable)
 
         this.canvas.renderAll()
-        this.eventBus.emit('image:updated', { id, options })
+        this.eventBus.emit('image:updated', { id, obj })
+        return true
+      }
+    }
+
+    return false
+  }
+
+  async batchInsertTexts(optionsList: AddTextOptions[]): Promise<
+    | {
+        success: Array<{
+          id: string
+          object: Text & { customType: string; customData: TextCustomData }
+        }>
+        failed: Array<{ id?: string; error: string }>
+      }
+    | boolean
+  > {
+    const result: {
+      success: Array<{
+        id: string
+        object: Text & { customType: string; customData: TextCustomData }
+      }>
+      failed: Array<{ id?: string; error: string }>
+    } = { success: [], failed: [] }
+
+    if (!this.canvas) {
+      console.warn('Canvas not initialized')
+      return false
+    }
+
+    const textTool = this.tools.get('text') as TextTool | undefined
+    if (!textTool) {
+      console.warn('TextTool not registered')
+      return false
+    }
+
+    for (const options of optionsList) {
+      try {
+        if (options.id) {
+          const existingObj = this.getObjectById(options.id)
+          if (existingObj) {
+            const customObj = existingObj as FabricObject & { customType?: string }
+            if (customObj.customType === CustomType.Text) {
+              this._updateTextWithoutRender(options.id, options)
+              result.success.push({
+                id: options.id,
+                object: existingObj as Text & { customType: string; customData: TextCustomData }
+              })
+              continue
+            }
+          } else {
+            const textResult = textTool.createTextWithoutRender(options)
+            if (textResult) {
+              result.success.push({
+                id: textResult.customData.drawId,
+                object: textResult.textObj
+              })
+            } else {
+              result.failed.push({ id: options.id, error: 'Failed to create text' })
+            }
+          }
+        } else {
+          const textResult = textTool.createTextWithoutRender(options)
+          if (textResult) {
+            result.success.push({
+              id: textResult.customData.drawId,
+              object: textResult.textObj
+            })
+          } else {
+            result.failed.push({ id: options.id, error: 'Failed to create text' })
+          }
+        }
+      } catch (e) {
+        result.failed.push({ id: options.id, error: String(e) })
+      }
+    }
+
+    this.canvas.renderAll()
+    this.eventBus.emit('batch:textsInserted', {
+      successCount: result.success.length,
+      failedCount: result.failed.length
+    })
+
+    return result
+  }
+
+  async batchInsertImages(optionsList: AddImageOptions[]): Promise<
+    | boolean
+    | {
+        success: Array<{ id: string; object: FabricImage }>
+        failed: Array<{ id?: string; error: string }>
+      }
+  > {
+    const result: {
+      success: Array<{ id: string; object: FabricImage }>
+      failed: Array<{ id?: string; error: string }>
+    } = { success: [], failed: [] }
+
+    if (!this.canvas) {
+      console.warn('Canvas not initialized')
+      return false
+    }
+
+    const imageTool = this.tools.get('image') as ImageTool | undefined
+    if (!imageTool) {
+      console.warn('ImageTool not registered')
+      return false
+    }
+
+    const promises = optionsList.map(async options => {
+      try {
+        if (options.id) {
+          const existingObj = this.getObjectById(options.id)
+          if (existingObj) {
+            const customObj = existingObj as FabricObject & { customType?: string }
+            if (customObj.customType === CustomType.Image) {
+              this._updateImageWithoutRender(options.id, options)
+              return { success: true, id: options.id, object: existingObj as FabricImage }
+            }
+          } else {
+            const imageResult = await imageTool.addImageWithoutRender(options)
+            if (imageResult) {
+              return {
+                success: true,
+                id: imageResult.customData.drawId,
+                object: imageResult.imageObj
+              }
+            }
+            return { success: false, id: options.id, error: 'Failed to create image' }
+          }
+        }
+
+        const imageResult = await imageTool.addImageWithoutRender(options)
+        if (imageResult) {
+          return { success: true, id: imageResult.customData.drawId, object: imageResult.imageObj }
+        }
+        return { success: false, id: options.id, error: 'Failed to create image' }
+      } catch (e) {
+        return { success: false, id: options.id, error: String(e) }
+      }
+    })
+
+    const results = await Promise.all(promises)
+
+    for (const r of results) {
+      if (r.success && r.object) {
+        result.success.push({ id: r.id!, object: r.object })
+      } else {
+        result.failed.push({ id: r.id, error: r.error || 'Unknown error' })
+      }
+    }
+
+    this.canvas.renderAll()
+    this.eventBus.emit('batch:imagesInserted', {
+      successCount: result.success.length,
+      failedCount: result.failed.length
+    })
+
+    return result
+  }
+
+  async batchRemoveByIds(ids: string[]): Promise<
+    | {
+        removed: string[]
+        notFound: string[]
+      }
+    | boolean
+  > {
+    const result: { removed: string[]; notFound: string[] } = { removed: [], notFound: [] }
+
+    if (!this.canvas) {
+      console.warn('Canvas not initialized')
+      return false
+    }
+
+    const objects = this.canvas.getObjects()
+    const objectsToRemove: Array<{ obj: FabricObject; id: string; type: string }> = []
+
+    for (const id of ids) {
+      let found = false
+      for (const obj of objects) {
+        const customObj = obj as FabricObject & { customType?: string; customData?: CustomData }
+        if (customObj.customData) {
+          let objId: string | undefined
+
+          switch (customObj.customType) {
+            case CustomType.Text:
+              objId = (customObj.customData as TextCustomData).drawId
+              break
+            case CustomType.Image:
+              objId = (customObj.customData as ImageCustomData).drawId
+              break
+            case CustomType.Area:
+              objId = (customObj.customData as AreaCustomData).drawId
+              break
+            case CustomType.Curve:
+              objId = (customObj.customData as CurveCustomData).drawId
+              break
+            case CustomType.Line:
+              objId = (customObj.customData as LineCustomData).drawId
+              break
+            case CustomType.Rect:
+              objId = (customObj.customData as RectCustomData).drawId
+              break
+          }
+
+          if (objId === id) {
+            objectsToRemove.push({ obj, id, type: customObj.customType || '' })
+            found = true
+            break
+          }
+        }
+      }
+      if (!found) {
+        result.notFound.push(id)
+      }
+    }
+
+    for (const { obj, id, type } of objectsToRemove) {
+      const customObj = obj as FabricObject & { customType?: string; customData?: CustomData }
+
+      if (customObj.customType === CustomType.Area) {
+        this._removeAreaWithHelpers(customObj as FabricObject & { customData: AreaCustomData })
+      } else if (customObj.customType === CustomType.Curve) {
+        this._removeCurveWithHelpers(customObj as FabricObject & { customData: CurveCustomData })
+      } else if (customObj.customType === CustomType.Line) {
+        this._removeLineWithHelpers(customObj as FabricObject & { customData: LineCustomData })
+      } else if (customObj.customType === CustomType.Rect) {
+        this._removeRectWithHelpers(customObj as FabricObject & { customData: RectCustomData })
+      } else {
+        this.canvas.remove(obj)
+      }
+
+      result.removed.push(id)
+      this.eventBus.emit('object:removed', { id, type })
+    }
+
+    this.canvas.renderAll()
+    this.eventBus.emit('batch:removed', {
+      removedCount: result.removed.length,
+      notFoundCount: result.notFound.length
+    })
+
+    return result
+  }
+
+  private _updateTextWithoutRender(
+    id: string,
+    options: Partial<Omit<AddTextOptions, 'x' | 'y'>> & { x?: number; y?: number }
+  ): boolean {
+    if (!this.canvas) return false
+
+    const objects = this.canvas.getObjects()
+    for (const obj of objects) {
+      const customObj = obj as FabricObject & { customType?: string; customData?: TextCustomData }
+      if (customObj.customType === CustomType.Text && customObj.customData?.drawId === id) {
+        const textObj = obj as fabric.IText
+
+        if (options.text !== undefined) textObj.set('text', options.text)
+        if (options.x !== undefined) textObj.set('left', options.x)
+        if (options.y !== undefined) textObj.set('top', options.y)
+        if (options.fontSize !== undefined) textObj.set('fontSize', options.fontSize)
+        if (options.fontFamily !== undefined) textObj.set('fontFamily', options.fontFamily)
+        if (options.fill !== undefined) textObj.set('fill', options.fill)
+        if (options.fontWeight !== undefined) textObj.set('fontWeight', options.fontWeight)
+        if (options.fontStyle !== undefined) textObj.set('fontStyle', options.fontStyle)
+        if (options.textAlign !== undefined) textObj.set('textAlign', options.textAlign)
+        if (options.selectable !== undefined) textObj.set('selectable', options.selectable)
+        if (options.editable !== undefined) textObj.set('editable', options.editable)
+
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private _updateImageWithoutRender(
+    id: string,
+    options: Partial<Omit<AddImageOptions, 'base64'>> & { x?: number; y?: number }
+  ): boolean {
+    if (!this.canvas) return false
+
+    const objects = this.canvas.getObjects()
+    for (const obj of objects) {
+      const customObj = obj as FabricObject & { customType?: string; customData?: ImageCustomData }
+      if (customObj.customType === CustomType.Image && customObj.customData?.drawId === id) {
+        if (options.x !== undefined) obj.set('left', options.x)
+        if (options.y !== undefined) obj.set('top', options.y)
+        if (options.angle !== undefined) obj.set('angle', options.angle)
+        if (options.scaleX !== undefined) obj.set('scaleX', options.scaleX)
+        if (options.scaleY !== undefined) obj.set('scaleY', options.scaleY)
+        if (options.opacity !== undefined) obj.set('opacity', options.opacity)
+        if (options.selectable !== undefined) obj.set('selectable', options.selectable)
+
         return true
       }
     }
@@ -915,6 +1434,7 @@ export default class VueFabric {
     this.tools.clear()
     this._personTracker?.destroy()
     this._personTracker = null
+    this.disableAutoResize()
     this.eventBus.clear()
     this.canvas?.dispose()
     if (this.container) {

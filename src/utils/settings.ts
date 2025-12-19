@@ -68,7 +68,9 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   preserveObjectStacking: true,
   perPixelTargetFind: false,
   targetFindTolerance: 0,
-  defaultShowHelpers: true
+  defaultShowHelpers: true,
+  autoResize: false,
+  pixelRatio: 'auto'
 }
 
 // 默认canvas管理器配置
@@ -83,6 +85,8 @@ export const DEFAULT_CANVAS_MANAGER_OPTIONS: CanvasManagerOptions = {
 
 // 默认基础工具配置
 export const DEFAULT_BASETOOL_OPTIONS: BaseToolOptions = {
+  continueDraw: false,
+  disabeldClick: false,
   activeCursor: 'crosshair',
   deactiveCursor: 'default'
 }
@@ -126,8 +130,8 @@ export const DEFAULT_RECTTOOL_OPTIONS: RectToolOptions = {
   perPixelTargetFind: true,
   hasBorders: true,
   hasControls: true,
-  lockMovementX: true,
-  lockMovementY: true,
+  lockMovementX: false,
+  lockMovementY: false,
   labelFontSize: 12,
   labelFillColor: '#000',
   defaultShowHelpers: false,
@@ -183,7 +187,7 @@ export const DEFAULT_CURVETOOL_OPTIONS: CurveToolOptions = {
 export const DEFAULT_TEXTTOOL_OPTIONS: TextToolOptions = {
   activeCursor: 'default',
   deactiveCursor: 'default',
-  fontSize: 14,
+  fontSize: 12,
   fontFamily: 'Arial',
   fill: '#333',
   perPixelTargetFind: false,
@@ -220,7 +224,7 @@ export const DEFAULT_DRAGTOOL_OPTIONS: BaseToolOptions = {
 
 // 默认人员轨迹配置
 export const DEFAULT_PERSON_TRACKER_OPTIONS: TraceOptions = {
-  radius: 5,
+  radius: 3,
   strokeWidth: 2,
   fontSize: 12,
   textColor: '#333',
@@ -228,11 +232,19 @@ export const DEFAULT_PERSON_TRACKER_OPTIONS: TraceOptions = {
   pathType: 'curve' as 'line' | 'curve',
   animationSpeed: 0.05,
   blinkInterval: 1000,
-  displayDuration: 5000
+  displayDuration: 5000,
+  batchSize: 50,
+  blinkList: [
+    'smoking',
+    'sleeping',
+    'climing',
+    'falling down',
+    'looking at phone',
+    'reaching high'
+  ],
+  deleteOld: false,
+  fillColor: ''
 }
-
-// 需要闪烁的状态列表
-export const SHOULD_BLINK_LIST = ['fainted']
 
 // 序列化时需要包含的额外属性
 export const SERIALIZATION_PROPERTIES = [

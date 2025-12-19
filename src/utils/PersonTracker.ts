@@ -2,13 +2,15 @@ import * as fabric from 'fabric'
 import type { Canvas, Group, Circle, Polyline, Path } from 'fabric'
 import type { Point, PersonData, TraceOptions } from '../../types'
 import EventBus from '../core/EventBus'
-import { DEFAULT_PERSON_TRACKER_OPTIONS, SHOULD_BLINK_LIST, CustomType } from '../utils/settings'
+import { DEFAULT_PERSON_TRACKER_OPTIONS, CustomType } from '../utils/settings'
 
 interface PersonMarker {
   group: Group
   circle: Circle
   text: fabric.FabricText
   blinkAnimationId?: number
+  rippleCircle?: Circle
+  rippleAnimationId?: number
   personData?: PersonData
 }
 
@@ -29,6 +31,7 @@ export default class PersonTracker {
   private traces: Map<string, TraceData> = new Map()
   private displayTimers: Map<string, number> = new Map()
   private options: Required<TraceOptions>
+  private renderVersion = 0
 
   constructor(canvas: Canvas, eventBus: EventBus, options?: Partial<TraceOptions>) {
     this.canvas = canvas
@@ -42,28 +45,72 @@ export default class PersonTracker {
       lineWidth: options?.lineWidth ?? DEFAULT_PERSON_TRACKER_OPTIONS.lineWidth!,
       pathType: options?.pathType ?? DEFAULT_PERSON_TRACKER_OPTIONS.pathType!,
       blinkInterval: options?.blinkInterval ?? DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!,
-      displayDuration: options?.displayDuration ?? DEFAULT_PERSON_TRACKER_OPTIONS.displayDuration!
+      displayDuration: options?.displayDuration ?? DEFAULT_PERSON_TRACKER_OPTIONS.displayDuration!,
+      batchSize: options?.batchSize ?? DEFAULT_PERSON_TRACKER_OPTIONS.batchSize!,
+      blinkList: options?.blinkList ?? DEFAULT_PERSON_TRACKER_OPTIONS.blinkList!,
+      deleteOld: options?.deleteOld ?? DEFAULT_PERSON_TRACKER_OPTIONS.deleteOld!,
+      fillColor: options?.fillColor ?? DEFAULT_PERSON_TRACKER_OPTIONS.fillColor!
     }
   }
 
-  createMultiplePersons(persons: PersonData[]): void {
+  async createMultiplePersons(persons: PersonData[]): Promise<void> {
+    this.abortRendering()
+    const currentVersion = this.renderVersion
+
     const currentIds = new Set(this.persons.keys())
     const newIds = new Set(persons.map(p => p.id))
 
-    currentIds.forEach(id => {
-      if (!newIds.has(id)) {
-        this.removePerson(id)
-      }
-    })
+    const toDelete: string[] = []
+    const toUpdate: PersonData[] = []
+    const toCreate: PersonData[] = []
+
+    if (this.options.deleteOld) {
+      currentIds.forEach(id => {
+        if (!newIds.has(id)) {
+          toDelete.push(id)
+        }
+      })
+    }
 
     persons.forEach(person => {
       if (this.persons.has(person.id)) {
-        this._updatePersonMarker(person)
-        this._startDisplayTimer(person.id)
+        toUpdate.push(person)
       } else {
-        this._createPersonMarker(person)
+        toCreate.push(person)
       }
     })
+
+    for (let i = 0; i < toDelete.length; i += this.options.batchSize) {
+      if (this.renderVersion !== currentVersion) return
+      const batch = toDelete.slice(i, i + this.options.batchSize)
+      batch.forEach(id => this._removePersonWithoutRender(id))
+      if (i + this.options.batchSize < toDelete.length) {
+        await this._nextFrame()
+      }
+    }
+
+    for (let i = 0; i < toUpdate.length; i += this.options.batchSize) {
+      if (this.renderVersion !== currentVersion) return
+      const batch = toUpdate.slice(i, i + this.options.batchSize)
+      batch.forEach(person => {
+        this._updatePersonMarker(person)
+        this._startDisplayTimer(person)
+      })
+      if (i + this.options.batchSize < toUpdate.length) {
+        await this._nextFrame()
+      }
+    }
+
+    for (let i = 0; i < toCreate.length; i += this.options.batchSize) {
+      if (this.renderVersion !== currentVersion) return
+      const batch = toCreate.slice(i, i + this.options.batchSize)
+      batch.forEach(person => this._createPersonMarkerWithoutRender(person))
+      if (i + this.options.batchSize < toCreate.length) {
+        await this._nextFrame()
+      }
+    }
+
+    if (this.renderVersion !== currentVersion) return
 
     this.canvas.renderAll()
   }
@@ -71,7 +118,7 @@ export default class PersonTracker {
   createSinglePerson(person: PersonData): void {
     if (this.persons.has(person.id)) {
       this._updatePersonMarker(person)
-      this._startDisplayTimer(person.id)
+      this._startDisplayTimer(person)
     } else {
       this._createPersonMarker(person)
     }
@@ -91,14 +138,43 @@ export default class PersonTracker {
     return true
   }
 
+  private _removePersonWithoutRender(id: string): boolean {
+    const marker = this.persons.get(id)
+    if (!marker) return false
+
+    this._stopDisplayTimer(id)
+    this._stopBlinkAnimation(id)
+    this.canvas.remove(marker.group)
+    this.persons.delete(id)
+    this.eventBus.emit('person:removed', { id })
+    return true
+  }
+
   clearAll(): void {
+    this.abortRendering()
     this.traces.forEach((_, id) => this.hideTrace(id))
     this.persons.forEach((_, id) => this._stopDisplayTimer(id))
     this.persons.forEach((_, id) => this._stopBlinkAnimation(id))
     this.persons.forEach(marker => this.canvas.remove(marker.group))
     this.persons.clear()
     this.canvas.renderAll()
+    this.eventBus.emit('persons:allCleared')
+  }
+
+  clearAllPersons(): void {
+    this.abortRendering()
+    this.persons.forEach((_, id) => this._stopDisplayTimer(id))
+    this.persons.forEach((_, id) => this._stopBlinkAnimation(id))
+    this.persons.forEach(marker => this.canvas.remove(marker.group))
+    this.persons.clear()
+    this.canvas.renderAll()
     this.eventBus.emit('persons:cleared')
+  }
+
+  clearAllTraces(): void {
+    this.traces.forEach((_, id) => this.hideTrace(id))
+    this.canvas.renderAll()
+    this.eventBus.emit('traces:cleared')
   }
 
   showTrace(id: string, person: PersonData, traces: Point[]): void {
@@ -135,7 +211,7 @@ export default class PersonTracker {
     )
 
     const clickHandler = () => {
-      this.eventBus.emit('person:click', { ...person })
+      this.eventBus.emit('person:clicked', { ...person })
     }
     startMarker.group.on('mousedown', clickHandler)
     endMarker.group.on('mousedown', clickHandler)
@@ -194,15 +270,36 @@ export default class PersonTracker {
     this.persons.set(person.id, marker)
 
     marker.group.on('mousedown', () => {
-      this.eventBus.emit('person:click', { ...person })
+      this.eventBus.emit('person:clicked', { ...person })
     })
 
     if (this._shouldBlink(person.status)) {
       this._startBlinkAnimation(person.id)
     }
 
-    this._startDisplayTimer(person.id)
+    this._startDisplayTimer(person)
 
+    this.eventBus.emit('person:created', { ...person })
+  }
+
+  private _createPersonMarkerWithoutRender(person: PersonData): void {
+    const marker = this._createMarkerGroup(person.x, person.y, person.name, person.lineColor, true)
+    marker.personData = person
+    this.canvas.add(marker.group)
+    this.persons.set(person.id, marker)
+
+    marker.group.on('mousedown', () => {
+      this.eventBus.emit('person:clicked', { ...person })
+    })
+
+    if (this._shouldBlink(person.status)) {
+      this._startBlinkAnimation(person.id)
+      this.eventBus.emit('person:statusChange', {
+        ...person
+      })
+    }
+
+    this._startDisplayTimer(person)
     this.eventBus.emit('person:created', { ...person })
   }
 
@@ -215,12 +312,23 @@ export default class PersonTracker {
     marker.text.set({ text: person.name })
     marker.group.setCoords()
 
+    if (marker.rippleCircle) {
+      marker.rippleCircle.set({ left: person.x, top: person.y })
+      marker.rippleCircle.setCoords()
+    }
+
     const prevStatus = marker.personData?.status
     marker.personData = person
 
-    if (this._shouldBlink(person.status) && !this._shouldBlink(prevStatus)) {
+    const prevShouldBlink = this._shouldBlink(prevStatus)
+    const nowShouldBlink = this._shouldBlink(person.status)
+
+    if (nowShouldBlink && !prevShouldBlink) {
       this._startBlinkAnimation(person.id)
-    } else if (!this._shouldBlink(person.status) && this._shouldBlink(prevStatus)) {
+      this.eventBus.emit('person:statusChange', {
+        ...person
+      })
+    } else if (!nowShouldBlink && prevShouldBlink) {
       this._stopBlinkAnimation(person.id)
     }
     this.eventBus.emit('person:updated', { ...person })
@@ -235,7 +343,7 @@ export default class PersonTracker {
   ): PersonMarker {
     const circle = new fabric.Circle({
       radius: this.options.radius,
-      fill: 'transparent',
+      fill: this.options.fillColor || lineColor,
       stroke: lineColor,
       strokeWidth: this.options.strokeWidth,
       originX: 'center',
@@ -457,44 +565,135 @@ export default class PersonTracker {
     this.clearAll()
   }
 
+  abortRendering(): void {
+    this.renderVersion++
+  }
+
   private _startBlinkAnimation(id: string): void {
     const marker = this.persons.get(id)
     if (!marker) return
-    this._stopBlinkAnimation(id)
-
-    let visible = true
-
-    marker.blinkAnimationId = window.setInterval(() => {
-      visible = !visible
-      marker.group.set({ opacity: visible ? 1 : 0 })
-      this.canvas.renderAll()
-    }, DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!)
+    // this._stopBlinkAnimation(id)
+    this._startRippleAnimation(id)
+    // let visible = true
+    // marker.blinkAnimationId = window.setInterval(() => {
+    //   visible = !visible
+    //   marker.group.set({ opacity: visible ? 1 : 0 })
+    //   this.canvas.renderAll()
+    // }, DEFAULT_PERSON_TRACKER_OPTIONS.blinkInterval!)
   }
 
   private _stopBlinkAnimation(id: string): void {
+    this._stopRippleAnimation(id)
     const marker = this.persons.get(id)
     if (!marker || !marker.blinkAnimationId) return
-
     clearInterval(marker.blinkAnimationId)
     marker.blinkAnimationId = undefined
     marker.group.set({ opacity: 1 })
     this.canvas.renderAll()
   }
 
-  private _shouldBlink(status?: string): boolean {
-    return SHOULD_BLINK_LIST.includes(status || '')
+  private _startRippleAnimation(id: string): void {
+    this._stopRippleAnimation(id)
+    const marker = this.persons.get(id)
+    if (!marker || !marker.personData) return
+
+    const lineColor = marker.personData.lineColor
+    const baseRadius = this.options.radius
+    const maxRadius = baseRadius * 5
+    let currentRadius = baseRadius
+
+    const groupCenter = marker.group.getCenterPoint()
+
+    const rippleCircle = new fabric.Circle({
+      radius: currentRadius,
+      fill: this._colorWithOpacity(lineColor, 0.5),
+      stroke: 'transparent',
+      strokeWidth: 0,
+      originX: 'center',
+      originY: 'center',
+      left: groupCenter.x,
+      top: groupCenter.y,
+      selectable: false,
+      evented: false
+    })
+
+    this.canvas.add(rippleCircle)
+    this.canvas.sendObjectToBack(rippleCircle)
+    marker.rippleCircle = rippleCircle
+
+    marker.rippleAnimationId = window.setInterval(() => {
+      currentRadius += 1.5
+      if (currentRadius > maxRadius) {
+        currentRadius = baseRadius
+      }
+      const progress = (currentRadius - baseRadius) / (maxRadius - baseRadius)
+      const opacity = 0.5 * (1 - progress)
+      rippleCircle.set({
+        radius: currentRadius,
+        fill: this._colorWithOpacity(lineColor, opacity)
+      })
+      this.canvas.renderAll()
+    }, 100)
   }
 
-  private _startDisplayTimer(id: string): void {
-    this._stopDisplayTimer(id)
+  private _stopRippleAnimation(id: string): void {
+    const marker = this.persons.get(id)
+    if (!marker) return
+
+    if (marker.rippleAnimationId) {
+      clearInterval(marker.rippleAnimationId)
+      marker.rippleAnimationId = undefined
+    }
+
+    if (marker.rippleCircle) {
+      this.canvas.remove(marker.rippleCircle)
+      marker.rippleCircle = undefined
+    }
+  }
+
+  private _colorWithOpacity(color: string, opacity: number): string {
+    if (color.startsWith('rgba(')) {
+      return color.replace(/,\s*[\d.]+\)$/, `, ${opacity})`)
+    }
+    if (color.startsWith('rgb(')) {
+      return color.replace('rgb(', 'rgba(').replace(')', `, ${opacity})`)
+    }
+    if (color.startsWith('#')) {
+      const hex = color.slice(1)
+      let r: number, g: number, b: number
+      if (hex.length === 3) {
+        r = parseInt(hex[0] + hex[0], 16)
+        g = parseInt(hex[1] + hex[1], 16)
+        b = parseInt(hex[2] + hex[2], 16)
+      } else {
+        r = parseInt(hex.slice(0, 2), 16)
+        g = parseInt(hex.slice(2, 4), 16)
+        b = parseInt(hex.slice(4, 6), 16)
+      }
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`
+    }
+    return `rgba(0, 167, 240, ${opacity})`
+  }
+
+  private _shouldBlink(status?: string): boolean {
+    return this.options.blinkList.includes(status || '')
+  }
+
+  private _nextFrame(): Promise<void> {
+    return new Promise(resolve => requestAnimationFrame(() => resolve()))
+  }
+
+  private _startDisplayTimer(person: PersonData): void {
+    this._stopDisplayTimer(person.id)
 
     if (this.options.displayDuration <= 0) return
-
+    const time = this._shouldBlink(person.status)
+      ? this.options.displayDuration * 2
+      : this.options.displayDuration
     const timerId = window.setTimeout(() => {
-      this.removePerson(id)
-    }, this.options.displayDuration)
-
-    this.displayTimers.set(id, timerId)
+      this.removePerson(person.id)
+    }, time)
+    this.displayTimers.set(person.id, timerId)
   }
 
   private _stopDisplayTimer(id: string): void {

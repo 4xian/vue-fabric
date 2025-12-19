@@ -1,4 +1,4 @@
-import { PaintBoard, AreaTool, SelectTool, TextTool, CurveTool, ImageTool, Toolbar } from '../../dist/index.esm.js'
+import { PaintBoard, AreaTool, SelectTool, TextTool, CurveTool, ImageTool, Toolbar } from '../../dist/vue-fabric.js'
 
 const board = new PaintBoard('#canvas-container', {
   width: 1000,

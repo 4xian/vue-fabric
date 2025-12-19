@@ -308,11 +308,11 @@ export default class RectTool extends BaseTool {
       strokeWidth: this.options.strokeWidth,
       selectable: true,
       evented: true,
-      hasBorders: true,
-      hasControls: true,
+      hasBorders: this.options.hasBorders,
+      hasControls: this.options.hasBorders,
       lockRotation: true,
-      lockMovementX: true,
-      lockMovementY: true,
+      lockMovementX: this.options.lockMovementX,
+      lockMovementY: this.options.lockMovementY,
       hoverCursor: 'pointer',
       moveCursor: 'pointer',
       perPixelTargetFind: this.options.perPixelTargetFind
@@ -426,6 +426,9 @@ export default class RectTool extends BaseTool {
     this._reset()
     this.paintBoard.resumeHistory()
     this.canvas.renderAll()
+    if (!this.options.continueDraw) {
+      this.paintBoard.setTool('select')
+    }
   }
 
   private _configureControls(rect: Rect): void {
@@ -488,6 +491,33 @@ export default class RectTool extends BaseTool {
         width: rect.customData.width,
         height: rect.customData.height
       })
+    })
+
+    rect.on('moving', () => {
+      const newLeft = rect.left || 0
+      const newTop = rect.top || 0
+      const width = rect.customData.width
+      const height = rect.customData.height
+
+      rect.customData.startPoint = { x: newLeft, y: newTop }
+      rect.customData.endPoint = { x: newLeft + width, y: newTop + height }
+
+      if (rect.customData.widthLabel) {
+        rect.customData.widthLabel.set({
+          left: newLeft + width / 2,
+          top: newTop
+        })
+        rect.customData.widthLabel.setCoords()
+      }
+      if (rect.customData.heightLabel) {
+        rect.customData.heightLabel.set({
+          left: newLeft,
+          top: newTop + height / 2
+        })
+        rect.customData.heightLabel.setCoords()
+      }
+
+      this.canvas?.renderAll()
     })
 
     rect.on('scaling', () => {

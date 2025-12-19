@@ -169,8 +169,8 @@ export default class ImageTool extends BaseTool {
         const base64Data = isBase64Input ? imageSource : this._convertToBase64(img)
 
         const customData: ImageCustomData = {
+          ...options,
           drawId: id || generateDrawId(),
-          createdAt: Date.now(),
           base64: base64Data
         }
 
@@ -187,11 +187,116 @@ export default class ImageTool extends BaseTool {
         this.canvas!.renderAll()
 
         this.eventBus!.emit('image:created', {
-          drawId: customData.drawId,
-          x,
-          y,
-          base64: base64Data
+          ...customData
         })
+
+        resolve({
+          imageObj: fabricImg as FabricImage & { customType: string; customData: ImageCustomData },
+          customData
+        })
+      }
+
+      img.onerror = () => {
+        console.error('Failed to load image')
+        resolve(null)
+      }
+
+      img.src = imageSource
+    })
+  }
+
+  addImageWithoutRender(options: AddImageOptions): Promise<CreateImageResult | null> {
+    return new Promise(resolve => {
+      if (!this.canvas || !this.paintBoard || !this.eventBus) {
+        resolve(null)
+        return
+      }
+
+      const {
+        id,
+        x,
+        y,
+        src,
+        base64,
+        width,
+        height,
+        selectable = this.options.defaultSelectable,
+        hasControls = this.options.defaultHasControls,
+        hasBorders = this.options.defaultHasBorders,
+        lockMovementX = this.options.defaultLockMovement,
+        lockMovementY = this.options.defaultLockMovement,
+        lockScalingX = this.options.defaultLockScaling,
+        lockScalingY = this.options.defaultLockScaling,
+        angle = 0,
+        scaleX = 1,
+        scaleY = 1,
+        opacity = 1
+      } = options
+
+      const imageSource = base64 || src
+      if (!imageSource) {
+        console.error('Either src or base64 must be provided')
+        resolve(null)
+        return
+      }
+
+      const isBase64Input = base64 || this._isBase64(imageSource)
+
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+
+      img.onload = () => {
+        let finalScaleX = scaleX
+        let finalScaleY = scaleY
+
+        if (width && !height) {
+          finalScaleX = width / img.width
+          finalScaleY = finalScaleX
+        } else if (height && !width) {
+          finalScaleY = height / img.height
+          finalScaleX = finalScaleY
+        } else if (width && height) {
+          finalScaleX = width / img.width
+          finalScaleY = height / img.height
+        }
+
+        const fabricImg = new fabric.FabricImage(img, {
+          left: x,
+          top: y,
+          angle,
+          scaleX: finalScaleX,
+          scaleY: finalScaleY,
+          opacity,
+          selectable,
+          hasControls,
+          lockMovementX,
+          lockMovementY,
+          lockScalingX,
+          lockScalingY,
+          hasBorders,
+          lockScalingFlip: true,
+          hoverCursor: 'pointer',
+          originX: 'center',
+          originY: 'center'
+        })
+
+        const base64Data = isBase64Input ? imageSource : this._convertToBase64(img)
+
+        const customData: ImageCustomData = {
+          ...options,
+          drawId: id || generateDrawId(),
+          base64: base64Data
+        }
+
+        ;(
+          fabricImg as FabricImage & { customType: string; customData: ImageCustomData }
+        ).customType = CustomType.Image
+        ;(
+          fabricImg as FabricImage & { customType: string; customData: ImageCustomData }
+        ).customData = customData
+
+        this._bindImageEvents(fabricImg as FabricImage & { customData: ImageCustomData })
+        this.canvas!.add(fabricImg)
 
         resolve({
           imageObj: fabricImg as FabricImage & { customType: string; customData: ImageCustomData },

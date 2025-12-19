@@ -21,7 +21,8 @@ const commonPlugins = [
   typescript({
     tsconfig: './tsconfig.build.json',
     declaration: false
-  })
+  }),
+  terser()
 ]
 
 export default [
@@ -29,16 +30,16 @@ export default [
     input: 'src/index.ts',
     output: [
       {
-        file: 'dist/index.esm.js',
+        file: 'dist/vue-fabric.js',
         format: 'esm',
-        sourcemap: true,
+        sourcemap: false,
         exports: 'named'
       },
       {
-        file: 'dist/index.umd.js',
+        file: 'dist/vue-fabric.umd.js',
         format: 'umd',
         name: 'VueFabric',
-        sourcemap: true,
+        sourcemap: false,
         exports: 'named',
         globals: { fabric: 'fabric' }
       }
@@ -49,10 +50,10 @@ export default [
   {
     input: 'src/index.ts',
     output: {
-      file: 'dist/index.umd.min.js',
+      file: 'dist/vue-fabric.umd.min.js',
       format: 'umd',
       name: 'VueFabric',
-      sourcemap: true,
+      sourcemap: false,
       exports: 'named',
       globals: { fabric: 'fabric' }
     },

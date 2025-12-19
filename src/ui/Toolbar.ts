@@ -15,7 +15,7 @@ const TOOL_TITLES: Record<string, string> = {
   text: '写文字',
   image: '上传图片',
   undo: '撤销',
-  redo: '重做',
+  redo: '还原',
   zoomIn: '放大视图',
   zoomOut: '缩小视图',
   fitZoom: '重置视图',
@@ -70,7 +70,7 @@ export default class Toolbar {
     this.activeTool = null
     this.lineColorBtn = null
     this.fillColorBtn = null
-    this.helpersVisible = false
+    this.helpersVisible = this.paintBoard.isHelpersVisible()
   }
 
   init(): this {
@@ -288,7 +288,7 @@ export default class Toolbar {
     btn.className = 'toolbar-btn toggle-btn'
     btn.title = title
     btn.innerHTML = icon
-
+    btn.classList.toggle('active', this.helpersVisible)
     btn.addEventListener('click', onClick)
 
     this.buttons.set(name, btn)

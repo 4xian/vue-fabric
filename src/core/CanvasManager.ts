@@ -6,7 +6,7 @@ import type {
   BasicTransformEvent,
   FabricObject
 } from 'fabric'
-import type { CanvasManagerOptions, ZoomOrigin } from '../../types'
+import type { CanvasManagerOptions, ZoomOrigin, ZoomScale } from '../../types'
 import { throttle } from '../utils/throttle'
 import EventBus from './EventBus'
 import { DEFAULT_CANVAS_MANAGER_OPTIONS } from '../utils/settings'
@@ -16,7 +16,7 @@ type ObjectMovingEvent = BasicTransformEvent<TPointerEvent> & { target: FabricOb
 export default class CanvasManager {
   private canvas: Canvas
   private eventBus: EventBus
-  private options: Required<
+  public options: Required<
     Pick<
       CanvasManagerOptions,
       'zoomStep' | 'minZoom' | 'maxZoom' | 'expandMargin' | 'expandSize' | 'zoomOrigin'
@@ -186,11 +186,28 @@ export default class CanvasManager {
     return this._getCanvasCenter()
   }
 
-  setZoom(zoom: number, origin?: ZoomOrigin): void {
+  setZoom(zoom: number | ZoomScale, origin?: ZoomOrigin): void {
     const point = this._getZoomPoint(origin)
-    zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
-    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
-    this.eventBus.emit('canvas:zoomed', zoom)
+
+    if (typeof zoom === 'number') {
+      zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
+      this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
+      this.eventBus.emit('canvas:zoomed', zoom)
+    } else {
+      const scaleX = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom.x))
+      const scaleY = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom.y))
+
+      const vpt = this.canvas.viewportTransform
+      if (vpt) {
+        const newVpt: [number, number, number, number, number, number] = [...vpt]
+        newVpt[0] = scaleX
+        newVpt[3] = scaleY
+        newVpt[4] = point.x - point.x * scaleX
+        newVpt[5] = point.y - point.y * scaleY
+        this.canvas.setViewportTransform(newVpt)
+      }
+      this.eventBus.emit('canvas:zoomed', { x: scaleX, y: scaleY })
+    }
   }
 
   getZoom(): number {

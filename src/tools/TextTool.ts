@@ -173,7 +173,7 @@ export default class TextTool extends BaseTool {
       y,
       text,
       editable = false,
-      fontSize = this.options.fontSize,
+      fontSize = options.fontSize || this.options.fontSize,
       fontFamily = this.options.fontFamily,
       fill = options.fill || this.options.fill,
       fontWeight = 'normal',
@@ -182,7 +182,8 @@ export default class TextTool extends BaseTool {
       selectable = true,
       hasControls = false,
       hasBorders = false,
-      perPixelTargetFind = this.options.perPixelTargetFind
+      perPixelTargetFind = this.options.perPixelTargetFind,
+      textOrigin = 'left'
     } = options
 
     const textObj = new fabric.IText(text, {
@@ -203,12 +204,13 @@ export default class TextTool extends BaseTool {
       lockMovementY: true,
       hoverCursor: editable ? 'text' : 'pointer',
       moveCursor: editable ? 'text' : 'move',
-      perPixelTargetFind
+      perPixelTargetFind,
+      originX: textOrigin
     })
 
     const customData: TextCustomData = {
-      drawId: options.id || generateDrawId(),
-      createdAt: Date.now()
+      ...options,
+      drawId: options.id || generateDrawId()
     }
 
     ;(textObj as IText & { customType: string; customData: TextCustomData }).customType =
@@ -221,9 +223,69 @@ export default class TextTool extends BaseTool {
     this._bindTextEvents(textObj as IText & { customType: string; customData: TextCustomData })
 
     this.eventBus.emit('text:created', {
-      drawId: customData.drawId,
-      text: textObj.text
+      ...customData
     })
+
+    return {
+      textObj: textObj as IText & { customType: string; customData: TextCustomData },
+      customData
+    }
+  }
+
+  createTextWithoutRender(options: AddTextOptions): CreateTextResult | null {
+    if (!this.canvas || !this.paintBoard || !this.eventBus) return null
+
+    const {
+      x,
+      y,
+      text,
+      editable = false,
+      fontSize = this.options.fontSize,
+      fontFamily = this.options.fontFamily,
+      fill = options.fill || this.options.fill,
+      fontWeight = 'normal',
+      fontStyle = 'normal',
+      textAlign = 'left',
+      selectable = true,
+      hasControls = false,
+      hasBorders = false,
+      perPixelTargetFind = this.options.perPixelTargetFind,
+      textOrigin = 'left'
+    } = options
+
+    const textObj = new fabric.IText(text, {
+      left: x,
+      top: y,
+      fontSize,
+      fontFamily,
+      fill,
+      fontWeight,
+      fontStyle,
+      textAlign,
+      editable,
+      selectable,
+      hasControls,
+      hasBorders,
+      lockScalingFlip: true,
+      lockMovementX: true,
+      lockMovementY: true,
+      hoverCursor: editable ? 'text' : 'pointer',
+      moveCursor: editable ? 'text' : 'move',
+      perPixelTargetFind,
+      originX: textOrigin
+    })
+
+    const customData: TextCustomData = {
+      ...options,
+      drawId: options.id || generateDrawId()
+    }
+
+    ;(textObj as IText & { customType: string; customData: TextCustomData }).customType =
+      CustomType.Text
+    ;(textObj as IText & { customType: string; customData: TextCustomData }).customData = customData
+
+    this.canvas.add(textObj)
+    this._bindTextEvents(textObj as IText & { customType: string; customData: TextCustomData })
 
     return {
       textObj: textObj as IText & { customType: string; customData: TextCustomData },

@@ -370,6 +370,10 @@ export default class AreaTool extends BaseTool {
     this._reset()
     this.paintBoard.resumeHistory()
     this.canvas.renderAll()
+    this._removeCircleHover()
+    if (!this.options.continueDraw) {
+      this.paintBoard.setTool('select')
+    }
   }
 
   private _setupAreaEvents(polygon: Polygon & { customData: AreaCustomData }): void {
@@ -612,6 +616,14 @@ export default class AreaTool extends BaseTool {
         this.canvas?.renderAll()
       }
     })
+  }
+
+  private _removeCircleHover(): void {
+    if (this._hoverRect) {
+      this.canvas?.remove(this._hoverRect)
+      this._hoverRect = null
+      this.canvas?.renderAll()
+    }
   }
 
   destroy(): void {

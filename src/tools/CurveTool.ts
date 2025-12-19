@@ -536,6 +536,10 @@ export default class CurveTool extends BaseTool {
     this._reset()
     this.paintBoard.resumeHistory()
     this.canvas.renderAll()
+    this._removeCircleHover()
+    if (!this.options.continueDraw) {
+      this.paintBoard.setTool('select')
+    }
   }
 
   private _undoLastPoint(): void {
@@ -739,5 +743,13 @@ export default class CurveTool extends BaseTool {
 
   setTension(value: number): void {
     this.options.tension = Math.max(0, Math.min(1, value))
+  }
+
+  private _removeCircleHover(): void {
+    if (this._hoverRect) {
+      this.canvas?.remove(this._hoverRect)
+      this._hoverRect = null
+      this.canvas?.renderAll()
+    }
   }
 }

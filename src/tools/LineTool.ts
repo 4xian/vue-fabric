@@ -388,6 +388,9 @@ export default class LineTool extends BaseTool {
     this._reset()
     this.paintBoard.resumeHistory()
     this.canvas.renderAll()
+    if (!this.options.continueDraw) {
+      this.paintBoard.setTool('select')
+    }
   }
 
   private _setupLineEvents(line: Line & { customData: LineCustomData }): void {

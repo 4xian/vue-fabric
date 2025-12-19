@@ -15,7 +15,6 @@ import {
   SERIALIZATION_PROPERTIES,
   CustomType,
   CUSTOM_TYPE_HELPER_MAP,
-  DEFAULT_RECTTOOL_OPTIONS,
   type MainCustomType
 } from './settings'
 import type { ExportJSONOptions } from '../../types'
@@ -80,7 +79,12 @@ function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: 
 
     switch (customObj.customType) {
       case CustomType.Area:
-        rebindAreaEvents(customObj as Polygon & { customData: AreaCustomData }, canvas, eventBus)
+        rebindAreaEvents(
+          customObj as Polygon & { customData: AreaCustomData },
+          canvas,
+          eventBus,
+          helpersVisible
+        )
         applyHelperVisibility(customObj as Polygon & { customData: AreaCustomData }, helpersVisible)
         break
       case CustomType.Line:
@@ -418,7 +422,8 @@ function relinkHelperElements(canvas: Canvas): void {
 function rebindAreaEvents(
   polygon: Polygon & { customData: AreaCustomData },
   canvas: Canvas,
-  eventBus: EventBus
+  eventBus: EventBus,
+  helpersVisible: boolean
 ): void {
   let lastLeft = polygon.left || 0
   let lastTop = polygon.top || 0
@@ -426,7 +431,9 @@ function rebindAreaEvents(
   polygon.on('selected', () => {
     lastLeft = polygon.left || 0
     lastTop = polygon.top || 0
-    showHelpers(polygon, canvas)
+    if (helpersVisible) {
+      showHelpers(polygon, canvas)
+    }
     eventBus.emit('area:selected', {
       drawId: polygon.customData.drawId,
       points: polygon.customData.points,
@@ -437,7 +444,9 @@ function rebindAreaEvents(
   polygon.on('mousedown', () => {
     lastLeft = polygon.left || 0
     lastTop = polygon.top || 0
-    showHelpers(polygon, canvas)
+    if (helpersVisible) {
+      showHelpers(polygon, canvas)
+    }
     eventBus.emit('area:clicked', {
       drawId: polygon.customData.drawId,
       points: polygon.customData.points,
@@ -445,10 +454,12 @@ function rebindAreaEvents(
     })
   })
 
-  polygon.on('deselected', () => {
-    hideHelpers(polygon)
-    canvas.renderAll()
-  })
+  // polygon.on('deselected', () => {
+  //   if (!helpersVisible) {
+  //     hideHelpers(polygon)
+  //   }
+  //   canvas.renderAll()
+  // })
 
   polygon.on('moving', () => {
     const dx = (polygon.left || 0) - lastLeft
@@ -540,6 +551,9 @@ function rebindRectEvents(
   canvas: Canvas,
   eventBus: EventBus
 ): void {
+  let lastLeft = rect.left || 0
+  let lastTop = rect.top || 0
+
   rect.setControlsVisibility({
     mtr: false,
     ml: true,
@@ -551,15 +565,10 @@ function rebindRectEvents(
     bl: true,
     br: true
   })
-  rect.set({
-    cornerStyle: DEFAULT_RECTTOOL_OPTIONS.cornerStyle || 'rect',
-    cornerSize: DEFAULT_RECTTOOL_OPTIONS.cornerSize || 10,
-    lockRotation: true,
-    lockMovementX: true,
-    lockMovementY: true
-  })
 
   rect.on('mousedown', () => {
+    lastLeft = rect.left || 0
+    lastTop = rect.top || 0
     eventBus.emit('rect:clicked', {
       ...rect.customData,
       object: rect
@@ -567,10 +576,20 @@ function rebindRectEvents(
   })
 
   rect.on('selected', () => {
+    lastLeft = rect.left || 0
+    lastTop = rect.top || 0
     eventBus.emit('rect:selected', {
       ...rect.customData,
       object: rect
     })
+  })
+
+  rect.on('moving', () => {
+    const dx = (rect.left || 0) - lastLeft
+    const dy = (rect.top || 0) - lastTop
+    moveRectHelpers(rect, dx, dy, canvas)
+    lastLeft = rect.left || 0
+    lastTop = rect.top || 0
   })
 
   rect.on('scaling', () => {
@@ -600,7 +619,7 @@ function updateRectLabelsPosition(
 
   if (widthLabel && typeof widthLabel.set === 'function') {
     widthLabel.set({
-      text: `${Math.round(width)}px`,
+      text: `${Math.round(width)}`,
       left: left + width / 2,
       top: top
     })
@@ -609,9 +628,36 @@ function updateRectLabelsPosition(
 
   if (heightLabel && typeof heightLabel.set === 'function') {
     heightLabel.set({
-      text: `${Math.round(height)}px`,
+      text: `${Math.round(height)}`,
       left: left,
       top: top + height / 2
+    })
+    heightLabel.setCoords()
+  }
+
+  canvas.renderAll()
+}
+
+function moveRectHelpers(
+  rect: Rect & { customData: RectCustomData },
+  dx: number,
+  dy: number,
+  canvas: Canvas
+): void {
+  const { widthLabel, heightLabel } = rect.customData || {}
+
+  if (widthLabel && typeof widthLabel.set === 'function') {
+    widthLabel.set({
+      left: (widthLabel.left || 0) + dx,
+      top: (widthLabel.top || 0) + dy
+    })
+    widthLabel.setCoords()
+  }
+
+  if (heightLabel && typeof heightLabel.set === 'function') {
+    heightLabel.set({
+      left: (heightLabel.left || 0) + dx,
+      top: (heightLabel.top || 0) + dy
     })
     heightLabel.setCoords()
   }
@@ -809,23 +855,23 @@ function showHelpers(
   canvas.renderAll()
 }
 
-function hideHelpers(obj: fabric.FabricObject & { customData?: AreaCustomData }): void {
-  const { circles, labels } = obj.customData || {}
-  if (circles && Array.isArray(circles)) {
-    circles.forEach(circle => {
-      if (circle && typeof circle.set === 'function') {
-        circle.set({ visible: false })
-      }
-    })
-  }
-  if (labels && Array.isArray(labels)) {
-    labels.forEach(label => {
-      if (label && typeof label.set === 'function') {
-        label.set({ visible: false })
-      }
-    })
-  }
-}
+// function hideHelpers(obj: fabric.FabricObject & { customData?: AreaCustomData }): void {
+//   const { circles, labels } = obj.customData || {}
+//   if (circles && Array.isArray(circles)) {
+//     circles.forEach(circle => {
+//       if (circle && typeof circle.set === 'function') {
+//         circle.set({ visible: false })
+//       }
+//     })
+//   }
+//   if (labels && Array.isArray(labels)) {
+//     labels.forEach(label => {
+//       if (label && typeof label.set === 'function') {
+//         label.set({ visible: false })
+//       }
+//     })
+//   }
+// }
 
 export function exportToImage(canvas: Canvas, options: ExportImageOptions | string = {}): string {
   if (typeof options === 'string') {

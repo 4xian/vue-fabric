@@ -92,7 +92,7 @@ onUnmounted(() => {
 <div id="canvas-container"></div>
 
 <script src="node_modules/fabric/dist/fabric.js"></script>
-<script src="node_modules/@4xian/vue-fabric/dist/index.umd.js"></script>
+<script src="node_modules/@4xian/vue-fabric/dist/vue-fabric.umd.js"></script>
 <script>
   const { PaintBoard, LineTool, AreaTool, SelectTool } = VueFabric
 

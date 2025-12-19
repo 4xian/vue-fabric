@@ -1,0 +1,64 @@
+{
+  "1999024567875801088": [
+    {
+      "behavior": "climbing",
+      "color": "",
+      "monitorId": "1999024567875801088",
+      "personId": "00537",
+      "personName": "00537",
+      "x": "273",
+      "y": "210"
+    }
+  ],
+  "1999024567884189697": [
+    {
+      "behavior": "climbing",
+      "color": "",
+      "monitorId": "1999024567884189697",
+      "personId": "00095",
+      "personName": "00095",
+      "x": "131",
+      "y": "316"
+    },
+    {
+      "behavior": "looking at phone",
+      "color": "",
+      "monitorId": "1999024567884189697",
+      "personId": "02723",
+      "personName": "02723",
+      "x": "283",
+      "y": "448"
+    },
+    {
+      "behavior": "climbing",
+      "color": "",
+      "monitorId": "1999024567884189697",
+      "personId": "75",
+      "personName": "75",
+      "x": "468",
+      "y": "343"
+    }
+  ],
+  "1999318350609780736": [
+    {
+      "behavior": "climbing",
+      "color": "",
+      "monitorId": "1999318350609780736",
+      "personId": "01720",
+      "personName": "01720",
+      "x": "195",
+      "y": "331"
+    }
+  ],
+  "1999318350593003524": [
+    {
+      "behavior": "climbing",
+      "color": "",
+      "monitorId": "1999318350593003524",
+      "personId": "00167",
+      "personName": "00167",
+      "x": "371",
+      "y": "144"
+    }
+  ]
+}

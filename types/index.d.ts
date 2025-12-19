@@ -1,4 +1,4 @@
-import type { Circle, Line, Text } from 'fabric'
+import type { Circle, Line, Text, FabricImage } from 'fabric'
 
 export interface Point {
   x: number
@@ -26,9 +26,23 @@ export interface FabricPaintOptions {
   perPixelTargetFind?: boolean
   targetFindTolerance?: number
   defaultShowHelpers?: boolean
+  autoResize?: boolean
+  pixelRatio?: number | 'auto'
 }
 
 export type ZoomOrigin = 'center' | 'topLeft'
+
+export type ResizeOrigin = 'center' | 'topLeft'
+
+export interface ZoomScale {
+  x: number
+  y: number
+}
+
+export interface ResizeReference {
+  width: number
+  height: number
+}
 
 export interface CanvasManagerOptions extends FabricPaintOptions {
   zoomStep?: number
@@ -48,6 +62,8 @@ export interface BaseToolOptions {
   lockMovementY?: boolean
   cornerStyle?: 'rect' | 'circle'
   cornerSize?: number
+  continueDraw?: boolean
+  disabeldClick?: boolean
 }
 
 export interface AreaToolOptions extends BaseToolOptions {
@@ -148,7 +164,7 @@ export interface AreaCustomData {
 
 export interface TextCustomData {
   drawId: string
-  createdAt: number
+  createdAt?: number
 }
 
 export interface CurveCustomData {
@@ -226,6 +242,7 @@ export interface AddTextOptions {
   hasControls?: boolean
   hasBorders?: boolean
   perPixelTargetFind?: boolean
+  textOrigin?: 'left' | 'center' | 'right'
 }
 
 export interface AddImageOptions {
@@ -251,7 +268,7 @@ export interface AddImageOptions {
 
 export interface ImageCustomData {
   drawId: string
-  createdAt: number
+  createdAt?: number
   base64?: string
 }
 
@@ -261,8 +278,7 @@ export interface PersonData {
   x: number
   y: number
   lineColor: string
-  status?: 'normal' | 'fainted' | string
-  trajectory?: Point[]
+  status?: string
 }
 
 export interface TraceOptions {
@@ -275,12 +291,40 @@ export interface TraceOptions {
   pathType?: 'line' | 'curve'
   blinkInterval?: number
   displayDuration?: number
+  batchSize?: number
+  blinkList?: string[]
+  deleteOld?: boolean
+  fillColor?: string
 }
 
-export type ToolName = 'select' | 'drag' | 'area' | 'curve' | 'line' | 'rect' | 'text' | 'image' | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'fitZoom' | 'download' | 'lineColor' | 'fillColor' | 'helpers' | 'uploadImage'
+export type ToolName =
+  | 'select'
+  | 'drag'
+  | 'area'
+  | 'curve'
+  | 'line'
+  | 'rect'
+  | 'text'
+  | 'image'
+  | 'undo'
+  | 'redo'
+  | 'zoomIn'
+  | 'zoomOut'
+  | 'fitZoom'
+  | 'download'
+  | 'lineColor'
+  | 'fillColor'
+  | 'helpers'
+  | 'uploadImage'
 export type EventCallback = (data?: unknown) => void
 
-export type CustomData = AreaCustomData | TextCustomData | CurveCustomData | LineCustomData | RectCustomData | ImageCustomData
+export type CustomData =
+  | AreaCustomData
+  | TextCustomData
+  | CurveCustomData
+  | LineCustomData
+  | RectCustomData
+  | ImageCustomData
 
 export const SERIALIZATION_PROPERTIES: string[]
 
@@ -305,3 +349,18 @@ export const CustomType: {
 }
 
 export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]
+
+export interface BatchTextInsertResult {
+  success: Array<{ id: string; object: Text & { customType: string; customData: TextCustomData } }>
+  failed: Array<{ id?: string; error: string }>
+}
+
+export interface BatchImageInsertResult {
+  success: Array<{ id: string; object: FabricImage }>
+  failed: Array<{ id?: string; error: string }>
+}
+
+export interface BatchRemoveResult {
+  removed: string[]
+  notFound: string[]
+}

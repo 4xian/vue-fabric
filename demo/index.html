@@ -99,21 +99,26 @@
   <div class="toolbar-top">
     <div class="toolbar-row">
       <button onclick="board.setTool('select')">选择</button>
-      <!-- <button onclick="addCustomText()">新增文字</button> -->
+      <!-- <button onclick="batchDelete()">批量删除</button> -->
+      <button onclick="addCustomText()">新增文字</button>
       <!-- <button onclick="addCustomImage()">新增图片</button> -->
+      <!-- <button onclick="batchAddTexts()">批量新增文字</button> -->
+      <!-- <button onclick="batchAddImages()">批量新增图片</button> -->
+      <!-- <button onclick="batchUpdateTexts()">批量修改文字</button> -->
+      <!-- <button onclick="batchUpdateImages()">批量修改图片</button> -->
       <!-- <button onclick="board.setTool('curve')">画曲线</button> -->
       <!-- <button onclick="board.undo()">撤销</button> -->
       <!-- <button onclick="board.redo()">还原</button> -->
-      <!-- <button onclick="board.zoomIn()">放大</button> -->
-      <!-- <button onclick="board.zoomOut()">缩小</button> -->
+      <button onclick="board.zoomIn()">放大</button>
+      <button onclick="board.zoomOut()">缩小</button>
       <!-- <button onclick="board.resetZoom()">还原视图</button> -->
       <!-- <button onclick="board.toggleAreaHelpers()">显示/隐藏距离</button> -->
       <!-- <button onclick="toolbar.show()">显示工具栏</button> -->
       <!-- <button onclick="toolbar.hide()">隐藏工具栏</button> -->
-      <!-- <button onclick="listCustomObjects()">列出对象</button> -->
+      <button onclick="listCustomObjects()">列出对象</button>
     </div>
     <div class="toolbar-row">
-      <button onclick="board.clear()">清空画布</button>
+      <button onclick="board.originClear()">清空画布</button>
       <button onclick="exportCanvas()">导出JSON</button>
       <button onclick="document.getElementById('jsonFileInput').click()">导入JSON</button>
       <input type="file" id="jsonFileInput" accept=".json" onchange="handleJsonFileImport(event)" style="display:none">
@@ -136,12 +141,12 @@
     </div> -->
     <!-- <div class="toolbar-row">
       <label>人员追踪:</label>
-      <button onclick="createSinglePerson()">一次一人</button>
-      <button onclick="createMultiplePersons()">一次多人</button>
-      <button onclick="updatePersonPositions()">更新多人位置</button>
-      <button onclick="showTraceDemo('line')">直线轨迹</button>
-      <button onclick="showTraceDemo('curve')">曲线轨迹</button>
-      <button onclick="clearPersons()">清除人员</button>
+      <button onclick="loadRealPersonData()">加载真实数据</button>
+      <button onclick="startSimulateWebSocket()">模拟WebSocket更新</button>
+      <button onclick="stopSimulateWebSocket()">停止模拟</button>
+      <button onclick="showTraceDemo('curve')">显示轨迹</button>
+      <button onclick="clearAllPersons()">清除人员</button>
+      <button onclick="clearAllTraces()">清除轨迹</button>
     </div> -->
     <!-- <div class="toolbar-row">
       <label>背景图:</label>
@@ -175,7 +180,7 @@
 
   <link rel="stylesheet" href="/dist/style.css">
   <script src="/demo/static/fabric.js"></script>
-  <script src="/dist/index.umd.js"></script>
+  <script src="/dist/vue-fabric.umd.js"></script>
   <script>
     const { FabricPaint, AreaTool, DragTool, SelectTool, RectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
     const container = document.getElementById('canvas-container')
@@ -184,13 +189,16 @@
       height: container.clientHeight,
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
-      backgroundColor: 'transparent'
+      backgroundColor: 'transparent',
+      defaultShowHelpers: false
     }).init()
 
     board
       .registerTool('select', new SelectTool())
       .registerTool('line', new LineTool())
-      .registerTool('area', new AreaTool())
+      .registerTool('area', new AreaTool({
+        // continueDraw: false
+      }))
       .registerTool('curve', new CurveTool())
       .registerTool('rect', new RectTool())
       .registerTool('text', new TextTool({
@@ -201,8 +209,8 @@
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      // tools: ['select', 'rect', 'undo', 'redo', 'helpers'],
-      tools: ['lineColor', 'fillColor', 'drag', 'select', 'line', 'area', 'rect', 'curve', 'image', 'helpers', 'undo', 'redo'],
+      tools: ['select', 'area', 'undo', 'redo', 'helpers'],
+      // tools: ['lineColor', 'fillColor', 'drag', 'select', 'line', 'area', 'rect', 'curve', 'image', 'helpers', 'undo', 'redo'],
       visible: true
     }).init()
 
@@ -216,7 +224,7 @@
       console.log('直线已创建:', data)
     })
 
-    board.on('line:selected', (data) => {
+    board.on('line:clicked', (data) => {
       console.log('直线已选中:', data)
     })
 
@@ -224,7 +232,7 @@
       console.log('区域已创建:', data)
     })
 
-    board.on('area:selected', (data) => {
+    board.on('area:clicked', (data) => {
       console.log('区域已选中:', data)
     })
 
@@ -232,7 +240,7 @@
       console.log('曲线已创建:', data)
     })
 
-    board.on('curve:selected', (data) => {
+    board.on('curve:clicked', (data) => {
       console.log('曲线已选择:', data)
     })
 
@@ -252,7 +260,7 @@
       console.log('文字被点击:', data)
     })
 
-    board.on('text:modified', (data) => {
+    board.on('text:updated', (data) => {
       console.log('文字被修改:', data)
     })
 
@@ -262,6 +270,10 @@
 
     board.on('image:clicked', (data) => {
       console.log('图片被点击:', data)
+    })
+
+    board.on('image:updated', (data) => {
+      console.log('图片被修改:', data)
     })
 
     board.on('canvas:zoomed', (e) => {
@@ -315,17 +327,16 @@
 
     let textCounter = 1
     let lastCreatedTextId = null
-    let lastCreatedImageId = null
 
     // 新增文字
     function addCustomText() {
-      const text = board.addText({
+      const text = board.insertText({
+        id: 11,
         x: textCounter * 16,
         y: textCounter * 16,
         text: '测试文字 ' + textCounter,
-        editable: false,
-        fontSize: 12,
-        // fill: 'red'
+        textOrigin: 'left',
+        fill: 'red'
       })
       if (text && text.customData) {
         lastCreatedTextId = text.customData.drawId
@@ -335,16 +346,14 @@
 
     // 新增图片
     async function addCustomImage() {
-      const img = await board.addImage({
+      const img = await board.insertImage({
+        id: 22,
         x: 200,
         y: 200,
         width: 20,
         // src: '/demo/static/camera.png'
         base64: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAUCAYAAABmvqYOAAACsUlEQVR4AbRUW08TQRg9M7vbmy1YrFDk8sADJl5SNFpIGiDGRBISisToL9CE+KDRmPgi/gATY0z4A8ZnnohibCRCVC7aSCCioKigRNS2JNKyrbQdZ6YrgW4bXuhmzzfzne/M2dnZmaX+wTHdPzjOdhsnB8f7KQOJowQXA0tRApYogTf4rJMUjJTEnFGSpIyw0iwL4+bxWJTGI7+x29Bjv3TqrPDEnZ79yIdVVUycs5DOohXU2d2eBco/5grHtptl0vgbi2zjCiXZVBIbq9FCJRAoEUoYm4LpIiamIEEVECrmZ66mrNZZyqCM55eIosB2oC6fNuVU02CprDbxfI/PTHf4EvR10D/Ct+P1LNhEMhZZSSx9TccXP0P/8R2JhbkdoS9/g9ALbKwn5rnxM8Jot3iifKfJYPM9gF2JjY3+jLwcVqOvniM6EkJ0+PHOGH0Kqedj4nPvXvzJZnq435dNc9FJg64SVdVFX6LIWsra1rBFR22OtblgYPPcyJkLrQJ1WbHZY6IvoWpgslM8yDrX/Vc4vNVhECJpwW2ah7tOrFsrKkOClCAEsDmKPkA68DpIzkJ1lr3X3J5pOdYIuYqR2I/6Hmmu8hkjBcSsHC4wixVMUcH41pMtz8F5WTfEjtr6UEyJfjBS2VAZjTDV1fLR7fPfpKq2alCAWFOqApoFEKaqaG053hDZqmqGypqO3f3U2ZkyKNlQGbeEmcvnh1yNjdfs3tonfL+vgZ9CsCw0jnKrBhAA67lvZnHvm9xT3zDgbe+4EQ62LvHKtttkLqrzt64+cAdO91a2n+mDoqaRyWAjk0VCTwLpNMAPmd1bE6rq6L7jDjT3TpxtmRXj8lHQXIjengssTl/sue9qOt7mPOzrcx481G9raHzoPNJ0W/PWXdrb2nbhTbBlINx1quhP6B8AAAD//7KfP7kAAAAGSURBVAMAHm58isoK8SwAAAAASUVORK5CYII='
       })
-      if (img && img.customData) {
-        lastCreatedImageId = img.customData.drawId
-      }
     }
 
     // 通过ID删除对象
@@ -356,7 +365,7 @@
 
     // 列出所有自定义对象
     function listCustomObjects() {
-      const objects = board.getCustomObjects()
+      const objects = board.getObjects()
       console.log('所有自定义对象:', objects)
       return objects
     }
@@ -473,95 +482,235 @@
     })
 
     // 人员追踪示例
-    let tracker = board.createPersonTracker()
+    let tracker = board.createPersonTracker({
+      displayDuration: 5000,
+      deleteOld: false
+    })
+    let realPersonData = []
+    let wsSimulationTimer = null
 
-    // 创建单人员示例
-    function createSinglePerson() {
-      let personId = 0
-      let timer = null
-      timer = setInterval(() => {
-        if (personId >= 3) {
-          clearInterval(timer)
-          return
-        }
-        personId++
-        const person = {
-          id: `person-${personId}`,
-          name: `人员${personId}`,
-          x: 100 + Math.random() * 800,
-          y: 100 + Math.random() * 400,
-          status: personId % 2 === 0 ? 'fainted' : 'normal',
-          lineColor: `hsl(${Math.random() * 360}, 70%, 50%)`
-        }
-        tracker.createSinglePerson(person)
-        console.log('单个人员已创建:', person)
-      }, 2000)
+    // 加载真实人员数据
+    async function loadRealPersonData() {
+      try {
+        const response = await fetch('./static/trace.json')
+        const data = await response.json()
+
+        realPersonData = []
+        const colors = ['#ff0000', '#00ff00', '#0000ff', '#ff6600', '#00ccff', '#9900ff']
+        let colorIndex = 0
+
+        Object.values(data).forEach(monitors => {
+          monitors.forEach(person => {
+            realPersonData.push({
+              id: person.personId,
+              name: person.personName,
+              x: parseInt(person.x),
+              y: parseInt(person.y),
+              lineColor: colors[colorIndex % colors.length],
+              status: person.behavior
+            })
+            colorIndex++
+          })
+        })
+
+        await tracker.createMultiplePersons(realPersonData)
+        console.log('真实人员数据已加载:', realPersonData)
+      } catch (error) {
+        console.error('加载人员数据失败:', error)
+      }
     }
 
-    const mockPersons = [
-      { id: 'p1', name: '张三', x: 100, y: 100, lineColor: '#ff0000', status: 'normal' },
-      { id: 'p2', name: '李四', x: 200, y: 150, lineColor: '#00ff00', status: 'fainted' },
-      { id: 'p3', name: '王五', x: 300, y: 200, lineColor: '#0000ff', status: 'normal' }
-    ]
-    // 创建多人员示例
-    function createMultiplePersons() {
-      tracker.createMultiplePersons(mockPersons)
-      console.log('人员已初始化:', mockPersons)
+    // 模拟WebSocket实时数据更新
+    function startSimulateWebSocket() {
+      if (wsSimulationTimer) {
+        console.log('模拟已在运行中')
+        return
+      }
+
+      if (realPersonData.length === 0) {
+        console.warn('请先加载真实数据')
+        return
+      }
+
+      console.log('开始模拟WebSocket数据推送 (每500ms更新一次位置)')
+
+      wsSimulationTimer = setInterval(async () => {
+        // 模拟位置变化
+        realPersonData.forEach(p => {
+          p.x += Math.random() * 30 - 15
+          p.y += Math.random() * 30 - 15
+          p.x = Math.max(50, Math.min(p.x, 700))
+          p.y = Math.max(50, Math.min(p.y, 500))
+        })
+
+        // 模拟新数据到来时自动终止旧渲染
+        await tracker.createMultiplePersons([...realPersonData])
+        console.log('WebSocket数据更新:', new Date().toLocaleTimeString())
+      }, 500)
     }
 
-    // 更新多人位置示例
-    function updatePersonPositions() {
-      mockPersons.forEach(p => {
-        p.x += Math.random() * 50 - 25
-        p.y += Math.random() * 50 - 25
-        p.x = Math.max(50, Math.min(p.x, 700))
-        p.y = Math.max(50, Math.min(p.y, 500))
-      })
-      tracker.createMultiplePersons(mockPersons)
-      console.log('位置已更新:', mockPersons)
+    function stopSimulateWebSocket() {
+      if (wsSimulationTimer) {
+        clearInterval(wsSimulationTimer)
+        wsSimulationTimer = null
+        console.log('模拟已停止')
+      }
     }
 
     // 显示人员轨迹示例
     function showTraceDemo(pathType) {
-      tracker.clearAll()
-      tracker = board.createPersonTracker({
-        animationSpeed: 0.1,
-        pathType: pathType
-      })
+      if (realPersonData.length === 0) {
+        console.warn('请先加载真实数据')
+        return
+      }
+
+      const person = realPersonData[0]
       const traces = [
-        { x: 100, y: 300 },
-        { x: 200, y: 250 },
-        { x: 350, y: 280 },
-        { x: 450, y: 200 },
-        { x: 550, y: 250 },
-        { x: 650, y: 300 }
+        { x: person.x, y: person.y },
+        { x: person.x + 100, y: person.y - 50 },
+        { x: person.x + 200, y: person.y + 30 },
+        { x: person.x + 300, y: person.y - 20 },
+        { x: person.x + 400, y: person.y + 50 }
       ]
-      tracker.showTrace('t1', {
-        id: 't1',
-        name: '巡检员',
-        x: traces[0].x,
-        y: traces[0].y,
-        lineColor: '#ff6600'
-      }, traces)
-      console.log('轨迹动画已启动, 模式:', pathType)
+
+      tracker.showTrace(person.id, person, traces)
+      console.log('轨迹动画已启动:', person.name)
     }
 
-    function clearPersons() {
-      tracker.clearAll()
+    function clearAllPersons() {
+      stopSimulateWebSocket()
+      tracker.clearAllPersons()
       console.log('人员已清除')
     }
 
+    function clearAllTraces() {
+      tracker.clearAllTraces()
+      console.log('轨迹已清除')
+    }
+
     board.on('person:updated', (data) => {
-      console.log('人员更新:', data)
+      // console.log('人员更新:', data)
+    })
+
+    board.on('person:statusChange', (data) => {
+      console.log('⚠️ 人员状态变更:', data.name, '->', data)
+      // 业务层可在此处理状态变更，如弹窗告警等
     })
 
     board.on('trace:shown', (data) => {
       console.log('轨迹显示事件:', data)
     })
 
-    board.on('person:click', (data) => {
+    board.on('person:clicked', (data) => {
       console.log('人员点击事件:', data)
     })
+
+    board.on('batch:textsInserted', (data) => {
+      console.log('批量文字插入完成:', data)
+    })
+
+    board.on('batch:imagesInserted', (data) => {
+      console.log('批量图片插入完成:', data)
+    })
+
+    board.on('batch:removed', (data) => {
+      console.log('批量删除完成:', data)
+    })
+
+    const demoImageBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAUCAYAAABmvqYOAAACsUlEQVR4AbRUW08TQRg9M7vbmy1YrFDk8sADJl5SNFpIGiDGRBISisToL9CE+KDRmPgi/gATY0z4A8ZnnohibCRCVC7aSCCioKigRNS2JNKyrbQdZ6YrgW4bXuhmzzfzne/M2dnZmaX+wTHdPzjOdhsnB8f7KQOJowQXA0tRApYogTf4rJMUjJTEnFGSpIyw0iwL4+bxWJTGI7+x29Bjv3TqrPDEnZ79yIdVVUycs5DOohXU2d2eBco/5grHtptl0vgbi2zjCiXZVBIbq9FCJRAoEUoYm4LpIiamIEEVECrmZ66mrNZZyqCM55eIosB2oC6fNuVU02CprDbxfI/PTHf4EvR10D/Ct+P1LNhEMhZZSSx9TccXP0P/8R2JhbkdoS9/g9ALbKwn5rnxM8Jot3iifKfJYPM9gF2JjY3+jLwcVqOvniM6EkJ0+PHOGH0Kqedj4nPvXvzJZnq435dNc9FJg64SVdVFX6LIWsra1rBFR22OtblgYPPcyJkLrQJ1WbHZY6IvoWpgslM8yDrX/Vc4vNVhECJpwW2ah7tOrFsrKkOClCAEsDmKPkA68DpIzkJ1lr3X3J5pOdYIuYqR2I/6Hmmu8hkjBcSsHC4wixVMUcH41pMtz8F5WTfEjtr6UEyJfjBS2VAZjTDV1fLR7fPfpKq2alCAWFOqApoFEKaqaG053hDZqmqGypqO3f3U2ZkyKNlQGbeEmcvnh1yNjdfs3tonfL+vgZ9CsCw0jnKrBhAA67lvZnHvm9xT3zDgbe+4EQ62LvHKtttkLqrzt64+cAdO91a2n+mDoqaRyWAjk0VCTwLpNMAPmd1bE6rq6L7jDjT3TpxtmRXj8lHQXIjengssTl/sue9qOt7mPOzrcx481G9raHzoPNJ0W/PWXdrb2nbhTbBlINx1quhP6B8AAAD//7KfP7kAAAAGSURBVAMAHm58isoK8SwAAAAASUVORK5CYII='
+
+    let batchTextIds = []
+    let batchImageIds = []
+
+    async function batchAddTexts() {
+      const canvasWidth = container.clientWidth
+      const canvasHeight = container.clientHeight
+      const textOptions = []
+
+      for (let i = 0; i < 5; i++) {
+        const id = `text-batch-${Date.now()}-${i}`
+        batchTextIds.push(id)
+        textOptions.push({
+          id: id,
+          x: Math.random() * (canvasWidth - 100) + 50,
+          y: Math.random() * (canvasHeight - 100) + 50,
+          text: `批量文字 ${i + 1}`
+        })
+      }
+
+      const result = await board.batchInsertTexts(textOptions)
+      console.log('批量新增文字结果:', result)
+    }
+
+    async function batchAddImages() {
+      const canvasWidth = container.clientWidth
+      const canvasHeight = container.clientHeight
+      const imageOptions = []
+
+      for (let i = 0; i < 5; i++) {
+        const id = `image-batch-${Date.now()}-${i}`
+        batchImageIds.push(id)
+        imageOptions.push({
+          id: id,
+          x: Math.random() * (canvasWidth - 100) + 50,
+          y: Math.random() * (canvasHeight - 100) + 50,
+          base64: demoImageBase64,
+          width: 20,
+        })
+      }
+
+      const result = await board.batchInsertImages(imageOptions)
+      console.log('批量新增图片结果:', result)
+    }
+
+    async function batchUpdateTexts() {
+      if (batchTextIds.length === 0) {
+        console.warn('请先批量新增文字')
+        return
+      }
+
+      const updateOptions = batchTextIds.map((id, i) => ({
+        id: id,
+        text: `已修改文字 ${i + 1}`,
+        fill: '#ff0000'
+      }))
+
+      const result = await board.batchInsertTexts(updateOptions)
+      console.log('批量修改文字结果:', result)
+    }
+
+    async function batchUpdateImages() {
+      if (batchImageIds.length === 0) {
+        console.warn('请先批量新增图片')
+        return
+      }
+
+      const canvasWidth = container.clientWidth
+      const canvasHeight = container.clientHeight
+      const updateOptions = batchImageIds.map((id, i) => ({
+        id: id,
+        x: Math.random() * (canvasWidth - 100) + 50,
+        y: Math.random() * (canvasHeight - 100) + 50,
+        angle: 45,
+      }))
+
+      const result = await board.batchInsertImages(updateOptions)
+      console.log('批量修改图片结果:', result)
+    }
+
+    async function batchDelete() {
+      const allIds = [...batchTextIds, ...batchImageIds]
+      if (allIds.length === 0) {
+        console.warn('没有可删除的批量元素')
+        return
+      }
+
+      const result = await board.batchRemoveByIds(allIds)
+      console.log('批量删除结果:', result)
+
+      batchTextIds = []
+      batchImageIds = []
+    }
 
     console.log('PaintBoard 已初始化:', board)
   </script>

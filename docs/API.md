@@ -220,7 +220,7 @@ paintBoard.resetZoom() // 重置为 100%
 
 #### undo() / redo()
 
-撤销/重做操作。
+撤销/还原操作。
 
 ```javascript
 paintBoard.undo()
@@ -233,7 +233,7 @@ paintBoard.redo()
 
 #### canUndo() / canRedo()
 
-检查是否可撤销/重做。
+检查是否可撤销/还原。
 
 ```javascript
 if (paintBoard.canUndo()) {

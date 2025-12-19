@@ -25,7 +25,7 @@ src/utils/paint-board/
 ├── utils/                   # 工具函数
 │   ├── geometry.js          # 几何计算
 │   ├── export.js            # 导入导出
-│   ├── UndoRedoManager.js   # 撤销重做
+│   ├── UndoRedoManager.js   # 撤销还原
 │   ├── ObjectPool.js        # 对象池
 │   └── throttle.js          # 节流防抖
 ├── styles/                  # 样式
@@ -118,7 +118,7 @@ init() {
 
   this._createCanvas()      // 创建 Fabric.js 画布
   this._initCanvasManager() // 初始化缩放平移管理
-  this._initUndoRedo()      // 初始化撤销重做
+  this._initUndoRedo()      // 初始化撤销还原
   this._bindEvents()        // 绑定画布事件
 
   this._initialized = true
@@ -526,16 +526,16 @@ _bindTextEvents(textObj) {
 
 ## 工具函数详解
 
-### 8. UndoRedoManager.js - 撤销重做管理
+### 8. UndoRedoManager.js - 撤销还原管理
 
-**作用**：基于画布快照实现撤销重做。
+**作用**：基于画布快照实现撤销还原。
 
 **数据结构**：
 
 ```javascript
 constructor(canvas, eventBus) {
   this.undoStack = []    // 撤销栈
-  this.redoStack = []    // 重做栈
+  this.redoStack = []    // 还原栈
   this._isRestoring = false  // 防止恢复时触发保存
 }
 ```
@@ -563,17 +563,17 @@ saveState() {
     this.undoStack.shift()
   }
 
-  this.redoStack = []  // 新操作清空重做栈
+  this.redoStack = []  // 新操作清空还原栈
 }
 ```
 
-**撤销/重做实现**：
+**撤销/还原实现**：
 
 ```javascript
 undo() {
   if (!this.canUndo()) return false
 
-  // 当前状态存入重做栈
+  // 当前状态存入还原栈
   const currentState = this._serializeCanvas()
   this.redoStack.push(currentState)
 
@@ -791,7 +791,7 @@ destroy() {
 | 发布-订阅 | EventBus | 模块间解耦通信 |
 | 策略模式 | 工具系统 | 工具可动态切换 |
 | 模板方法 | BaseTool | 基类定义流程，子类实现细节 |
-| 命令模式 | UndoRedoManager | 操作可撤销重做 |
+| 命令模式 | UndoRedoManager | 操作可撤销还原 |
 | 对象池 | ObjectPool | 复用对象减少 GC |
 | 单例管理 | currentTool | 同时只有一个工具激活 |
 
