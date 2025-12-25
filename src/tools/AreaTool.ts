@@ -367,6 +367,10 @@ export default class AreaTool extends BaseTool {
       distances: customData.distances
     })
 
+    this.circles.forEach(c => {
+      c.off('mouseover')
+      c.off('mouseout')
+    })
     this._reset()
     this.paintBoard.resumeHistory()
     this.canvas.renderAll()

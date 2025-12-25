@@ -1,8 +1,8 @@
-import type { ToolbarOptions, ToolName } from '../../types'
+import type { ToolbarOptions } from '../../types'
 import ColorPicker from './ColorPicker'
 import type PaintBoard from '../core/PaintBoard'
 import type ImageTool from '../tools/ImageTool'
-import { PROJECT_NAME } from '../utils/settings'
+import { DEFAULT_TOOLBAR_OPTIONS, PROJECT_NAME } from '../utils/settings'
 import { TOOL_ICONS } from '../assets/svg'
 
 const TOOL_TITLES: Record<string, string> = {
@@ -25,26 +25,6 @@ const TOOL_TITLES: Record<string, string> = {
   helpers: '显示/隐藏距离提示'
 }
 
-const DEFAULT_TOOLS: ToolName[] = [
-  'lineColor',
-  'fillColor',
-  'select',
-  'drag',
-  'line',
-  'area',
-  'curve',
-  'rect',
-  'text',
-  'image',
-  'undo',
-  'redo',
-  'zoomIn',
-  'zoomOut',
-  'fitZoom',
-  'download',
-  'helpers'
-]
-
 export default class Toolbar {
   private paintBoard: PaintBoard
   private options: Required<ToolbarOptions>
@@ -56,12 +36,18 @@ export default class Toolbar {
   private lineColorBtn: HTMLDivElement | null
   private fillColorBtn: HTMLDivElement | null
   private helpersVisible: boolean
+  private isDragging: boolean
+  private dragOffset: { x: number; y: number }
+  private boundDragStart: (e: MouseEvent) => void
+  private boundDragMove: (e: MouseEvent) => void
+  private boundDragEnd: () => void
 
   constructor(paintBoard: PaintBoard, options: ToolbarOptions = {}) {
     this.paintBoard = paintBoard
     this.options = {
-      tools: options.tools ?? DEFAULT_TOOLS,
-      visible: options.visible ?? true
+      tools: options.tools ?? DEFAULT_TOOLBAR_OPTIONS.tools!,
+      visible: options.visible ?? DEFAULT_TOOLBAR_OPTIONS.visible!,
+      draggable: options.draggable ?? DEFAULT_TOOLBAR_OPTIONS.draggable!
     }
     this.container = null
     this.buttons = new Map()
@@ -71,6 +57,11 @@ export default class Toolbar {
     this.lineColorBtn = null
     this.fillColorBtn = null
     this.helpersVisible = this.paintBoard.isHelpersVisible()
+    this.isDragging = false
+    this.dragOffset = { x: 0, y: 0 }
+    this.boundDragStart = this._onDragStart.bind(this)
+    this.boundDragMove = this._onDragMove.bind(this)
+    this.boundDragEnd = this._onDragEnd.bind(this)
   }
 
   init(): this {
@@ -364,6 +355,8 @@ export default class Toolbar {
     if (this.paintBoard.currentTool) {
       this._setActiveToolButton(this.paintBoard.currentTool.name)
     }
+
+    this._initDrag()
   }
 
   setActiveTool(name: string): void {
@@ -402,7 +395,100 @@ export default class Toolbar {
     return this.container?.style.display !== 'none'
   }
 
+  setDraggable(draggable: boolean): void {
+    if (this.options.draggable === draggable) return
+    this.options.draggable = draggable
+
+    if (draggable) {
+      this._initDrag()
+    } else {
+      this._destroyDrag()
+      if (this.container) {
+        this.container.style.cursor = 'default'
+      }
+    }
+  }
+
+  isDraggable(): boolean {
+    return this.options.draggable
+  }
+
+  private _initDrag(): void {
+    if (!this.container) return
+    if (!this.options.draggable) {
+      this.container.style.cursor = 'default'
+      return
+    }
+
+    this.container.style.cursor = 'move'
+    this.container.addEventListener('mousedown', this.boundDragStart)
+    document.addEventListener('mousemove', this.boundDragMove)
+    document.addEventListener('mouseup', this.boundDragEnd)
+  }
+
+  private _destroyDrag(): void {
+    if (this.container) {
+      this.container.removeEventListener('mousedown', this.boundDragStart)
+    }
+    document.removeEventListener('mousemove', this.boundDragMove)
+    document.removeEventListener('mouseup', this.boundDragEnd)
+  }
+
+  private _onDragStart(e: MouseEvent): void {
+    const target = e.target as HTMLElement
+    if (
+      target.closest('.toolbar-btn') ||
+      target.closest('.color-btn') ||
+      target.closest('.color-picker-panel')
+    ) {
+      return
+    }
+    if (!this.container) return
+
+    this.isDragging = true
+    // this.container.classList.add('dragging')
+
+    const rect = this.container.getBoundingClientRect()
+    this.dragOffset.x = e.clientX - rect.left
+    this.dragOffset.y = e.clientY - rect.top
+
+    e.preventDefault()
+  }
+
+  private _onDragMove(e: MouseEvent): void {
+    if (!this.isDragging || !this.container || !this.paintBoard.container) return
+
+    const parentRect = this.paintBoard.container.getBoundingClientRect()
+    const toolbarRect = this.container.getBoundingClientRect()
+
+    let newLeft = e.clientX - parentRect.left - this.dragOffset.x
+    let newTop = e.clientY - parentRect.top - this.dragOffset.y
+
+    const minLeft = 0
+    const maxLeft = parentRect.width - toolbarRect.width
+    const minTop = 0
+    const maxTop = parentRect.height - toolbarRect.height
+
+    newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft))
+    newTop = Math.max(minTop, Math.min(maxTop, newTop))
+
+    this.container.style.left = `${newLeft}px`
+    this.container.style.top = `${newTop}px`
+    this.container.style.right = 'auto'
+    this.container.style.transform = 'none'
+
+    e.preventDefault()
+  }
+
+  private _onDragEnd(): void {
+    if (!this.isDragging) return
+
+    this.isDragging = false
+    // this.container?.classList.remove('dragging')
+  }
+
   destroy(): void {
+    this._destroyDrag()
     if (this.lineColorPicker) this.lineColorPicker.destroy()
     if (this.fillColorPicker) this.fillColorPicker.destroy()
     if (this.container && this.container.parentNode) {

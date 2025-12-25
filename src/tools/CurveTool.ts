@@ -533,6 +533,10 @@ export default class CurveTool extends BaseTool {
       isClosed
     })
 
+    this.circles.forEach(c => {
+      c.off('mouseover')
+      c.off('mouseout')
+    })
     this._reset()
     this.paintBoard.resumeHistory()
     this.canvas.renderAll()

@@ -224,6 +224,7 @@ export interface ColorState {
 export interface ToolbarOptions {
   tools?: string[]
   visible?: boolean
+  draggable?: boolean
 }
 
 export interface AddTextOptions {
@@ -279,6 +280,7 @@ export interface PersonData {
   y: number
   lineColor: string
   status?: string
+  base64?: string
 }
 
 export interface TraceOptions {
@@ -292,9 +294,13 @@ export interface TraceOptions {
   blinkInterval?: number
   displayDuration?: number
   batchSize?: number
-  blinkList?: string[]
+  blinkReasons?: string[]
   deleteOld?: boolean
   fillColor?: string
+  moveAnimationSpeed?:number
+  minMoveAnimationDuration?:number
+  maxMoveAnimationDuration?:number
+  markerBase64?: string
 }
 
 export type ToolName =

@@ -5,11 +5,15 @@
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: 8px 4px;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 4px;
+  border-radius: 6px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   z-index: 100;
+  cursor: move;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
 }
 .vue-fabric .toolbar-item {
   position: relative;
@@ -96,6 +100,7 @@
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   padding: 6px;
+  cursor: default;
   z-index: 1000;
 }
 .vue-fabric .color-picker-main {

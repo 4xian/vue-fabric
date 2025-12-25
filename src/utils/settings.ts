@@ -9,7 +9,9 @@ import type {
   LineToolOptions,
   RectToolOptions,
   SelectToolOptions,
-  TraceOptions
+  TraceOptions,
+  ToolName,
+  ToolbarOptions
 } from '../../types'
 
 // 自定义类型枚举
@@ -231,19 +233,49 @@ export const DEFAULT_PERSON_TRACKER_OPTIONS: TraceOptions = {
   lineWidth: 2,
   pathType: 'curve' as 'line' | 'curve',
   animationSpeed: 0.05,
+  moveAnimationSpeed: 0.02,
   blinkInterval: 1000,
-  displayDuration: 5000,
+  displayDuration: 3000,
   batchSize: 50,
-  blinkList: [
+  blinkReasons: [
     'smoking',
     'sleeping',
-    'climing',
+    'climbing',
     'falling down',
     'looking at phone',
     'reaching high'
   ],
   deleteOld: false,
-  fillColor: ''
+  fillColor: '',
+  minMoveAnimationDuration: 500,
+  maxMoveAnimationDuration: 3000,
+  markerBase64: ''
+}
+
+const DEFAULT_TOOLS: ToolName[] = [
+  'lineColor',
+  'fillColor',
+  'select',
+  'drag',
+  'line',
+  'area',
+  'curve',
+  'rect',
+  'text',
+  'image',
+  'undo',
+  'redo',
+  'zoomIn',
+  'zoomOut',
+  'fitZoom',
+  'download',
+  'helpers'
+]
+
+export const DEFAULT_TOOLBAR_OPTIONS: ToolbarOptions = {
+  tools: DEFAULT_TOOLS,
+  visible: true,
+  draggable: true
 }
 
 // 序列化时需要包含的额外属性
