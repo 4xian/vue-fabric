@@ -2,28 +2,8 @@ import type { ToolbarOptions } from '../../types'
 import ColorPicker from './ColorPicker'
 import type PaintBoard from '../core/PaintBoard'
 import type ImageTool from '../tools/ImageTool'
-import { DEFAULT_TOOLBAR_OPTIONS, PROJECT_NAME } from '../utils/settings'
+import { DEFAULT_TOOLBAR_OPTIONS, PROJECT_NAME, TOOL_TITLES } from '../utils/settings'
 import { TOOL_ICONS } from '../assets/svg'
-
-const TOOL_TITLES: Record<string, string> = {
-  select: '选择',
-  drag: '拖拽画布',
-  line: '画直线',
-  area: '画任意区域',
-  curve: '画曲线',
-  rect: '画矩形区域',
-  text: '写文字',
-  image: '上传图片',
-  undo: '撤销',
-  redo: '还原',
-  zoomIn: '放大视图',
-  zoomOut: '缩小视图',
-  fitZoom: '重置视图',
-  download: '下载图片',
-  lineColor: '线段颜色',
-  fillColor: '填充颜色',
-  helpers: '显示/隐藏距离提示'
-}
 
 export default class Toolbar {
   private paintBoard: PaintBoard

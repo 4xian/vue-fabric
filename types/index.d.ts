@@ -54,6 +54,7 @@ export interface CanvasManagerOptions extends FabricPaintOptions {
 }
 
 export interface BaseToolOptions {
+  defaultCursor?: string
   activeCursor?: string
   deactiveCursor?: string
   hasBorders?: boolean
@@ -62,6 +63,9 @@ export interface BaseToolOptions {
   lockMovementY?: boolean
   cornerStyle?: 'rect' | 'circle'
   cornerSize?: number
+  cornerColor?: string
+  cornerStrokeColor?: string
+  borderWidth?: number
   continueDraw?: boolean
   disabeldClick?: boolean
 }
@@ -126,6 +130,7 @@ export interface RectToolOptions extends BaseToolOptions {
   labelFontSize?: number
   labelFillColor?: string
   defaultShowHelpers?: boolean
+  controlsPadding?: number
 }
 
 export interface ImageToolOptions extends BaseToolOptions {
@@ -199,6 +204,7 @@ export interface RectCustomData {
   fillColor: string | null
   widthLabel?: Text
   heightLabel?: Text
+  originalOptions?: RectToolOptions
 }
 
 export interface HistoryState {

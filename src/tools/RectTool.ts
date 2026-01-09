@@ -4,15 +4,26 @@ import type { Point, RectToolOptions, RectCustomData } from '../../types'
 import BaseTool from './BaseTool'
 import { CustomType, DEFAULT_RECTTOOL_OPTIONS } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { setupRectEvents } from '../utils/rectEvents'
+
+type CustomRect = Rect & {
+  customType?: string
+  customData?: RectCustomData
+}
 
 interface RectUndoState {
   type: 'drawing' | 'complete'
   startPoint: Point
   endPoint?: Point
-  rect?: Rect & { customType: string; customData: RectCustomData }
+  rect?: CustomRect
   widthLabel?: Text
   heightLabel?: Text
   drawId?: string
+}
+
+type CustomRectLabel = Text & {
+  customType?: string
+  customData?: { drawId: string; drawPid: string; labelType: string }
 }
 
 export default class RectTool extends BaseTool {
@@ -63,9 +74,9 @@ export default class RectTool extends BaseTool {
     const point: Point = { x: pointer.x, y: pointer.y }
 
     if (!this.isDrawingState) {
-      if (this._isPointInsideExistingRect(point)) {
-        return
-      }
+      // if (this._isPointInsideExistingRect(point)) {
+      //   return
+      // }
       this._startDrawing(point)
     } else {
       this._finishDrawing(point)
@@ -135,11 +146,7 @@ export default class RectTool extends BaseTool {
           point.y <= data.endPoint.y + expandSize
         ) {
           this.eventBus?.emit('rect:clicked', {
-            drawId: data.drawId,
-            startPoint: data.startPoint,
-            endPoint: data.endPoint,
-            width: data.width,
-            height: data.height
+            ...data
           })
           return true
         }
@@ -196,9 +203,9 @@ export default class RectTool extends BaseTool {
         if (state.heightLabel) this.canvas.add(state.heightLabel)
         const shouldShow = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
         if (shouldShow) {
-          this._showHelpers(state.rect.customData)
+          this._showHelpers(state.rect.customData as RectCustomData)
         } else {
-          this._hideHelpers(state.rect.customData)
+          this._hideHelpers(state.rect.customData as RectCustomData)
         }
       }
       this.canvas.renderAll()
@@ -217,11 +224,10 @@ export default class RectTool extends BaseTool {
   private _updatePreview(pointer: Point): void {
     if (!this.canvas || !this.paintBoard || !this.startPoint) return
     this._clearPreview()
-
     const left = Math.min(this.startPoint.x, pointer.x)
     const top = Math.min(this.startPoint.y, pointer.y)
-    const width = Math.abs(pointer.x - this.startPoint.x)
-    const height = Math.abs(pointer.y - this.startPoint.y)
+    const width = Number(Math.abs(pointer.x - this.startPoint.x).toFixed(1))
+    const height = Number(Math.abs(pointer.y - this.startPoint.y).toFixed(1))
 
     this.previewRect = new fabric.Rect({
       left,
@@ -239,7 +245,7 @@ export default class RectTool extends BaseTool {
     const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
 
     if (shouldShowHelpers) {
-      this.previewWidthLabel = new fabric.Text(`${width.toFixed(1)}`, {
+      this.previewWidthLabel = new fabric.Text(`${width}`, {
         left: left + width / 2,
         top: top,
         fontSize: this.options.labelFontSize,
@@ -251,7 +257,7 @@ export default class RectTool extends BaseTool {
       })
       this.canvas.add(this.previewWidthLabel)
 
-      this.previewHeightLabel = new fabric.Text(`${height.toFixed(1)}`, {
+      this.previewHeightLabel = new fabric.Text(`${height}`, {
         left: left,
         top: top + height / 2,
         fontSize: this.options.labelFontSize,
@@ -259,8 +265,7 @@ export default class RectTool extends BaseTool {
         originX: 'center',
         originY: 'center',
         selectable: false,
-        evented: false,
-        angle: -90
+        evented: false
       })
       this.canvas.add(this.previewHeightLabel)
     }
@@ -293,12 +298,12 @@ export default class RectTool extends BaseTool {
 
     const left = Math.min(this.startPoint.x, this.endPoint.x)
     const top = Math.min(this.startPoint.y, this.endPoint.y)
-    const width = Math.abs(this.endPoint.x - this.startPoint.x)
-    const height = Math.abs(this.endPoint.y - this.startPoint.y)
+    const width = Number(Math.abs(this.endPoint.x - this.startPoint.x).toFixed(1))
+    const height = Number(Math.abs(this.endPoint.y - this.startPoint.y).toFixed(1))
 
     const fillColor = this.options.enableFill ? this.paintBoard.fillColor : null
 
-    const rect = new fabric.Rect({
+    const rect: CustomRect = new fabric.Rect({
       left,
       top,
       width,
@@ -308,73 +313,22 @@ export default class RectTool extends BaseTool {
       strokeWidth: this.options.strokeWidth,
       selectable: true,
       evented: true,
-      hasBorders: this.options.hasBorders,
-      hasControls: this.options.hasBorders,
+      hasBorders: false,
+      hasControls: false,
       lockRotation: true,
-      lockMovementX: this.options.lockMovementX,
-      lockMovementY: this.options.lockMovementY,
+      lockMovementX: true,
+      lockMovementY: true,
       hoverCursor: 'pointer',
       moveCursor: 'pointer',
+      objectCaching: false,
       perPixelTargetFind: this.options.perPixelTargetFind
     })
 
     this._configureControls(rect)
 
-    const widthLabel = new fabric.Text(`${width.toFixed(1)}`, {
-      left: left + width / 2,
-      top: top,
-      fontSize: this.options.labelFontSize,
-      fill: this.options.labelFillColor,
-      originX: 'center',
-      originY: 'center',
-      selectable: false,
-      evented: false
-    })
-    ;(
-      widthLabel as Text & {
-        customType: string
-        customData: { drawId: string; drawPid: string; labelType: string }
-      }
-    ).customType = CustomType.RectLabel
-    ;(
-      widthLabel as Text & {
-        customType: string
-        customData: { drawId: string; drawPid: string; labelType: string }
-      }
-    ).customData = {
-      drawId: generateDrawId(),
-      drawPid: drawId,
-      labelType: 'width'
-    }
+    const { widthLabel, heightLabel } = this._createRectLabel({ drawId, left, top, width, height })
     this.canvas.add(widthLabel)
 
-    const heightLabel = new fabric.Text(`${height.toFixed(1)}`, {
-      left: left,
-      top: top + height / 2,
-      fontSize: this.options.labelFontSize,
-      fill: this.options.labelFillColor,
-      originX: 'center',
-      originY: 'center',
-      selectable: false,
-      evented: false,
-      angle: -90
-    })
-    ;(
-      heightLabel as Text & {
-        customType: string
-        customData: { drawId: string; drawPid: string; labelType: string }
-      }
-    ).customType = CustomType.RectLabel
-    ;(
-      heightLabel as Text & {
-        customType: string
-        customData: { drawId: string; drawPid: string; labelType: string }
-      }
-    ).customData = {
-      drawId: generateDrawId(),
-      drawPid: drawId,
-      labelType: 'height'
-    }
     this.canvas.add(heightLabel)
 
     const customData: RectCustomData = {
@@ -386,12 +340,12 @@ export default class RectTool extends BaseTool {
       lineColor: this.paintBoard.lineColor,
       fillColor,
       widthLabel,
-      heightLabel
+      heightLabel,
+      originalOptions: { ...this.options }
     }
 
-    ;(rect as Rect & { customType: string; customData: RectCustomData }).customType =
-      CustomType.Rect
-    ;(rect as Rect & { customType: string; customData: RectCustomData }).customData = customData
+    rect.customType = CustomType.Rect
+    rect.customData = customData
 
     this.canvas.add(rect)
 
@@ -405,11 +359,7 @@ export default class RectTool extends BaseTool {
     this._setupRectEvents(rect as Rect & { customType: string; customData: RectCustomData })
 
     this.eventBus.emit('rect:created', {
-      drawId: customData.drawId,
-      startPoint: customData.startPoint,
-      endPoint: customData.endPoint,
-      width: customData.width,
-      height: customData.height
+      ...customData
     })
 
     const completedState: RectUndoState = {
@@ -433,20 +383,68 @@ export default class RectTool extends BaseTool {
 
   private _configureControls(rect: Rect): void {
     rect.setControlsVisibility({
-      mtr: false,
-      ml: true,
-      mr: true,
-      mt: true,
-      mb: true,
-      tl: true,
-      tr: true,
-      bl: true,
-      br: true
+      mtr: false
     })
     rect.set({
       cornerStyle: this.options.cornerStyle,
-      cornerSize: this.options.cornerSize
+      cornerSize: this.options.cornerSize,
+      cornerColor: this.options.cornerColor,
+      borderColor: this.options.cornerColor,
+      borderScaleFactor: this.options.borderWidth,
+      padding: this.options.controlsPadding
     })
+  }
+
+  private _createRectLabel({
+    drawId,
+    width,
+    height,
+    top,
+    left
+  }: {
+    drawId: string
+    width: number
+    height: number
+    top: number
+    left: number
+  }): {
+    widthLabel: CustomRectLabel
+    heightLabel: CustomRectLabel
+  } {
+    const widthLabel: CustomRectLabel = new fabric.Text(`${width}`, {
+      left: left + width / 2,
+      top,
+      fontSize: this.options.labelFontSize,
+      fill: this.options.labelFillColor,
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false
+    })
+    widthLabel.customType = CustomType.RectLabel
+    widthLabel.customData = {
+      drawId: generateDrawId(),
+      drawPid: drawId,
+      labelType: 'width'
+    }
+
+    const heightLabel: CustomRectLabel = new fabric.Text(`${height}`, {
+      left,
+      top: top + height / 2,
+      fontSize: this.options.labelFontSize,
+      fill: this.options.labelFillColor,
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false
+    })
+    heightLabel.customType = CustomType.RectLabel
+    heightLabel.customData = {
+      drawId: generateDrawId(),
+      drawPid: drawId,
+      labelType: 'height'
+    }
+    return { widthLabel, heightLabel }
   }
 
   private _showHelpers(data: RectCustomData): void {
@@ -471,110 +469,8 @@ export default class RectTool extends BaseTool {
   }
 
   private _setupRectEvents(rect: Rect & { customData: RectCustomData }): void {
-    if (!this.eventBus) return
-
-    rect.on('selected', () => {
-      this.eventBus!.emit('rect:selected', {
-        drawId: rect.customData.drawId,
-        startPoint: rect.customData.startPoint,
-        endPoint: rect.customData.endPoint,
-        width: rect.customData.width,
-        height: rect.customData.height
-      })
-    })
-
-    rect.on('mousedown', () => {
-      this.eventBus!.emit('rect:clicked', {
-        drawId: rect.customData.drawId,
-        startPoint: rect.customData.startPoint,
-        endPoint: rect.customData.endPoint,
-        width: rect.customData.width,
-        height: rect.customData.height
-      })
-    })
-
-    rect.on('moving', () => {
-      const newLeft = rect.left || 0
-      const newTop = rect.top || 0
-      const width = rect.customData.width
-      const height = rect.customData.height
-
-      rect.customData.startPoint = { x: newLeft, y: newTop }
-      rect.customData.endPoint = { x: newLeft + width, y: newTop + height }
-
-      if (rect.customData.widthLabel) {
-        rect.customData.widthLabel.set({
-          left: newLeft + width / 2,
-          top: newTop
-        })
-        rect.customData.widthLabel.setCoords()
-      }
-      if (rect.customData.heightLabel) {
-        rect.customData.heightLabel.set({
-          left: newLeft,
-          top: newTop + height / 2
-        })
-        rect.customData.heightLabel.setCoords()
-      }
-
-      this.canvas?.renderAll()
-    })
-
-    rect.on('scaling', () => {
-      const scaleX = rect.scaleX || 1
-      const scaleY = rect.scaleY || 1
-      const newWidth = (rect.width || 0) * scaleX
-      const newHeight = (rect.height || 0) * scaleY
-      const newLeft = rect.left || 0
-      const newTop = rect.top || 0
-
-      rect.customData.width = newWidth
-      rect.customData.height = newHeight
-      rect.customData.startPoint = { x: newLeft, y: newTop }
-      rect.customData.endPoint = {
-        x: newLeft + newWidth,
-        y: newTop + newHeight
-      }
-
-      if (rect.customData.widthLabel) {
-        rect.customData.widthLabel.set({
-          left: newLeft + newWidth / 2,
-          top: newTop,
-          text: `${newWidth.toFixed(1)}`
-        })
-        rect.customData.widthLabel.setCoords()
-      }
-      if (rect.customData.heightLabel) {
-        rect.customData.heightLabel.set({
-          left: newLeft,
-          top: newTop + newHeight / 2,
-          text: `${newHeight.toFixed(1)}`
-        })
-        rect.customData.heightLabel.setCoords()
-      }
-
-      this.canvas?.renderAll()
-    })
-
-    rect.on('modified', () => {
-      const scaleX = rect.scaleX || 1
-      const scaleY = rect.scaleY || 1
-      const newWidth = (rect.width || 0) * scaleX
-      const newHeight = (rect.height || 0) * scaleY
-
-      rect.set({
-        width: newWidth,
-        height: newHeight,
-        scaleX: 1,
-        scaleY: 1
-      })
-      rect.setCoords()
-
-      rect.customData.width = newWidth
-      rect.customData.height = newHeight
-
-      this.canvas?.renderAll()
-    })
+    if (!this.eventBus || !this.canvas) return
+    setupRectEvents(rect, this.canvas, this.eventBus, () => this.paintBoard?.currentToolName || '')
   }
 
   private _cancelDrawing(): void {

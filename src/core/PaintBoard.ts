@@ -240,6 +240,10 @@ export default class VueFabric {
     return this
   }
 
+  get currentToolName(): string {
+    return this.currentTool?.name || ''
+  }
+
   setLineColor(color: string): this {
     this.lineColor = color
     // this.eventBus.emit('lineColor:changed', color)
@@ -607,7 +611,13 @@ export default class VueFabric {
   async importFromJSON(json: string | object): Promise<void> {
     if (!this.canvas) return Promise.reject(new Error('Canvas not initialized'))
     return exportUtils
-      .importFromJSON(this.canvas, json, this.eventBus, this._helpersVisible)
+      .importFromJSON(
+        this.canvas,
+        json,
+        this.eventBus,
+        this._helpersVisible,
+        () => this.currentToolName
+      )
       .then(() => {
         this.eventBus.emit('canvas:loaded')
       })

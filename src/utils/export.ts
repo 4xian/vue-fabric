@@ -18,6 +18,7 @@ import {
   type MainCustomType
 } from './settings'
 import type { ExportJSONOptions } from '../../types'
+import { setupRectEvents } from './rectEvents'
 
 export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string[] = []): string {
   const normalizedOptions: ExportJSONOptions = Array.isArray(options)
@@ -50,13 +51,14 @@ export function importFromJSON(
   canvas: Canvas,
   json: string | object,
   eventBus: EventBus,
-  helpersVisible = false
+  helpersVisible = false,
+  getCurrentToolName?: () => string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
       const data = typeof json === 'string' ? JSON.parse(json) : json
       canvas.loadFromJSON(data).then(() => {
-        rebindObjectEvents(canvas, eventBus, helpersVisible)
+        rebindObjectEvents(canvas, eventBus, helpersVisible, getCurrentToolName)
         canvas.renderAll()
         resolve()
       })
@@ -66,7 +68,12 @@ export function importFromJSON(
   })
 }
 
-function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: boolean): void {
+function rebindObjectEvents(
+  canvas: Canvas,
+  eventBus: EventBus,
+  helpersVisible: boolean,
+  getCurrentToolName?: () => string
+): void {
   relinkHelperElements(canvas)
 
   canvas.getObjects().forEach(obj => {
@@ -106,7 +113,12 @@ function rebindObjectEvents(canvas: Canvas, eventBus: EventBus, helpersVisible: 
         )
         break
       case CustomType.Rect:
-        rebindRectEvents(customObj as Rect & { customData: RectCustomData }, canvas, eventBus)
+        rebindRectEvents(
+          customObj as Rect & { customData: RectCustomData },
+          canvas,
+          eventBus,
+          getCurrentToolName
+        )
         applyRectHelperVisibility(
           customObj as Rect & { customData: RectCustomData },
           helpersVisible,
@@ -549,120 +561,11 @@ function rebindCurveEvents(
 function rebindRectEvents(
   rect: Rect & { customData: RectCustomData },
   canvas: Canvas,
-  eventBus: EventBus
+  eventBus: EventBus,
+  getCurrentToolName?: () => string
 ): void {
-  let lastLeft = rect.left || 0
-  let lastTop = rect.top || 0
-
-  rect.setControlsVisibility({
-    mtr: false,
-    ml: true,
-    mr: true,
-    mt: true,
-    mb: true,
-    tl: true,
-    tr: true,
-    bl: true,
-    br: true
-  })
-
-  rect.on('mousedown', () => {
-    lastLeft = rect.left || 0
-    lastTop = rect.top || 0
-    eventBus.emit('rect:clicked', {
-      ...rect.customData,
-      object: rect
-    })
-  })
-
-  rect.on('selected', () => {
-    lastLeft = rect.left || 0
-    lastTop = rect.top || 0
-    eventBus.emit('rect:selected', {
-      ...rect.customData,
-      object: rect
-    })
-  })
-
-  rect.on('moving', () => {
-    const dx = (rect.left || 0) - lastLeft
-    const dy = (rect.top || 0) - lastTop
-    moveRectHelpers(rect, dx, dy, canvas)
-    lastLeft = rect.left || 0
-    lastTop = rect.top || 0
-  })
-
-  rect.on('scaling', () => {
-    updateRectLabelsPosition(rect, canvas)
-  })
-
-  rect.on('modified', () => {
-    updateRectLabelsPosition(rect, canvas)
-    eventBus.emit('rect:modified', {
-      ...rect.customData,
-      object: rect
-    })
-  })
-}
-
-function updateRectLabelsPosition(
-  rect: Rect & { customData: RectCustomData },
-  canvas: Canvas
-): void {
-  const { widthLabel, heightLabel } = rect.customData || {}
-  const scaleX = rect.scaleX || 1
-  const scaleY = rect.scaleY || 1
-  const width = (rect.width || 0) * scaleX
-  const height = (rect.height || 0) * scaleY
-  const left = rect.left || 0
-  const top = rect.top || 0
-
-  if (widthLabel && typeof widthLabel.set === 'function') {
-    widthLabel.set({
-      text: `${Math.round(width)}`,
-      left: left + width / 2,
-      top: top
-    })
-    widthLabel.setCoords()
-  }
-
-  if (heightLabel && typeof heightLabel.set === 'function') {
-    heightLabel.set({
-      text: `${Math.round(height)}`,
-      left: left,
-      top: top + height / 2
-    })
-    heightLabel.setCoords()
-  }
-
-  canvas.renderAll()
-}
-
-function moveRectHelpers(
-  rect: Rect & { customData: RectCustomData },
-  dx: number,
-  dy: number,
-  canvas: Canvas
-): void {
-  const { widthLabel, heightLabel } = rect.customData || {}
-
-  if (widthLabel && typeof widthLabel.set === 'function') {
-    widthLabel.set({
-      left: (widthLabel.left || 0) + dx,
-      top: (widthLabel.top || 0) + dy
-    })
-    widthLabel.setCoords()
-  }
-
-  if (heightLabel && typeof heightLabel.set === 'function') {
-    heightLabel.set({
-      left: (heightLabel.left || 0) + dx,
-      top: (heightLabel.top || 0) + dy
-    })
-    heightLabel.setCoords()
-  }
-
-  canvas.renderAll()
+  rect.setControlsVisibility({ mtr: false })
+  setupRectEvents(rect, canvas, eventBus, getCurrentToolName)
 }
 
 function rebindTextEvents(

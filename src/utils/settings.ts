@@ -41,6 +41,37 @@ export const CustomType = {
   TracePath: 'tracePath'
 } as const
 
+export const TOOL_TITLES: Record<string, string> = {
+  select: '选择工具: 不对画布进行任何操作，默认工具',
+  drag: '拖拽工具: 选中该工具后可以任意拖拽，缩放图形大小；按住Ctrl键可以拖拽整个画布',
+  line: '直线工具: 画直线',
+  area: '区域工具: 画任意直线图形区域',
+  curve: '曲线工具: 画任意曲线图形区域',
+  rect: '矩形工具: 画矩形/正方形区域',
+  text: '文字工具: 添加文字',
+  image: '图片工具: 上传图片',
+  undo: '撤销工具: 撤销上一步操作，已绘制图形无法撤销',
+  redo: '还原工具: 还原上一步被撤销的操作',
+  zoomIn: '放大工具: 放大画布',
+  zoomOut: '缩小工具: 缩小画布',
+  fitZoom: '重置工具: 画布重置到初始大小',
+  download: '下载工具: 将画布内容导出为图片下载',
+  lineColor: '线段颜色工具: 设置绘制线段颜色',
+  fillColor: '填充颜色工具: 设置图形填充颜色',
+  helpers: '距离提示工具: 显示/隐藏图形区域的距离提示功能'
+}
+
+export const TOOL_MAPS: Record<string, string> = {
+  SELECT: 'select',
+  DRAG: 'drag',
+  LINE: 'line',
+  AREA: 'area',
+  CURVE: 'curve',
+  RECT: 'rect',
+  TEXT: 'text',
+  IMAGE: 'image'
+}
+
 export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]
 
 export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image' | 'rect'
@@ -138,7 +169,10 @@ export const DEFAULT_RECTTOOL_OPTIONS: RectToolOptions = {
   labelFillColor: '#000',
   defaultShowHelpers: false,
   cornerStyle: 'rect',
-  cornerSize: 10
+  cornerSize: 8,
+  cornerColor: '#6194f5',
+  borderWidth: 1.5,
+  controlsPadding: 3
 }
 
 // 默认区域工具配置
@@ -216,8 +250,9 @@ export const DEFAULT_IMAGETOOL_OPTIONS: ImageToolOptions = {
 
 // 默认拖拽工具配置
 export const DEFAULT_DRAGTOOL_OPTIONS: BaseToolOptions = {
-  activeCursor: 'grab',
-  deactiveCursor: 'default',
+  defaultCursor: 'pointer',
+  activeCursor: 'grabbing',
+  deactiveCursor: 'pointer',
   hasBorders: false,
   hasControls: false,
   lockMovementX: true,
@@ -293,5 +328,12 @@ export const SERIALIZATION_PROPERTIES = [
   'evented',
   'hoverCursor',
   'moveCursor',
+  'objectCaching',
+  'cornerStyle',
+  'cornerSize',
+  'cornerColor',
+  'borderColor',
+  'borderScaleFactor',
+  'padding',
   'perPixelTargetFind'
 ]
