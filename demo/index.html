@@ -191,7 +191,7 @@
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
       backgroundColor: 'transparent',
-      defaultShowHelpers: false
+      defaultShowHelpers: true
     }).init()
 
     board
@@ -210,7 +210,7 @@
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      tools: ['select', 'area', 'undo', 'redo', 'helpers'],
+      tools: ['select', 'drag', 'area', 'rect', 'undo', 'redo', 'helpers'],
       // tools: ['lineColor', 'fillColor', 'drag', 'select', 'line', 'area', 'rect', 'curve', 'image', 'helpers', 'undo', 'redo'],
       visible: true
     }).init()

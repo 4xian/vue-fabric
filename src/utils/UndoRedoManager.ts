@@ -1,6 +1,7 @@
 import type { Canvas, FabricObject } from 'fabric'
 import type { HistoryState } from '../../types'
 import EventBus from '../core/EventBus'
+import { DEFAULT_HISTORY_EXCLUDE_TYPES } from '../utils/settings'
 
 const MAX_HISTORY = 50
 
@@ -26,7 +27,9 @@ export default class UndoRedoManager {
     this.redoStack = []
     this._isRestoring = false
     this._isPaused = false
-    this._excludeTypes = options.excludeTypes || []
+    this._excludeTypes = options.excludeTypes?.length
+      ? options.excludeTypes
+      : DEFAULT_HISTORY_EXCLUDE_TYPES
     this._getBackgroundImage = options.getBackgroundImage || null
     this._bindEvents()
     this._saveInitialState()
@@ -145,12 +148,14 @@ export default class UndoRedoManager {
     const bgImage = this._getBackgroundImage?.()
     const canvasData = this.canvas.toObject(additionalProperties)
 
-    canvasData.objects = canvasData.objects.filter((obj: { customType?: string }, index: number) => {
-      const fabricObj = this.canvas.getObjects()[index]
-      if (bgImage && fabricObj === bgImage) return false
-      if (obj.customType && this._excludeTypes.includes(obj.customType)) return false
-      return true
-    })
+    canvasData.objects = canvasData.objects.filter(
+      (obj: { customType?: string }, index: number) => {
+        const fabricObj = this.canvas.getObjects()[index]
+        if (bgImage && fabricObj === bgImage) return false
+        if (obj.customType && this._excludeTypes.includes(obj.customType)) return false
+        return true
+      }
+    )
 
     return JSON.stringify(canvasData)
   }

@@ -65,7 +65,8 @@ export interface BaseToolOptions {
   cornerSize?: number
   cornerColor?: string
   cornerStrokeColor?: string
-  borderWidth?: number
+  padding?: number
+  borderScaleFactor?: number
   continueDraw?: boolean
   disabeldClick?: boolean
 }
@@ -130,7 +131,6 @@ export interface RectToolOptions extends BaseToolOptions {
   labelFontSize?: number
   labelFillColor?: string
   defaultShowHelpers?: boolean
-  controlsPadding?: number
 }
 
 export interface ImageToolOptions extends BaseToolOptions {
@@ -165,6 +165,7 @@ export interface AreaCustomData {
   circles?: Circle[]
   labels?: Text[]
   lines?: Line[]
+  originalOptions?: AreaToolOptions
 }
 
 export interface TextCustomData {
@@ -375,4 +376,14 @@ export interface BatchImageInsertResult {
 export interface BatchRemoveResult {
   removed: string[]
   notFound: string[]
+}
+
+export interface TextData {
+  drawId: string
+  text: string
+  left: number
+  top: number
+  fontSize: number
+  fontFamily: string
+  fill: string
 }

@@ -8,7 +8,8 @@ import type {
   ImageCustomData,
   RectCustomData,
   ExportImageOptions,
-  CustomData
+  CustomData,
+  TextData
 } from '../../types'
 import EventBus from '../core/EventBus'
 import {
@@ -19,6 +20,7 @@ import {
 } from './settings'
 import type { ExportJSONOptions } from '../../types'
 import { setupRectEvents } from './rectEvents'
+import { setupAreaEvents, configureControls } from './areaEvents'
 
 export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string[] = []): string {
   const normalizedOptions: ExportJSONOptions = Array.isArray(options)
@@ -90,7 +92,7 @@ function rebindObjectEvents(
           customObj as Polygon & { customData: AreaCustomData },
           canvas,
           eventBus,
-          helpersVisible
+          getCurrentToolName
         )
         applyHelperVisibility(customObj as Polygon & { customData: AreaCustomData }, helpersVisible)
         break
@@ -435,51 +437,20 @@ function rebindAreaEvents(
   polygon: Polygon & { customData: AreaCustomData },
   canvas: Canvas,
   eventBus: EventBus,
-  helpersVisible: boolean
+  getCurrentToolName?: () => string
 ): void {
-  let lastLeft = polygon.left || 0
-  let lastTop = polygon.top || 0
-
-  polygon.on('selected', () => {
-    lastLeft = polygon.left || 0
-    lastTop = polygon.top || 0
-    if (helpersVisible) {
-      showHelpers(polygon, canvas)
-    }
-    eventBus.emit('area:selected', {
-      drawId: polygon.customData.drawId,
-      points: polygon.customData.points,
-      distances: polygon.customData.distances
-    })
+  configureControls(polygon, {
+    cornerStyle: polygon.cornerStyle,
+    cornerSize: polygon.cornerSize,
+    cornerColor: polygon.cornerColor,
+    borderColor: polygon.cornerColor,
+    borderScaleFactor: polygon.borderScaleFactor,
+    padding: polygon.padding
   })
-
-  polygon.on('mousedown', () => {
-    lastLeft = polygon.left || 0
-    lastTop = polygon.top || 0
-    if (helpersVisible) {
-      showHelpers(polygon, canvas)
-    }
-    eventBus.emit('area:clicked', {
-      drawId: polygon.customData.drawId,
-      points: polygon.customData.points,
-      distances: polygon.customData.distances
-    })
-  })
-
-  // polygon.on('deselected', () => {
-  //   if (!helpersVisible) {
-  //     hideHelpers(polygon)
-  //   }
-  //   canvas.renderAll()
-  // })
-
-  polygon.on('moving', () => {
-    const dx = (polygon.left || 0) - lastLeft
-    const dy = (polygon.top || 0) - lastTop
-    moveAreaHelpers(polygon, dx, dy, canvas)
-    lastLeft = polygon.left || 0
-    lastTop = polygon.top || 0
-  })
+  polygon.hasBorders = false
+  polygon.controls = fabric.controlsUtils.createPolyControls(polygon)
+  polygon.setCoords()
+  setupAreaEvents(polygon, canvas, eventBus, getCurrentToolName)
 }
 
 function rebindLineEvents(
@@ -636,46 +607,6 @@ function rebindImageEvents(
   })
 }
 
-function moveAreaHelpers(
-  polygon: Polygon & { customData: AreaCustomData },
-  dx: number,
-  dy: number,
-  canvas: Canvas
-): void {
-  const data = polygon.customData
-  if (data.circles && Array.isArray(data.circles)) {
-    data.circles.forEach(circle => {
-      if (circle && typeof circle.set === 'function') {
-        circle.set({ left: (circle.left || 0) + dx, top: (circle.top || 0) + dy })
-        circle.setCoords()
-      }
-    })
-  }
-  if (data.lines && Array.isArray(data.lines)) {
-    data.lines.forEach(line => {
-      if (line && typeof line.set === 'function') {
-        line.set({
-          x1: (line.x1 || 0) + dx,
-          y1: (line.y1 || 0) + dy,
-          x2: (line.x2 || 0) + dx,
-          y2: (line.y2 || 0) + dy
-        })
-        line.setCoords()
-      }
-    })
-  }
-  if (data.labels && Array.isArray(data.labels)) {
-    data.labels.forEach(label => {
-      if (label && typeof label.set === 'function') {
-        label.set({ left: (label.left || 0) + dx, top: (label.top || 0) + dy })
-        label.setCoords()
-      }
-    })
-  }
-  data.points = data.points.map(p => ({ x: p.x + dx, y: p.y + dy }))
-  canvas.renderAll()
-}
-
 function moveLineHelpers(
   line: Line & { customData: LineCustomData },
   dx: number,
@@ -736,46 +667,6 @@ function moveCurveHelpers(
   canvas.renderAll()
 }
 
-function showHelpers(
-  obj: fabric.FabricObject & { customData?: AreaCustomData },
-  canvas: Canvas
-): void {
-  const { circles, labels } = obj.customData || {}
-  if (circles && Array.isArray(circles)) {
-    circles.forEach(circle => {
-      if (circle && typeof circle.set === 'function') {
-        circle.set({ visible: true })
-      }
-    })
-  }
-  if (labels && Array.isArray(labels)) {
-    labels.forEach(label => {
-      if (label && typeof label.set === 'function') {
-        label.set({ visible: true })
-      }
-    })
-  }
-  canvas.renderAll()
-}
-
-// function hideHelpers(obj: fabric.FabricObject & { customData?: AreaCustomData }): void {
-//   const { circles, labels } = obj.customData || {}
-//   if (circles && Array.isArray(circles)) {
-//     circles.forEach(circle => {
-//       if (circle && typeof circle.set === 'function') {
-//         circle.set({ visible: false })
-//       }
-//     })
-//   }
-//   if (labels && Array.isArray(labels)) {
-//     labels.forEach(label => {
-//       if (label && typeof label.set === 'function') {
-//         label.set({ visible: false })
-//       }
-//     })
-//   }
-// }
-
 export function exportToImage(canvas: Canvas, options: ExportImageOptions | string = {}): string {
   if (typeof options === 'string') {
     options = { format: options as 'png' | 'jpeg' | 'webp' }
@@ -827,16 +718,6 @@ export function getAreasData(canvas: Canvas): AreaCustomData[] {
     }
   })
   return areas
-}
-
-interface TextData {
-  drawId: string
-  text: string
-  left: number
-  top: number
-  fontSize: number
-  fontFamily: string
-  fill: string
 }
 
 export function getTextsData(canvas: Canvas): TextData[] {

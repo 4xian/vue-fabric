@@ -5,6 +5,7 @@ import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
 import { DEFAULT_AREATOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { setupAreaEvents, configureControls } from '../utils/areaEvents'
 
 interface UndoState {
   point: Point
@@ -311,13 +312,17 @@ export default class AreaTool extends BaseTool {
         selectable: true,
         hasBorders: false,
         hasControls: false,
+        lockRotation: true,
         lockMovementX: true,
         lockMovementY: true,
         hoverCursor: 'pointer',
         moveCursor: 'pointer',
-        perPixelTargetFind: this.options.perPixelTargetFind ?? false
+        perPixelTargetFind: this.options.perPixelTargetFind ?? false,
+        objectCaching: false
       }
     )
+
+    configureControls(polygon, this.options)
 
     const drawId = generateDrawId()
 
@@ -329,7 +334,8 @@ export default class AreaTool extends BaseTool {
       fillColor: this.options.enableFill ? this.paintBoard.fillColor : 'transparent',
       circles: [...this.circles],
       labels: [...this.labels],
-      lines: [...this.lines]
+      lines: [...this.lines],
+      originalOptions: { ...this.options }
     }
 
     ;(polygon as Polygon & { customType: string; customData: AreaCustomData }).customType =
@@ -381,71 +387,13 @@ export default class AreaTool extends BaseTool {
   }
 
   private _setupAreaEvents(polygon: Polygon & { customData: AreaCustomData }): void {
-    if (!this.eventBus) return
-
-    let lastLeft = polygon.left || 0
-    let lastTop = polygon.top || 0
-
-    polygon.on('selected', () => {
-      lastLeft = polygon.left || 0
-      lastTop = polygon.top || 0
-      this.eventBus!.emit('area:selected', {
-        drawId: polygon.customData.drawId,
-        points: polygon.customData.points,
-        distances: polygon.customData.distances
-      })
-    })
-
-    polygon.on('mousedown', () => {
-      lastLeft = polygon.left || 0
-      lastTop = polygon.top || 0
-      this.eventBus!.emit('area:clicked', {
-        drawId: polygon.customData.drawId,
-        points: polygon.customData.points,
-        distances: polygon.customData.distances
-      })
-    })
-
-    polygon.on('moving', () => {
-      const dx = (polygon.left || 0) - lastLeft
-      const dy = (polygon.top || 0) - lastTop
-      this._moveAreaHelpers(polygon, dx, dy)
-      lastLeft = polygon.left || 0
-      lastTop = polygon.top || 0
-    })
-  }
-
-  private _moveAreaHelpers(
-    polygon: Polygon & { customData: AreaCustomData },
-    dx: number,
-    dy: number
-  ): void {
-    if (!this.canvas) return
-    const data = polygon.customData
-
-    data.circles?.forEach(circle => {
-      circle.set({ left: (circle.left || 0) + dx, top: (circle.top || 0) + dy })
-      circle.setCoords()
-    })
-
-    data.lines?.forEach(line => {
-      line.set({
-        x1: (line.x1 || 0) + dx,
-        y1: (line.y1 || 0) + dy,
-        x2: (line.x2 || 0) + dx,
-        y2: (line.y2 || 0) + dy
-      })
-      line.setCoords()
-    })
-
-    data.labels?.forEach(label => {
-      label.set({ left: (label.left || 0) + dx, top: (label.top || 0) + dy })
-      label.setCoords()
-    })
-
-    data.points = data.points.map(p => ({ x: p.x + dx, y: p.y + dy }))
-
-    this.canvas.renderAll()
+    if (!this.eventBus || !this.canvas) return
+    setupAreaEvents(
+      polygon,
+      this.canvas,
+      this.eventBus,
+      () => this.paintBoard?.currentToolName || ''
+    )
   }
 
   private _showAreaHelpers(polygon: Polygon & { customData: AreaCustomData }): void {

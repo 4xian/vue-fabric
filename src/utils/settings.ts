@@ -171,8 +171,8 @@ export const DEFAULT_RECTTOOL_OPTIONS: RectToolOptions = {
   cornerStyle: 'rect',
   cornerSize: 8,
   cornerColor: '#6194f5',
-  borderWidth: 1.5,
-  controlsPadding: 3
+  borderScaleFactor: 1.5,
+  padding: 3
 }
 
 // 默认区域工具配置
@@ -191,10 +191,15 @@ export const DEFAULT_AREATOOL_OPTIONS: AreaToolOptions = {
   perPixelTargetFind: true,
   strokeWidth: 2,
   helperStrokeWidth: 2,
-  hasBorders: false,
-  hasControls: false,
-  lockMovementX: true,
-  lockMovementY: true
+  hasBorders: true,
+  hasControls: true,
+  lockMovementX: false,
+  lockMovementY: false,
+  cornerStyle: 'rect',
+  cornerSize: 8,
+  cornerColor: '#6194f5',
+  borderScaleFactor: 1.5,
+  padding: 3
 }
 
 // 默认曲线工具配置
@@ -312,6 +317,25 @@ export const DEFAULT_TOOLBAR_OPTIONS: ToolbarOptions = {
   visible: true,
   draggable: true
 }
+
+// 历史记录默认排除类型
+export const DEFAULT_HISTORY_EXCLUDE_TYPES: string[] = [
+  CustomType.Text,
+  CustomType.Image,
+  CustomType.Area,
+  CustomType.AreaPoint,
+  CustomType.AreaLine,
+  CustomType.AreaLabel,
+  CustomType.Curve,
+  CustomType.CurveHelper,
+  CustomType.CurveHelperLabel,
+  CustomType.CurvePreview,
+  CustomType.Line,
+  CustomType.LineHelper,
+  CustomType.LineHelperLabel,
+  CustomType.Rect,
+  CustomType.RectLabel
+]
 
 // 序列化时需要包含的额外属性
 export const SERIALIZATION_PROPERTIES = [

@@ -160,22 +160,7 @@ export default class VueFabric {
   private _initUndoRedo(): void {
     if (!this.canvas) return
     this.undoRedoManager = new UndoRedoManager(this.canvas, this.eventBus, {
-      excludeTypes: [
-        'text',
-        'image',
-        'area',
-        'areaPoint',
-        'areaLine',
-        'areaLabel',
-        'curve',
-        'curveHelper',
-        'curveHelperLabel',
-        'curvePreview',
-        'line',
-        'lineHelper',
-        'lineHelperLabel',
-        'rect'
-      ],
+      excludeTypes: [],
       getBackgroundImage: () => this._backgroundImage
     })
   }
@@ -401,7 +386,8 @@ export default class VueFabric {
         return tool.redo()
       }
     }
-    return this.undoRedoManager?.redo() ?? false
+    return false
+    // return this.undoRedoManager?.redo() ?? false
   }
 
   canUndo(): boolean {
@@ -410,7 +396,8 @@ export default class VueFabric {
         return true
       }
     }
-    return this.undoRedoManager?.canUndo() ?? false
+    return false
+    // return this.undoRedoManager?.canUndo() ?? false
   }
 
   canRedo(): boolean {

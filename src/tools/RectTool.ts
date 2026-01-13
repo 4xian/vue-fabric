@@ -105,11 +105,14 @@ export default class RectTool extends BaseTool {
   }
 
   override canUndoTool(): boolean {
-    return this.isDrawingState || this._undoStack.length > 0
+    // return this.isDrawingState || this._undoStack.length > 0
+    return this.isDrawingState
   }
 
   override canRedoTool(): boolean {
-    return this._redoStack.length > 0
+    // return this._redoStack.length > 0
+    const top = this._redoStack[this._redoStack.length - 1]
+    return top?.type === 'drawing'
   }
 
   override undo(): boolean {
@@ -117,13 +120,16 @@ export default class RectTool extends BaseTool {
       this._undoDrawingStart()
       return true
     }
-    if (this._undoStack.length === 0) return false
-    this._undoCompletedRect()
-    return true
+    // if (this._undoStack.length === 0) return false
+    // this._undoCompletedRect()
+    // return true
+    return false
   }
 
   override redo(): boolean {
-    if (this._redoStack.length === 0) return false
+    // if (this._redoStack.length === 0) return false
+    const top = this._redoStack[this._redoStack.length - 1]
+    if (top?.type !== 'drawing') return false
     this._redoRect()
     return true
   }
@@ -390,8 +396,8 @@ export default class RectTool extends BaseTool {
       cornerSize: this.options.cornerSize,
       cornerColor: this.options.cornerColor,
       borderColor: this.options.cornerColor,
-      borderScaleFactor: this.options.borderWidth,
-      padding: this.options.controlsPadding
+      borderScaleFactor: this.options.borderScaleFactor,
+      padding: this.options.padding
     })
   }
 
