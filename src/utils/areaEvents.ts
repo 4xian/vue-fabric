@@ -29,16 +29,16 @@ export function handleAreaMouseDown(
   lastPosition: { left: number; top: number },
   getCurrentToolName?: () => string
 ): void {
-  const isCtrl = (event.e as MouseEvent).ctrlKey || (event.e as MouseEvent).metaKey
+  // const isCtrl = (event.e as MouseEvent).ctrlKey || (event.e as MouseEvent).metaKey
   const isDragTool = getCurrentToolName?.() === TOOL_MAPS.DRAG
-  const config = polygon.customData.originalOptions
+  // const config = polygon.customData.originalOptions
 
-  polygon.set({
-    hasControls: !isCtrl && isDragTool && config?.hasControls,
-    // hasBorders: !isCtrl && isDragTool && config?.hasBorders,
-    lockMovementX: isCtrl || !isDragTool || config?.lockMovementX,
-    lockMovementY: isCtrl || !isDragTool || config?.lockMovementY
-  })
+  // polygon.set({
+  //   hasControls: !isCtrl && isDragTool && config?.hasControls,
+  //   // hasBorders: !isCtrl && isDragTool && config?.hasBorders,
+  //   lockMovementX: isCtrl || !isDragTool || config?.lockMovementX,
+  //   lockMovementY: isCtrl || !isDragTool || config?.lockMovementY
+  // })
 
   lastPosition.left = polygon.left || 0
   lastPosition.top = polygon.top || 0

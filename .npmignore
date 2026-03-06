@@ -3,10 +3,14 @@ src/
 tests/
 types/
 demo/
+docs/
 
 # Config files
 .github/
 .husky/
+.serena/
+.cunzhi-memory/
+rollup.config.mjs
 rollup.config.ts
 vitest.config.ts
 tsconfig.json
@@ -20,6 +24,7 @@ eslint.config.js
 *.test.ts
 *.spec.ts
 coverage/
+CHANGELOG.md
 
 # Other
 .gitignore
