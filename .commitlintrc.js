@@ -13,7 +13,8 @@ module.exports = {
         'perf',
         'test',
         'chore',
-        'revert'
+        'revert',
+        'ci'
       ]
     ]
   }
