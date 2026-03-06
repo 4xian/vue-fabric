@@ -164,19 +164,20 @@ new PaintBoard(container: HTMLElement | string, options?: FabricPaintOptions)
 
 **配置项（FabricPaintOptions）：**
 
-| 属性                     | 类型                               | 默认值                     | 说明                            |
-| ------------------------ | ---------------------------------- | -------------------------- | ------------------------------- |
-| `width`                  | `number`                           | `1200`                     | 画布宽度                        |
-| `height`                 | `number`                           | `800`                      | 画布高度                        |
-| `backgroundColor`        | `string`                           | `'transparent'`            | 背景颜色                        |
-| `backgroundImage`        | `string \| BackgroundImageOptions` | -                          | 背景图配置                      |
-| `lineColor`              | `string`                           | `'rgba(2, 167, 240, 1)'`   | 默认线条颜色                    |
-| `fillColor`              | `string`                           | `'rgba(128, 255, 255, 1)'` | 默认填充颜色                    |
-| `pixelRatio`             | `number \| 'auto'`                 | `'auto'`                   | 像素比（`'auto'` 自动检测 DPR） |
-| `autoResize`             | `boolean`                          | `false`                    | 是否启用自动响应式尺寸          |
-| `selection`              | `boolean`                          | `true`                     | 启用框选                        |
-| `preserveObjectStacking` | `boolean`                          | `true`                     | 保持对象层级                    |
-| `perPixelTargetFind`     | `boolean`                          | `false`                    | 像素级碰撞检测                  |
+
+| 属性                     | 类型                              | 默认值                     | 说明                            |
+| ------------------------ | --------------------------------- | -------------------------- | ------------------------------- |
+| `width`                  | `number`                          | `1200`                     | 画布宽度                        |
+| `height`                 | `number`                          | `800`                      | 画布高度                        |
+| `backgroundColor`        | `string`                          | `'transparent'`            | 背景颜色                        |
+| `backgroundImage`        | `string | BackgroundImageOptions` | -                          | 背景图配置                      |
+| `lineColor`              | `string`                          | `'rgba(2, 167, 240, 1)'`   | 默认线条颜色                    |
+| `fillColor`              | `string`                          | `'rgba(128, 255, 255, 1)'` | 默认填充颜色                    |
+| `pixelRatio`             | `number | 'auto'`                 | `'auto'`                   | 像素比（`'auto'` 自动检测 DPR） |
+| `autoResize`             | `boolean`                         | `false`                    | 是否启用自动响应式尺寸          |
+| `selection`              | `boolean`                         | `true`                     | 启用框选                        |
+| `preserveObjectStacking` | `boolean`                         | `true`                     | 保持对象层级                    |
+| `perPixelTargetFind`     | `boolean`                         | `false`                    | 像素级碰撞检测                  |
 
 #### 工具管理
 
@@ -342,7 +343,7 @@ board.registerTool('line', lineTool)
 
 **快捷键：** `ESC` 取消当前绘制
 
-**事件数据（drawId 代替旧版 lineId）：**
+**事件数据：**
 
 ```typescript
 {
@@ -378,7 +379,7 @@ board.registerTool('area', areaTool)
 
 **快捷键：** `ESC` 取消，`Ctrl+Z` 撤销上一个点
 
-**事件数据（drawId 代替旧版 areaId）：**
+**事件数据：**
 
 ```typescript
 {
@@ -406,7 +407,7 @@ board.registerTool('curve', curveTool)
 
 **快捷键：** `Enter` 完成开放曲线，`ESC` 取消，靠近起点自动闭合
 
-**事件数据（drawId 代替旧版 curveId）：**
+**事件数据：**
 
 ```typescript
 {
@@ -500,6 +501,7 @@ board.addImage({
 
 ### 快捷键总览
 
+
 | 工具       | 快捷键                 | 说明             |
 | ---------- | ---------------------- | ---------------- |
 | SelectTool | `Delete` / `Backspace` | 删除选中对象     |
@@ -517,6 +519,7 @@ board.addImage({
 通过 `board.on(event, callback)` 监听，`board.off(event, callback)` 取消监听。
 
 #### 绘图对象事件
+
 
 | 事件名           | 数据                                                                    | 说明           |
 | ---------------- | ----------------------------------------------------------------------- | -------------- |
@@ -543,6 +546,7 @@ board.addImage({
 | `image:updated`  | `{ id, obj }`                                                           | 图片被编程更新 |
 
 #### 画布与系统事件
+
 
 | 事件名                    | 数据                                | 说明             |
 | ------------------------- | ----------------------------------- | ---------------- |
@@ -608,6 +612,7 @@ toolbar.destroy()
 ```
 
 **支持的工具按钮：**
+
 
 | 按钮名      | 功能             |
 | ----------- | ---------------- |
@@ -712,6 +717,7 @@ tracker.clearAll() // 清除所有人员和轨迹
 
 **人员追踪事件：**
 
+
 | 事件名                | 数据         | 说明         |
 | --------------------- | ------------ | ------------ |
 | `person:created`      | `PersonData` | 人员标记创建 |
@@ -765,10 +771,11 @@ import type {
 
 ## 构建产物
 
+
 | 文件                         | 格式       | 说明                                    |
 | ---------------------------- | ---------- | --------------------------------------- |
 | `dist/vue-fabric.js`         | ESM        | 支持 Tree-shaking，推荐在打包项目中使用 |
-| `dist/vue-fabric.umd.js`     | UMD        | 全局变量 `VueFabric`，适合 CDN 引入     |
+| `dist/vue-fabric.umd.js`     | UMD        | 全局变量`VueFabric`，适合 CDN 引入      |
 | `dist/vue-fabric.umd.min.js` | UMD 压缩   | 体积更小，需单独引入 CSS                |
 | `dist/style.css`             | CSS        | 工具栏和颜色选择器样式                  |
 | `dist/index.d.ts`            | TypeScript | 完整类型声明                            |
