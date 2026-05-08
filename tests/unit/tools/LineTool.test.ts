@@ -129,15 +129,15 @@ describe('LineTool', () => {
       expect(tool.isDrawing()).toBe(false)
     })
 
-    it('完成绘制后可以撤销', () => {
+    it('完成绘制后不应再由工具私有栈撤销', () => {
       canvas.getPointer.mockReturnValue({ x: 100, y: 100 })
       tool.onMouseDown({ e: new MouseEvent('mousedown', { button: 0 }) } as any)
 
       canvas.getPointer.mockReturnValue({ x: 200, y: 200 })
       tool.onMouseDown({ e: new MouseEvent('mousedown', { button: 0 }) } as any)
 
-      expect(tool.canUndoTool()).toBe(true)
-      expect(tool.undo()).toBe(true)
+      expect(tool.canUndoTool()).toBe(false)
+      expect(tool.undo()).toBe(false)
     })
 
     it('撤销后可以重做', () => {

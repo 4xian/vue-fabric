@@ -7,6 +7,7 @@ import type {
   ImageToolOptions,
   TextToolOptions,
   LineToolOptions,
+  PolylineToolOptions,
   RectToolOptions,
   SelectToolOptions,
   TraceOptions,
@@ -18,6 +19,7 @@ import type {
 export const CustomType = {
   // 主要类型
   Line: 'line',
+  Polyline: 'polyline',
   Area: 'area',
   Curve: 'curve',
   Text: 'text',
@@ -26,6 +28,8 @@ export const CustomType = {
   // 直线辅助类型
   LineHelper: 'lineHelper',
   LineHelperLabel: 'lineHelperLabel',
+  PolylineHelper: 'polylineHelper',
+  PolylineHelperLabel: 'polylineHelperLabel',
   // 区域辅助类型
   AreaPoint: 'areaPoint',
   AreaLine: 'areaLine',
@@ -45,6 +49,7 @@ export const TOOL_TITLES: Record<string, string> = {
   select: '选择工具: 不对画布进行任何操作，默认工具',
   drag: '拖拽工具: 选中该工具后可以任意拖拽，缩放图形大小；按住Ctrl键可以拖拽整个画布',
   line: '直线工具: 画直线',
+  polyline: '折线工具: 画任意折线，右键完成绘制',
   area: '区域工具: 画任意直线图形区域',
   curve: '曲线工具: 画任意曲线图形区域',
   rect: '矩形工具: 画矩形/正方形区域',
@@ -65,6 +70,7 @@ export const TOOL_MAPS: Record<string, string> = {
   SELECT: 'select',
   DRAG: 'drag',
   LINE: 'line',
+  POLYLINE: 'polyline',
   AREA: 'area',
   CURVE: 'curve',
   RECT: 'rect',
@@ -74,10 +80,11 @@ export const TOOL_MAPS: Record<string, string> = {
 
 export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]
 
-export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image' | 'rect'
+export type MainCustomType = 'line' | 'polyline' | 'area' | 'curve' | 'text' | 'image' | 'rect'
 
 export const CUSTOM_TYPE_HELPER_MAP: Record<MainCustomType, CustomTypeValue[]> = {
   line: [CustomType.LineHelper, CustomType.LineHelperLabel],
+  polyline: [CustomType.PolylineHelper, CustomType.PolylineHelperLabel],
   area: [CustomType.AreaPoint, CustomType.AreaLine, CustomType.AreaLabel],
   curve: [CustomType.CurveHelper, CustomType.CurveHelperLabel, CustomType.CurvePreview],
   text: [],
@@ -137,6 +144,24 @@ export const DEFAULT_SELECTTOOL_OPTIONS: SelectToolOptions = {
 
 // 默认直线工具配置
 export const DEFAULT_LINETOOL_OPTIONS: LineToolOptions = {
+  activeCursor: 'crosshair',
+  deactiveCursor: 'default',
+  pointRadius: 3,
+  labelFontSize: 12,
+  labelFillColor: '#333',
+  pointFillColor: '#ff0000',
+  pointHoverColor: '#ff0000',
+  perPixelTargetFind: true,
+  defaultShowHelpers: false,
+  strokeWidth: 2,
+  helperStrokeWidth: 2,
+  hasBorders: false,
+  hasControls: false,
+  lockMovementX: true,
+  lockMovementY: true
+}
+
+export const DEFAULT_POLYLINETOOL_OPTIONS: PolylineToolOptions = {
   activeCursor: 'crosshair',
   deactiveCursor: 'default',
   pointRadius: 3,
@@ -274,7 +299,7 @@ export const DEFAULT_PERSON_TRACKER_OPTIONS: TraceOptions = {
   pathType: 'curve' as 'line' | 'curve',
   animationSpeed: 0.05,
   moveAnimationSpeed: 0.02,
-  blinkInterval: 1000,
+  blinkInterval: 2000,
   displayDuration: 3000,
   batchSize: 50,
   blinkReasons: [
@@ -289,7 +314,8 @@ export const DEFAULT_PERSON_TRACKER_OPTIONS: TraceOptions = {
   fillColor: '',
   minMoveAnimationDuration: 500,
   maxMoveAnimationDuration: 3000,
-  markerBase64: ''
+  markerBase64: '',
+  showMovingMarker: false
 }
 
 const DEFAULT_TOOLS: ToolName[] = [
@@ -298,6 +324,7 @@ const DEFAULT_TOOLS: ToolName[] = [
   'select',
   'drag',
   'line',
+  'polyline',
   'area',
   'curve',
   'rect',
@@ -333,6 +360,9 @@ export const DEFAULT_HISTORY_EXCLUDE_TYPES: string[] = [
   CustomType.Line,
   CustomType.LineHelper,
   CustomType.LineHelperLabel,
+  CustomType.Polyline,
+  CustomType.PolylineHelper,
+  CustomType.PolylineHelperLabel,
   CustomType.Rect,
   CustomType.RectLabel
 ]

@@ -1,4 +1,4 @@
-import type { Circle, Line, Text, FabricImage } from 'fabric'
+import type { Circle, Line, Text, FabricImage, Polyline } from 'fabric'
 
 export interface Point {
   x: number
@@ -124,6 +124,18 @@ export interface LineToolOptions extends BaseToolOptions {
   helperStrokeWidth?: number
 }
 
+export interface PolylineToolOptions extends BaseToolOptions {
+  pointRadius?: number
+  labelFontSize?: number
+  labelFillColor?: string
+  pointFillColor?: string
+  pointHoverColor?: string
+  defaultShowHelpers?: boolean
+  perPixelTargetFind?: boolean
+  strokeWidth?: number
+  helperStrokeWidth?: number
+}
+
 export interface RectToolOptions extends BaseToolOptions {
   enableFill?: boolean
   strokeWidth?: number
@@ -149,7 +161,7 @@ export interface ExportImageOptions {
   filename?: string
 }
 
-export type MainCustomType = 'line' | 'area' | 'curve' | 'text' | 'image' | 'rect'
+export type MainCustomType = 'line' | 'polyline' | 'area' | 'curve' | 'text' | 'image' | 'rect'
 
 export interface ExportJSONOptions {
   additionalProperties?: string[]
@@ -193,6 +205,16 @@ export interface LineCustomData {
   startCircle?: Circle
   endCircle?: Circle
   label?: Text
+}
+
+export interface PolylineCustomData {
+  drawId: string
+  points: Point[]
+  distances: number[]
+  lineColor: string
+  circles?: Circle[]
+  labels?: Text[]
+  polyline?: Polyline
 }
 
 export interface RectCustomData {
@@ -282,6 +304,7 @@ export interface ImageCustomData {
 
 export interface PersonData {
   id: string
+  yid?: string
   name: string
   x: number
   y: number
@@ -308,6 +331,7 @@ export interface TraceOptions {
   minMoveAnimationDuration?:number
   maxMoveAnimationDuration?:number
   markerBase64?: string
+  showMovingMarker: boolean
 }
 
 export type ToolName =
@@ -316,6 +340,7 @@ export type ToolName =
   | 'area'
   | 'curve'
   | 'line'
+  | 'polyline'
   | 'rect'
   | 'text'
   | 'image'
@@ -336,6 +361,7 @@ export type CustomData =
   | TextCustomData
   | CurveCustomData
   | LineCustomData
+  | PolylineCustomData
   | RectCustomData
   | ImageCustomData
 
@@ -343,6 +369,7 @@ export const SERIALIZATION_PROPERTIES: string[]
 
 export const CustomType: {
   readonly Line: 'line'
+  readonly Polyline: 'polyline'
   readonly Area: 'area'
   readonly Curve: 'curve'
   readonly Text: 'text'
@@ -350,6 +377,8 @@ export const CustomType: {
   readonly Rect: 'rect'
   readonly LineHelper: 'lineHelper'
   readonly LineHelperLabel: 'lineHelperLabel'
+  readonly PolylineHelper: 'polylineHelper'
+  readonly PolylineHelperLabel: 'polylineHelperLabel'
   readonly AreaPoint: 'areaPoint'
   readonly AreaLine: 'areaLine'
   readonly AreaLabel: 'areaLabel'

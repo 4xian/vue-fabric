@@ -1,4 +1,5 @@
 import line from './line.svg'
+import polyline from './polyline.svg'
 import area from './area.svg'
 import curve from './curve.svg'
 import text from './text.svg'
@@ -16,6 +17,7 @@ import rect from './rect.svg'
 
 export const TOOL_ICONS: Record<string, string> = {
   line,
+  polyline,
   area,
   curve,
   rect,
@@ -34,6 +36,7 @@ export const TOOL_ICONS: Record<string, string> = {
 
 export {
   line,
+  polyline,
   area,
   curve,
   rect,

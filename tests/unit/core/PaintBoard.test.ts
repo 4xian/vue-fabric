@@ -98,4 +98,24 @@ describe('PaintBoard - 核心功能', () => {
       expect(result).toBe(board)
     })
   })
+
+  describe('撤回还原', () => {
+    it('canUndo() 应该回退到全局历史管理器', () => {
+      board.undoRedoManager = {
+        canUndo: vi.fn(() => true)
+      } as any
+
+      expect(board.canUndo()).toBe(true)
+      expect(board.undoRedoManager.canUndo).toHaveBeenCalled()
+    })
+
+    it('redo() 应该回退到全局历史管理器', () => {
+      board.undoRedoManager = {
+        redo: vi.fn(() => true)
+      } as any
+
+      expect(board.redo()).toBe(true)
+      expect(board.undoRedoManager.redo).toHaveBeenCalled()
+    })
+  })
 })

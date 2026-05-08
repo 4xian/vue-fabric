@@ -1,8 +1,9 @@
 import * as fabric from 'fabric'
-import type { Canvas, Line, Polygon, IText, FabricImage, Rect } from 'fabric'
+import type { Canvas, Line, Polygon, IText, FabricImage, Rect, Polyline } from 'fabric'
 import type {
   AreaCustomData,
   LineCustomData,
+  PolylineCustomData,
   CurveCustomData,
   TextCustomData,
   ImageCustomData,
@@ -103,6 +104,17 @@ function rebindObjectEvents(
           helpersVisible
         )
         break
+      case CustomType.Polyline:
+        rebindPolylineEvents(
+          customObj as Polyline & { customData: PolylineCustomData },
+          canvas,
+          eventBus
+        )
+        applyPolylineHelperVisibility(
+          customObj as Polyline & { customData: PolylineCustomData },
+          helpersVisible
+        )
+        break
       case CustomType.Curve:
         rebindCurveEvents(
           customObj as fabric.FabricObject & { customData: CurveCustomData },
@@ -185,6 +197,27 @@ function applyLineHelperVisibility(
   }
 }
 
+function applyPolylineHelperVisibility(
+  obj: Polyline & { customData: PolylineCustomData },
+  visible: boolean
+): void {
+  const { circles, labels } = obj.customData || {}
+  if (circles && Array.isArray(circles)) {
+    circles.forEach(circle => {
+      if (circle && typeof circle.set === 'function') {
+        circle.set({ visible })
+      }
+    })
+  }
+  if (labels && Array.isArray(labels)) {
+    labels.forEach(label => {
+      if (label && typeof label.set === 'function') {
+        label.set({ visible })
+      }
+    })
+  }
+}
+
 function applyCurveHelperVisibility(
   obj: fabric.FabricObject & { customData: CurveCustomData },
   visible: boolean
@@ -227,6 +260,7 @@ function relinkHelperElements(canvas: Canvas): void {
 
   const areas: Map<string, Polygon & { customData: AreaCustomData }> = new Map()
   const lines: Map<string, Line & { customData: LineCustomData }> = new Map()
+  const polylines: Map<string, Polyline & { customData: PolylineCustomData }> = new Map()
   const curves: Map<string, fabric.FabricObject & { customData: CurveCustomData }> = new Map()
   const rects: Map<string, Rect & { customData: RectCustomData }> = new Map()
 
@@ -238,6 +272,8 @@ function relinkHelperElements(canvas: Canvas): void {
     string,
     { startCircle?: fabric.Circle; endCircle?: fabric.Circle; label?: fabric.Text }
   > = new Map()
+  const polylineHelpers: Map<string, { circles: fabric.Circle[]; labels: fabric.Text[] }> =
+    new Map()
   const curveHelpers: Map<string, { circles: fabric.Circle[]; labels: fabric.Text[] }> = new Map()
   const rectHelpers: Map<string, { widthLabel?: fabric.Text; heightLabel?: fabric.Text }> =
     new Map()
@@ -269,6 +305,20 @@ function relinkHelperElements(canvas: Canvas): void {
           lines.set(lineData.drawId, customObj as Line & { customData: LineCustomData })
           if (!lineHelpers.has(lineData.drawId)) {
             lineHelpers.set(lineData.drawId, {})
+          }
+        }
+        break
+
+      case CustomType.Polyline:
+        // eslint-disable-next-line
+        const polylineData = customObj.customData as PolylineCustomData
+        if (polylineData?.drawId) {
+          polylines.set(
+            polylineData.drawId,
+            customObj as Polyline & { customData: PolylineCustomData }
+          )
+          if (!polylineHelpers.has(polylineData.drawId)) {
+            polylineHelpers.set(polylineData.drawId, { circles: [], labels: [] })
           }
         }
         break
@@ -347,6 +397,28 @@ function relinkHelperElements(canvas: Canvas): void {
         }
         break
 
+      case CustomType.PolylineHelper:
+        // eslint-disable-next-line
+        const polylineHelperPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (polylineHelperPid) {
+          if (!polylineHelpers.has(polylineHelperPid)) {
+            polylineHelpers.set(polylineHelperPid, { circles: [], labels: [] })
+          }
+          polylineHelpers.get(polylineHelperPid)!.circles.push(obj as fabric.Circle)
+        }
+        break
+
+      case CustomType.PolylineHelperLabel:
+        // eslint-disable-next-line
+        const polylineLabelPid = (customObj.customData as { drawPid?: string })?.drawPid
+        if (polylineLabelPid) {
+          if (!polylineHelpers.has(polylineLabelPid)) {
+            polylineHelpers.set(polylineLabelPid, { circles: [], labels: [] })
+          }
+          polylineHelpers.get(polylineLabelPid)!.labels.push(obj as fabric.Text)
+        }
+        break
+
       case CustomType.CurveHelper:
         // eslint-disable-next-line
         const curveHelperPid = (customObj.customData as { drawPid?: string })?.drawPid
@@ -413,6 +485,15 @@ function relinkHelperElements(canvas: Canvas): void {
       line.customData.startCircle = helpers.startCircle
       line.customData.endCircle = helpers.endCircle
       line.customData.label = helpers.label
+    }
+  })
+
+  polylines.forEach((polyline, drawId) => {
+    const helpers = polylineHelpers.get(drawId)
+    if (helpers && polyline.customData) {
+      polyline.customData.circles = sortHelpersByIndex(helpers.circles)
+      polyline.customData.labels = sortHelpersByIndex(helpers.labels)
+      polyline.customData.polyline = polyline
     }
   })
 
@@ -489,6 +570,43 @@ function rebindLineEvents(
     moveLineHelpers(line, dx, dy, canvas)
     lastLeft = line.left || 0
     lastTop = line.top || 0
+  })
+}
+
+function rebindPolylineEvents(
+  polyline: Polyline & { customData: PolylineCustomData },
+  canvas: Canvas,
+  eventBus: EventBus
+): void {
+  let lastLeft = polyline.left || 0
+  let lastTop = polyline.top || 0
+
+  polyline.on('selected', () => {
+    lastLeft = polyline.left || 0
+    lastTop = polyline.top || 0
+    eventBus.emit('polyline:selected', {
+      drawId: polyline.customData.drawId,
+      points: polyline.customData.points,
+      distances: polyline.customData.distances
+    })
+  })
+
+  polyline.on('mousedown', () => {
+    lastLeft = polyline.left || 0
+    lastTop = polyline.top || 0
+    eventBus.emit('polyline:clicked', {
+      drawId: polyline.customData.drawId,
+      points: polyline.customData.points,
+      distances: polyline.customData.distances
+    })
+  })
+
+  polyline.on('moving', () => {
+    const dx = (polyline.left || 0) - lastLeft
+    const dy = (polyline.top || 0) - lastTop
+    movePolylineHelpers(polyline, dx, dy, canvas)
+    lastLeft = polyline.left || 0
+    lastTop = polyline.top || 0
   })
 }
 
@@ -638,6 +756,37 @@ function moveLineHelpers(
   data.startPoint = { x: data.startPoint.x + dx, y: data.startPoint.y + dy }
   data.endPoint = { x: data.endPoint.x + dx, y: data.endPoint.y + dy }
   canvas.renderAll()
+}
+
+function movePolylineHelpers(
+  polyline: Polyline & { customData: PolylineCustomData },
+  dx: number,
+  dy: number,
+  canvas: Canvas
+): void {
+  const data = polyline.customData
+  data.circles?.forEach(circle => {
+    if (circle && typeof circle.set === 'function') {
+      circle.set({ left: (circle.left || 0) + dx, top: (circle.top || 0) + dy })
+      circle.setCoords()
+    }
+  })
+  data.labels?.forEach(label => {
+    if (label && typeof label.set === 'function') {
+      label.set({ left: (label.left || 0) + dx, top: (label.top || 0) + dy })
+      label.setCoords()
+    }
+  })
+  data.points = data.points.map(point => ({ x: point.x + dx, y: point.y + dy }))
+  canvas.renderAll()
+}
+
+function sortHelpersByIndex<T extends fabric.FabricObject>(helpers: T[]): T[] {
+  return [...helpers].sort((a, b) => {
+    const aIndex = (a as T & { customData?: { index?: number } }).customData?.index ?? 0
+    const bIndex = (b as T & { customData?: { index?: number } }).customData?.index ?? 0
+    return aIndex - bIndex
+  })
 }
 
 function moveCurveHelpers(

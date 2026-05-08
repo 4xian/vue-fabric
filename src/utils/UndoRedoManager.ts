@@ -1,13 +1,16 @@
 import type { Canvas, FabricObject } from 'fabric'
 import type { HistoryState } from '../../types'
 import EventBus from '../core/EventBus'
-import { DEFAULT_HISTORY_EXCLUDE_TYPES } from '../utils/settings'
+import { DEFAULT_HISTORY_EXCLUDE_TYPES, SERIALIZATION_PROPERTIES } from '../utils/settings'
+import { importFromJSON } from './export'
 
 const MAX_HISTORY = 50
 
 interface UndoRedoOptions {
   excludeTypes?: string[]
   getBackgroundImage?: () => FabricObject | null
+  getHelpersVisible?: () => boolean
+  getCurrentToolName?: () => string
 }
 
 export default class UndoRedoManager {
@@ -19,6 +22,8 @@ export default class UndoRedoManager {
   private _isPaused: boolean
   private _excludeTypes: string[]
   private _getBackgroundImage: (() => FabricObject | null) | null
+  private _getHelpersVisible: (() => boolean) | null
+  private _getCurrentToolName: (() => string) | null
 
   constructor(canvas: Canvas, eventBus: EventBus, options: UndoRedoOptions = {}) {
     this.canvas = canvas
@@ -27,10 +32,10 @@ export default class UndoRedoManager {
     this.redoStack = []
     this._isRestoring = false
     this._isPaused = false
-    this._excludeTypes = options.excludeTypes?.length
-      ? options.excludeTypes
-      : DEFAULT_HISTORY_EXCLUDE_TYPES
+    this._excludeTypes = options.excludeTypes ?? DEFAULT_HISTORY_EXCLUDE_TYPES
     this._getBackgroundImage = options.getBackgroundImage || null
+    this._getHelpersVisible = options.getHelpersVisible || null
+    this._getCurrentToolName = options.getCurrentToolName || null
     this._bindEvents()
     this._saveInitialState()
   }
@@ -67,10 +72,21 @@ export default class UndoRedoManager {
     this.saveState()
   }
 
+  private _emitHistoryChanged(): void {
+    this.eventBus.emit('history:changed', {
+      canUndo: this.canUndo(),
+      canRedo: this.canRedo()
+    } as HistoryState)
+  }
+
   saveState(): void {
     if (this._isRestoring) return
 
     const state = this._serializeCanvas()
+    const lastState = this.undoStack[this.undoStack.length - 1]
+
+    if (lastState === state) return
+
     this.undoStack.push(state)
 
     if (this.undoStack.length > MAX_HISTORY) {
@@ -78,14 +94,11 @@ export default class UndoRedoManager {
     }
 
     this.redoStack = []
-
-    this.eventBus.emit('history:changed', {
-      canUndo: this.canUndo(),
-      canRedo: this.canRedo()
-    } as HistoryState)
+    this._emitHistoryChanged()
   }
 
   undo(): boolean {
+    if (this._isRestoring) return false
     if (this.undoStack.length < 2) return false
 
     const currentState = this.undoStack.pop()!
@@ -93,28 +106,24 @@ export default class UndoRedoManager {
 
     const previousState = this.undoStack[this.undoStack.length - 1]
     this._restoreState(previousState)
-
-    this.eventBus.emit('history:changed', {
-      canUndo: this.canUndo(),
-      canRedo: this.canRedo()
-    } as HistoryState)
+    this._emitHistoryChanged()
 
     return true
   }
 
   redo(): boolean {
+    if (this._isRestoring) return false
     if (!this.canRedo()) return false
 
-    const currentState = this._serializeCanvas()
-    this.undoStack.push(currentState)
-
     const nextState = this.redoStack.pop()!
-    this._restoreState(nextState)
+    this.undoStack.push(nextState)
 
-    this.eventBus.emit('history:changed', {
-      canUndo: this.canUndo(),
-      canRedo: this.canRedo()
-    } as HistoryState)
+    if (this.undoStack.length > MAX_HISTORY) {
+      this.undoStack.shift()
+    }
+
+    this._restoreState(nextState)
+    this._emitHistoryChanged()
 
     return true
   }
@@ -128,29 +137,13 @@ export default class UndoRedoManager {
   }
 
   private _serializeCanvas(): string {
-    const additionalProperties = [
-      'customType',
-      'customData',
-      'lineId',
-      'selectable',
-      'evented',
-      'hasControls',
-      'hasBorders',
-      'lockMovementX',
-      'lockMovementY',
-      'lockScalingX',
-      'lockScalingY',
-      'lockRotation',
-      'hoverCursor',
-      'moveCursor'
-    ]
-
     const bgImage = this._getBackgroundImage?.()
-    const canvasData = this.canvas.toObject(additionalProperties)
+    const canvasObjects = this.canvas.getObjects()
+    const canvasData = this.canvas.toObject(SERIALIZATION_PROPERTIES)
 
     canvasData.objects = canvasData.objects.filter(
       (obj: { customType?: string }, index: number) => {
-        const fabricObj = this.canvas.getObjects()[index]
+        const fabricObj = canvasObjects[index]
         if (bgImage && fabricObj === bgImage) return false
         if (obj.customType && this._excludeTypes.includes(obj.customType)) return false
         return true
@@ -173,27 +166,33 @@ export default class UndoRedoManager {
 
     const excludedObjects = this._getExcludedObjects()
     const bgImage = this._getBackgroundImage?.()
-    const data = JSON.parse(state)
 
-    this.canvas.loadFromJSON(data).then(() => {
-      if (bgImage) {
-        this.canvas.add(bgImage)
-        this.canvas.sendObjectToBack(bgImage)
-      }
-      excludedObjects.forEach(obj => this.canvas.add(obj))
-      this.canvas.renderAll()
-      this._isRestoring = false
-    })
+    importFromJSON(
+      this.canvas,
+      state,
+      this.eventBus,
+      this._getHelpersVisible?.() ?? false,
+      this._getCurrentToolName || undefined
+    )
+      .then(() => {
+        if (bgImage) {
+          this.canvas.add(bgImage)
+          this.canvas.sendObjectToBack(bgImage)
+        }
+        excludedObjects.forEach(obj => this.canvas.add(obj))
+        this.canvas.renderAll()
+      })
+      .finally(() => {
+        this._isRestoring = false
+        this._emitHistoryChanged()
+      })
   }
 
   clear(): void {
     this.undoStack = []
     this.redoStack = []
     this._saveInitialState()
-    this.eventBus.emit('history:changed', {
-      canUndo: false,
-      canRedo: false
-    } as HistoryState)
+    this._emitHistoryChanged()
   }
 
   getUndoCount(): number {

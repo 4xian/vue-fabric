@@ -15,13 +15,14 @@ interface PersonMarker {
   personData?: PersonData
   isAnimating?: boolean
   isInitialized?: boolean
+  moveAnimationFrameId?: number
 }
 
 interface TraceData {
   pathLine: Polyline | Path
   startMarker: PersonMarker
   endMarker: PersonMarker
-  movingMarker: PersonMarker
+  movingMarker?: PersonMarker
   animationId: number | null
   traces: Point[]
   curvePoints?: Point[]
@@ -61,7 +62,9 @@ export default class PersonTracker {
       minMoveAnimationDuration:
         options?.minMoveAnimationDuration ??
         DEFAULT_PERSON_TRACKER_OPTIONS.minMoveAnimationDuration!,
-      markerBase64: options?.markerBase64 ?? DEFAULT_PERSON_TRACKER_OPTIONS.markerBase64!
+      markerBase64: options?.markerBase64 ?? DEFAULT_PERSON_TRACKER_OPTIONS.markerBase64!,
+      showMovingMarker:
+        options?.showMovingMarker ?? DEFAULT_PERSON_TRACKER_OPTIONS.showMovingMarker!
     }
   }
 
@@ -71,14 +74,24 @@ export default class PersonTracker {
 
     const currentIds = new Set(this.persons.keys())
     const newIds = new Set(persons.map(p => p.id))
+    const retainedIds = new Set<string>()
 
     const toDelete: string[] = []
     const toUpdate: PersonData[] = []
     const toCreate: PersonData[] = []
+    const toTransform: Array<{ sourceId: string; person: PersonData }> = []
+    const transformedSourceIds = new Set<string>()
+
+    persons.forEach(person => {
+      retainedIds.add(person.id)
+      if (person.yid) {
+        retainedIds.add(person.yid)
+      }
+    })
 
     if (this.options.deleteOld) {
       currentIds.forEach(id => {
-        if (!newIds.has(id)) {
+        if (!retainedIds.has(id)) {
           toDelete.push(id)
         }
       })
@@ -89,7 +102,20 @@ export default class PersonTracker {
         if (this.persons.has(person.id)) {
           toUpdate.push(person)
         } else {
-          toCreate.push(person)
+          const sourceId = person.yid?.trim()
+          const canTransform =
+            !!sourceId &&
+            sourceId !== person.id &&
+            !newIds.has(sourceId) &&
+            this.persons.has(sourceId) &&
+            !transformedSourceIds.has(sourceId)
+
+          if (canTransform) {
+            transformedSourceIds.add(sourceId)
+            toTransform.push({ sourceId, person })
+          } else {
+            toCreate.push(person)
+          }
         }
       }
     })
@@ -108,6 +134,18 @@ export default class PersonTracker {
       const batch = toCreate.slice(i, i + this.options.batchSize)
       await Promise.all(batch.map(person => this._createPersonMarkerWithoutRender(person)))
       if (i + this.options.batchSize < toCreate.length) {
+        await this._nextFrame()
+      }
+    }
+
+    for (let i = 0; i < toTransform.length; i += this.options.batchSize) {
+      if (this.renderVersion !== currentVersion) return
+      const batch = toTransform.slice(i, i + this.options.batchSize)
+      batch.forEach(({ sourceId, person }) => {
+        this._transformPersonMarker(sourceId, person)
+        this._startDisplayTimer(person)
+      })
+      if (i + this.options.batchSize < toTransform.length) {
         await this._nextFrame()
       }
     }
@@ -219,14 +257,17 @@ export default class PersonTracker {
       true,
       person.base64
     )
-    const movingMarker = await this._createMarkerGroup(
-      traces[0].x,
-      traces[0].y,
-      person.name,
-      person.lineColor,
-      false,
-      person.base64
-    )
+    let movingMarker = null
+    if (this.options.showMovingMarker) {
+      movingMarker = await this._createMarkerGroup(
+        traces[0].x,
+        traces[0].y,
+        person.name,
+        person.lineColor,
+        false,
+        person.base64
+      )
+    }
 
     const clickHandler = () => {
       this.eventBus.emit('person:clicked', { ...person })
@@ -237,20 +278,27 @@ export default class PersonTracker {
     this.canvas.add(pathLine)
     this.canvas.add(startMarker.group)
     this.canvas.add(endMarker.group)
-    this.canvas.add(movingMarker.group)
+    if (this.options.showMovingMarker && movingMarker) {
+      this.canvas.add(movingMarker.group)
+    }
 
     const traceData: TraceData = {
       pathLine,
       startMarker,
       endMarker,
-      movingMarker,
       animationId: null,
       traces,
       curvePoints
     }
 
+    if (this.options.showMovingMarker && movingMarker) {
+      traceData.movingMarker = movingMarker
+    }
+
     this.traces.set(id, traceData)
-    this._startTraceAnimation(id)
+    if (this.options.showMovingMarker && movingMarker) {
+      this._startTraceAnimation(id)
+    }
     this.canvas.renderAll()
     this.eventBus.emit('trace:shown', { id })
   }
@@ -266,7 +314,9 @@ export default class PersonTracker {
     this.canvas.remove(data.pathLine)
     this.canvas.remove(data.startMarker.group)
     this.canvas.remove(data.endMarker.group)
-    this.canvas.remove(data.movingMarker.group)
+    if (data.movingMarker) {
+      this.canvas.remove(data.movingMarker.group)
+    }
 
     this.traces.delete(id)
     this.canvas.renderAll()
@@ -294,10 +344,7 @@ export default class PersonTracker {
     marker.isInitialized = true
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
-
-    marker.group.on('mousedown', () => {
-      this.eventBus.emit('person:clicked', { ...person })
-    })
+    this._bindMarkerClickHandler(marker)
 
     if (this._shouldBlink(person.status)) {
       this._startBlinkAnimation(person.id)
@@ -321,10 +368,7 @@ export default class PersonTracker {
     marker.isInitialized = true
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
-
-    marker.group.on('mousedown', () => {
-      this.eventBus.emit('person:clicked', { ...person })
-    })
+    this._bindMarkerClickHandler(marker)
 
     if (this._shouldBlink(person.status)) {
       this._startBlinkAnimation(person.id)
@@ -335,6 +379,25 @@ export default class PersonTracker {
 
     this._startDisplayTimer(person)
     this.eventBus.emit('person:created', { ...person })
+  }
+
+  private _transformPersonMarker(sourceId: string, person: PersonData): void {
+    const marker = this.persons.get(sourceId)
+    if (!marker) return
+
+    this._stopDisplayTimer(sourceId)
+    this.persons.delete(sourceId)
+    this.persons.set(person.id, marker)
+    this._bindMarkerClickHandler(marker)
+    this._updatePersonMarker(person)
+  }
+
+  private _bindMarkerClickHandler(marker: PersonMarker): void {
+    marker.group.off('mousedown')
+    marker.group.on('mousedown', () => {
+      if (!marker.personData) return
+      this.eventBus.emit('person:clicked', { ...marker.personData })
+    })
   }
 
   private _updatePersonMarker(person: PersonData): void {
@@ -371,47 +434,92 @@ export default class PersonTracker {
     // const needsAnimation = Math.abs(targetLeft - currentLeft) > 1 || Math.abs(targetTop - currentTop) > 1
     // console.log(111, targetLeft, targetTop)
     if (marker.isInitialized && this.options.maxMoveAnimationDuration > 0) {
-      marker.isAnimating = true
-
       const distance = Math.sqrt(
         Math.pow(targetLeft - currentLeft, 2) + Math.pow(targetTop - currentTop, 2)
       )
+
+      if (distance <= 1) {
+        marker.group.set({ left: targetLeft, top: targetTop })
+        marker.group.setCoords()
+        if (marker.rippleCircle) {
+          const circleCenter = this._getMarkerCircleCenter(marker)
+          marker.rippleCircle.set({ left: circleCenter.x, top: circleCenter.y })
+          marker.rippleCircle.setCoords()
+        }
+        return
+      }
 
       const calculatedDuration = distance / this.options.moveAnimationSpeed
       const minDuration = this.options.minMoveAnimationDuration
       const maxDuration = this.options.maxMoveAnimationDuration
       const duration = Math.min(maxDuration, Math.max(minDuration, calculatedDuration))
-      marker.group.animate(
-        { left: targetLeft, top: targetTop },
-        {
-          duration,
-          easing: fabric.util.ease.easeInOutQuad,
-          onChange: () => {
-            marker.group.setCoords()
-            if (marker.rippleCircle) {
-              const groupCenter = marker.group.getCenterPoint()
-              marker.rippleCircle.set({ left: groupCenter.x, top: groupCenter.y })
-              marker.rippleCircle.setCoords()
-            }
-            this.canvas.renderAll()
-          },
-          onComplete: () => {
-            marker.isAnimating = false
-            marker.group.setCoords()
-          }
-        }
-      )
+      this._animateMarkerPosition(marker, currentLeft, currentTop, targetLeft, targetTop, duration)
     } else {
+      if (marker.moveAnimationFrameId) {
+        cancelAnimationFrame(marker.moveAnimationFrameId)
+        marker.moveAnimationFrameId = undefined
+      }
+      marker.isAnimating = false
       marker.group.set({ left: targetLeft, top: targetTop })
       marker.group.setCoords()
       if (marker.rippleCircle) {
-        const groupCenter = marker.group.getCenterPoint()
-        marker.rippleCircle.set({ left: groupCenter.x, top: groupCenter.y })
+        const circleCenter = this._getMarkerCircleCenter(marker)
+        marker.rippleCircle.set({ left: circleCenter.x, top: circleCenter.y })
         marker.rippleCircle.setCoords()
       }
     }
 
     this.eventBus.emit('person:updated', { ...person })
+  }
+
+  private _animateMarkerPosition(
+    marker: PersonMarker,
+    startLeft: number,
+    startTop: number,
+    targetLeft: number,
+    targetTop: number,
+    duration: number
+  ): void {
+    if (marker.moveAnimationFrameId) {
+      cancelAnimationFrame(marker.moveAnimationFrameId)
+    }
+
+    marker.isAnimating = true
+    const startTime = performance.now()
+
+    const renderFrame = (progress: number) => {
+      const nextLeft = startLeft + (targetLeft - startLeft) * progress
+      const nextTop = startTop + (targetTop - startTop) * progress
+
+      marker.group.set({ left: nextLeft, top: nextTop })
+      marker.group.setCoords()
+
+      if (marker.rippleCircle) {
+        const circleCenter = this._getMarkerCircleCenter(marker)
+        marker.rippleCircle.set({ left: circleCenter.x, top: circleCenter.y })
+        marker.rippleCircle.setCoords()
+      }
+
+      this.canvas.renderAll()
+    }
+
+    const step = (timestamp: number) => {
+      const elapsed = Math.min(timestamp - startTime, duration)
+      const easedProgress = fabric.util.ease.easeInOutQuad(elapsed, 0, 1, duration)
+
+      renderFrame(easedProgress)
+
+      if (elapsed >= duration) {
+        marker.isAnimating = false
+        marker.moveAnimationFrameId = undefined
+        renderFrame(1)
+        return
+      }
+
+      marker.moveAnimationFrameId = requestAnimationFrame(step)
+    }
+
+    marker.moveAnimationFrameId = requestAnimationFrame(step)
   }
 
   private async _createMarkerGroup(
@@ -493,6 +601,7 @@ export default class PersonTracker {
     })
 
     ;(group as Group & { customType: string }).customType = CustomType.PersonMarker
+    ;(group as Group & { customData: any }).customData = { textHeight }
 
     const marker: PersonMarker = { group, circle, text }
     if (img) {
@@ -684,8 +793,11 @@ export default class PersonTracker {
       }
 
       const position = this._getPositionAtDistance(animationPoints, segmentLengths, currentDistance)
-      data.movingMarker.group.set({ left: position.x, top: position.y })
-      data.movingMarker.group.setCoords()
+      if (data.movingMarker) {
+        data.movingMarker.group.set({ left: position.x, top: position.y })
+        data.movingMarker.group.setCoords()
+      }
+
       this.canvas.renderAll()
 
       data.animationId = requestAnimationFrame(animate)
@@ -777,7 +889,7 @@ export default class PersonTracker {
     const baseRadius = this.options.radius
     const maxRadius = baseRadius * 6
 
-    const groupCenter = marker.group.getCenterPoint()
+    const circleCenter = this._getMarkerCircleCenter(marker)
 
     const rippleCircle = new fabric.Circle({
       radius: baseRadius,
@@ -786,8 +898,8 @@ export default class PersonTracker {
       strokeWidth: 0,
       originX: 'center',
       originY: 'center',
-      left: groupCenter.x,
-      top: groupCenter.y,
+      left: circleCenter.x,
+      top: circleCenter.y,
       selectable: false,
       evented: false
     })
@@ -801,16 +913,16 @@ export default class PersonTracker {
       if (!marker.rippleAnimating || !marker.rippleCircle) return
 
       fabric.util.animate({
-        startValue: baseRadius,
+        startValue: 0,
         endValue: maxRadius,
-        duration: 1500,
+        duration: this.options.blinkInterval,
         onChange: (value: number) => {
           if (!marker.rippleAnimating || !marker.rippleCircle) return
           const progress = (value - baseRadius) / (maxRadius - baseRadius)
-          const opacity = 0.7 * (1 - progress)
+          const opacity = 0.8 * (1 - progress)
           marker.rippleCircle.set({
             radius: value,
-            fill: this._colorWithOpacity(lineColor, opacity)
+            fill: this._colorWithOpacity('#ff0000', opacity)
           })
           this.canvas.renderAll()
         },
@@ -818,7 +930,7 @@ export default class PersonTracker {
           if (marker.rippleAnimating && marker.rippleCircle) {
             marker.rippleCircle.set({
               radius: baseRadius,
-              fill: this._colorWithOpacity(lineColor, 0.8)
+              fill: this._colorWithOpacity('#ff0000', 1)
             })
             animateRipple()
           }
@@ -838,6 +950,14 @@ export default class PersonTracker {
     if (marker.rippleCircle) {
       this.canvas.remove(marker.rippleCircle)
       marker.rippleCircle = undefined
+    }
+  }
+
+  private _getMarkerCircleCenter(marker: PersonMarker): Point {
+    const center = marker.circle.getCenterPoint()
+    return {
+      x: center.x,
+      y: center.y
     }
   }
 

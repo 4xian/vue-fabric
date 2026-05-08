@@ -81,13 +81,19 @@ export default class Toolbar {
       case 'select':
       case 'drag':
       case 'line':
+      case 'polyline':
       case 'area':
       case 'curve':
       case 'rect':
       case 'text':
-        this._createToolButton(toolName, TOOL_TITLES[toolName], TOOL_ICONS[toolName], () => {
-          this.paintBoard.setTool(toolName)
-        })
+        this._createToolButton(
+          toolName,
+          TOOL_TITLES[toolName] ?? toolName,
+          TOOL_ICONS[toolName],
+          () => {
+            this.paintBoard.setTool(toolName)
+          }
+        )
         break
       case 'undo':
         this._createActionButton('undo', TOOL_TITLES.undo, TOOL_ICONS.undo, () => {
@@ -315,6 +321,10 @@ export default class Toolbar {
     })
 
     this.paintBoard.on('line:created', () => {
+      this._updateUndoRedoState()
+    })
+
+    this.paintBoard.on('polyline:created', () => {
       this._updateUndoRedoState()
     })
 

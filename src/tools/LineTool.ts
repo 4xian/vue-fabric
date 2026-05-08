@@ -7,14 +7,8 @@ import { DEFAULT_LINETOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
 
 interface LineUndoState {
-  type: 'drawing' | 'complete'
   startPoint: Point
-  endPoint?: Point
   startCircle: Circle
-  endCircle?: Circle
-  line?: Line & { customType: string; customData: LineCustomData }
-  label?: Text
-  drawId?: string
 }
 
 export default class LineTool extends BaseTool {
@@ -27,7 +21,6 @@ export default class LineTool extends BaseTool {
   private previewLine: Line | null
   private previewLabel: Text | null
   private _hoverRect: Rect | null
-  private _undoStack: LineUndoState[]
   private _redoStack: LineUndoState[]
 
   constructor(options: LineToolOptions = {}) {
@@ -41,7 +34,6 @@ export default class LineTool extends BaseTool {
     this.previewLine = null
     this.previewLabel = null
     this._hoverRect = null
-    this._undoStack = []
     this._redoStack = []
   }
 
@@ -97,7 +89,7 @@ export default class LineTool extends BaseTool {
   }
 
   override canUndoTool(): boolean {
-    return this.isDrawingState || this._undoStack.length > 0
+    return this.isDrawingState
   }
 
   override canRedoTool(): boolean {
@@ -109,9 +101,7 @@ export default class LineTool extends BaseTool {
       this._undoDrawingStart()
       return true
     }
-    if (this._undoStack.length === 0) return false
-    this._undoCompletedLine()
-    return true
+    return false
   }
 
   override redo(): boolean {
@@ -125,7 +115,6 @@ export default class LineTool extends BaseTool {
 
     this._clearPreview()
     const state: LineUndoState = {
-      type: 'drawing',
       startPoint: { ...this.startPoint },
       startCircle: this.startCircle
     }
@@ -137,45 +126,16 @@ export default class LineTool extends BaseTool {
     this.canvas.renderAll()
   }
 
-  private _undoCompletedLine(): void {
-    if (!this.canvas) return
-
-    const state = this._undoStack.pop()!
-    this._redoStack.push(state)
-
-    if (state.line) this.canvas.remove(state.line)
-    this.canvas.remove(state.startCircle)
-    if (state.endCircle) this.canvas.remove(state.endCircle)
-    if (state.label) this.canvas.remove(state.label)
-
-    this.canvas.renderAll()
-  }
-
   private _redoLine(): void {
     if (!this.canvas || !this.paintBoard) return
 
     const state = this._redoStack.pop()!
-
-    if (state.type === 'drawing') {
-      this.paintBoard.pauseHistory()
-      this.isDrawingState = true
-      this.startPoint = state.startPoint
-      this.startCircle = state.startCircle
-      this.canvas.add(this.startCircle)
-      this.canvas.renderAll()
-    } else {
-      this._undoStack.push(state)
-      this.canvas.add(state.startCircle)
-      if (state.endCircle) this.canvas.add(state.endCircle)
-      if (state.label) this.canvas.add(state.label)
-      if (state.line) {
-        this.canvas.add(state.line)
-        state.line.customData.startCircle = state.startCircle
-        state.line.customData.endCircle = state.endCircle!
-        state.line.customData.label = state.label!
-      }
-      this.canvas.renderAll()
-    }
+    this.paintBoard.pauseHistory()
+    this.isDrawingState = true
+    this.startPoint = state.startPoint
+    this.startCircle = state.startCircle
+    this.canvas.add(this.startCircle)
+    this.canvas.renderAll()
   }
 
   private _startDrawing(point: Point): void {
@@ -372,18 +332,6 @@ export default class LineTool extends BaseTool {
       endPoint: customData.endPoint,
       distance: customData.distance
     })
-
-    const completedState: LineUndoState = {
-      type: 'complete',
-      startPoint: { ...this.startPoint },
-      endPoint: { ...this.endPoint },
-      startCircle: this.startCircle!,
-      endCircle: this.endCircle!,
-      line: line as Line & { customType: string; customData: LineCustomData },
-      label,
-      drawId
-    }
-    this._undoStack.push(completedState)
 
     this._reset()
     this.paintBoard.resumeHistory()

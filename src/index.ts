@@ -10,6 +10,7 @@ import DragTool from './tools/DragTool'
 import TextTool from './tools/TextTool'
 import CurveTool from './tools/CurveTool'
 import LineTool from './tools/LineTool'
+import PolylineTool from './tools/PolylineTool'
 import RectTool from './tools/RectTool'
 import ImageTool from './tools/ImageTool'
 import PersonTracker from './utils/PersonTracker'
@@ -29,6 +30,7 @@ export {
   TextTool,
   CurveTool,
   LineTool,
+  PolylineTool,
   RectTool,
   ImageTool,
   PersonTracker,
@@ -47,7 +49,9 @@ export type {
   TextCustomData,
   CurveCustomData,
   LineCustomData,
+  PolylineCustomData,
   RectCustomData,
+  PolylineToolOptions,
   RectToolOptions,
   HistoryState,
   ColorPickerOptions,

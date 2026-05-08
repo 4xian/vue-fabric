@@ -111,7 +111,7 @@
       <!-- <button onclick="board.redo()">还原</button> -->
       <button onclick="board.zoomIn()">放大</button>
       <button onclick="board.zoomOut()">缩小</button>
-      <!-- <button onclick="board.resetZoom()">还原视图</button> -->
+      <button onclick="board.resetZoom()">还原视图</button>
       <!-- <button onclick="board.toggleAreaHelpers()">显示/隐藏距离</button> -->
       <!-- <button onclick="toolbar.show()">显示工具栏</button> -->
       <!-- <button onclick="toolbar.hide()">隐藏工具栏</button> -->
@@ -139,15 +139,16 @@
       <input type="text" id="deleteIdInput" placeholder="输入要删除的ID">
       <button onclick="deleteByInput()">删除</button>
     </div> -->
-    <!-- <div class="toolbar-row">
+    <div class="toolbar-row">
       <label>人员追踪:</label>
       <button onclick="loadRealPersonData()">加载真实数据</button>
+      <button onclick="runYidTransformDemo()">测试yid变换</button>
       <button onclick="startSimulateWebSocket()">模拟WebSocket更新</button>
       <button onclick="stopSimulateWebSocket()">停止模拟</button>
       <button onclick="createPersonTracesDemo('curve')">显示轨迹</button>
       <button onclick="clearAllPersons()">清除人员</button>
       <button onclick="clearAllTraces()">清除轨迹</button>
-    </div> -->
+    </div>
     <!-- <div class="toolbar-row">
       <label>背景图:</label>
       <input type="text" id="bgImageInput" placeholder="输入图片URL或Base64">
@@ -182,7 +183,7 @@
   <script src="/demo/static/fabric.js"></script>
   <script src="/dist/vue-fabric.umd.js"></script>
   <script>
-    const { FabricPaint, AreaTool, DragTool, SelectTool, RectTool, LineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
+    const { FabricPaint, AreaTool, DragTool, SelectTool, RectTool, LineTool, PolylineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
     const cameraBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAUCAYAAABmvqYOAAACsUlEQVR4AbRUW08TQRg9M7vbmy1YrFDk8sADJl5SNFpIGiDGRBISisToL9CE+KDRmPgi/gATY0z4A8ZnnohibCRCVC7aSCCioKigRNS2JNKyrbQdZ6YrgW4bXuhmzzfzne/M2dnZmaX+wTHdPzjOdhsnB8f7KQOJowQXA0tRApYogTf4rJMUjJTEnFGSpIyw0iwL4+bxWJTGI7+x29Bjv3TqrPDEnZ79yIdVVUycs5DOohXU2d2eBco/5grHtptl0vgbi2zjCiXZVBIbq9FCJRAoEUoYm4LpIiamIEEVECrmZ66mrNZZyqCM55eIosB2oC6fNuVU02CprDbxfI/PTHf4EvR10D/Ct+P1LNhEMhZZSSx9TccXP0P/8R2JhbkdoS9/g9ALbKwn5rnxM8Jot3iifKfJYPM9gF2JjY3+jLwcVqOvniM6EkJ0+PHOGH0Kqedj4nPvXvzJZnq435dNc9FJg64SVdVFX6LIWsra1rBFR22OtblgYPPcyJkLrQJ1WbHZY6IvoWpgslM8yDrX/Vc4vNVhECJpwW2ah7tOrFsrKkOClCAEsDmKPkA68DpIzkJ1lr3X3J5pOdYIuYqR2I/6Hmmu8hkjBcSsHC4wixVMUcH41pMtz8F5WTfEjtr6UEyJfjBS2VAZjTDV1fLR7fPfpKq2alCAWFOqApoFEKaqaG053hDZqmqGypqO3f3U2ZkyKNlQGbeEmcvnh1yNjdfs3tonfL+vgZ9CsCw0jnKrBhAA67lvZnHvm9xT3zDgbe+4EQ62LvHKtttkLqrzt64+cAdO91a2n+mDoqaRyWAjk0VCTwLpNMAPmd1bE6rq6L7jDjT3TpxtmRXj8lHQXIjengssTl/sue9qOt7mPOzrcx481G9raHzoPNJ0W/PWXdrb2nbhTbBlINx1quhP6B8AAAD//7KfP7kAAAAGSURBVAMAHm58isoK8SwAAAAASUVORK5CYII='
     const container = document.getElementById('canvas-container')
     const board = new FabricPaint('#canvas-container', {
@@ -191,17 +192,27 @@
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
       backgroundColor: 'transparent',
-      defaultShowHelpers: true
+      defaultShowHelpers: false
     }).init()
 
     board
       .registerTool('select', new SelectTool())
-      .registerTool('line', new LineTool())
-      .registerTool('area', new AreaTool({
-        // continueDraw: false
+      .registerTool('line', new LineTool({
+        continueDraw: true
       }))
-      .registerTool('curve', new CurveTool())
-      .registerTool('rect', new RectTool())
+      .registerTool('polyline', new PolylineTool({
+        continueDraw: true
+      }))
+      .registerTool('area', new AreaTool({
+        continueDraw: true,
+        enableFill: false
+      }))
+      .registerTool('curve', new CurveTool({
+        enableFill: false
+      }))
+      .registerTool('rect', new RectTool({
+        enableFill: false
+      }))
       .registerTool('text', new TextTool({
         fill: '#0000BF'
       }))
@@ -210,8 +221,8 @@
       .setTool('select')
 
     const toolbar = new Toolbar(board, {
-      tools: ['select', 'drag', 'area', 'rect', 'undo', 'redo', 'helpers'],
-      // tools: ['lineColor', 'fillColor', 'drag', 'select', 'line', 'area', 'rect', 'curve', 'image', 'helpers', 'undo', 'redo'],
+      // tools: ['select', 'drag', 'area', 'rect', 'undo', 'redo', 'helpers'],
+      tools: ['lineColor', 'fillColor', 'drag', 'select', 'line', 'polyline', 'area', 'rect', 'curve', 'image', 'helpers', 'undo', 'redo'],
       visible: true
     }).init()
 
@@ -227,6 +238,14 @@
 
     board.on('line:clicked', (data) => {
       console.log('直线已选中:', data)
+    })
+
+    board.on('polyline:created', (data) => {
+      console.log('折线已创建:', data)
+    })
+
+    board.on('polyline:clicked', (data) => {
+      console.log('折线已选中:', data)
     })
 
     board.on('area:created', (data) => {
@@ -487,10 +506,64 @@
       radius: 3,
       displayDuration: 3000,
       deleteOld: true,
-      // markerBase64: cameraBase64
+      fontSize: 12,
+      // pathType: 'line',
+      markerBase64: cameraBase64,
+      showMovingMarker: false
     })
     let realPersonData = []
     let wsSimulationTimer = null
+
+    const yidDemoInitialPersons = [
+      {
+        id: '11',
+        name: '原始人员A',
+        x: 120,
+        y: 120,
+        lineColor: '#ff4d4f',
+        status: ''
+      },
+      {
+        id: '22',
+        name: '普通人员C',
+        x: 280,
+        y: 120,
+        lineColor: '#13c2c2',
+        status: ''
+      }
+    ]
+
+    const yidDemoTransformedPersons = [
+      {
+        id: '101',
+        yid: '11',
+        name: '变换后人员B',
+        x: 380,
+        y: 260,
+        lineColor: '#1677ff',
+        status: 'climbing'
+      },
+      {
+        id: '22',
+        name: '普通人员C-更新',
+        x: 320,
+        y: 150,
+        lineColor: '#13c2c2',
+        status: ''
+      },
+      {
+        id: '33',
+        name: '新增人员D',
+        x: 520,
+        y: 220,
+        lineColor: '#fa8c16',
+        status: 'climbing'
+      }
+    ]
+
+    function clonePersonList(persons) {
+      return persons.map(person => ({ ...person }))
+    }
 
     // 加载真实人员数据
     async function loadRealPersonData() {
@@ -510,7 +583,8 @@
               x: parseInt(person.x),
               y: parseInt(person.y),
               lineColor: colors[colorIndex % colors.length],
-              status: person.behavior
+              status: person.behavior,
+              // base64: sampleImageBase64
             })
             colorIndex++
           })
@@ -521,6 +595,20 @@
       } catch (error) {
         console.error('加载人员数据失败:', error)
       }
+    }
+
+    async function runYidTransformDemo() {
+      stopSimulateWebSocket()
+
+      realPersonData = clonePersonList(yidDemoInitialPersons)
+      await tracker.createMultiplePersons(realPersonData)
+      console.log('yid 测试第一帧已加载:', realPersonData)
+
+      setTimeout(async () => {
+        realPersonData = clonePersonList(yidDemoTransformedPersons)
+        await tracker.createMultiplePersons(realPersonData)
+        console.log('yid 测试第二帧已加载，应看到 11 从原位置移动到 101:', realPersonData)
+      }, 1500)
     }
 
     // 模拟WebSocket实时数据更新
@@ -570,10 +658,18 @@
       const person = realPersonData[0]
       const traces = [
         { x: person.x, y: person.y },
-        { x: person.x + 100, y: person.y - 50 },
-        { x: person.x + 200, y: person.y + 30 },
-        { x: person.x + 300, y: person.y - 20 },
-        { x: person.x + 400, y: person.y + 50 }
+        { x: person.x + 10, y: person.y - 50 },
+        { x: person.x + 40, y: person.y + 30 },
+        { x: person.x + 70, y: person.y - 20 },
+        { x: person.x + 110, y: person.y + 50 },
+        { x: person.x + 140, y: person.y - 50 },
+        { x: person.x + 170, y: person.y + 30 },
+        { x: person.x + 200, y: person.y - 20 },
+        { x: person.x + 240, y: person.y + 50 },
+        { x: person.x + 280, y: person.y - 50 },
+        { x: person.x + 320, y: person.y + 30 },
+        { x: person.x + 350, y: person.y - 20 },
+        { x: person.x + 420, y: person.y + 50 }
       ]
 
       tracker.createPersonTraces(person.id, person, traces)

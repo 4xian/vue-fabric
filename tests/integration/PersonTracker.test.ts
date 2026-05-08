@@ -186,6 +186,59 @@ describe('PersonTracker', () => {
 
       expect(tracker.getAllPersonIds()).not.toContain('zero-pos')
     })
+
+    it('存在 yid 时应复用旧 marker 并迁移到新 id', async () => {
+      const clickedCallback = vi.fn()
+      eventBus.on('person:clicked', clickedCallback)
+
+      await tracker.createSinglePerson(
+        makePerson({
+          id: 'person-a',
+          name: '旧人员',
+          x: 100,
+          y: 200,
+          lineColor: '#ff0000'
+        })
+      )
+
+      const addCallCount = canvas.add.mock.calls.length
+
+      await tracker.createMultiplePersons([
+        makePerson({
+          id: 'person-b',
+          yid: 'person-a',
+          name: '新人员',
+          x: 320,
+          y: 460,
+          lineColor: '#00ff00'
+        })
+      ])
+
+      const marker = tracker.getPersonById('person-b')
+
+      expect(tracker.getPersonById('person-a')).toBeUndefined()
+      expect(tracker.getAllPersonIds()).toEqual(['person-b'])
+      expect(canvas.add.mock.calls.length).toBe(addCallCount)
+      expect(marker).toBeDefined()
+      expect(marker?.personData).toEqual(
+        expect.objectContaining({
+          id: 'person-b',
+          yid: 'person-a',
+          name: '新人员',
+          lineColor: '#00ff00'
+        })
+      )
+      expect(marker?.circle.getCenterPoint().x).toBeCloseTo(320)
+      expect(marker?.circle.getCenterPoint().y).toBeCloseTo(460)
+
+      marker?.group.fire('mousedown')
+      expect(clickedCallback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'person-b',
+          name: '新人员'
+        })
+      )
+    })
   })
 
   describe('getPersonById()', () => {

@@ -13,6 +13,7 @@ import type {
   BackgroundImageOptions,
   CurveCustomData,
   LineCustomData,
+  PolylineCustomData,
   RectCustomData,
   TraceOptions,
   ZoomOrigin,
@@ -161,7 +162,9 @@ export default class VueFabric {
     if (!this.canvas) return
     this.undoRedoManager = new UndoRedoManager(this.canvas, this.eventBus, {
       excludeTypes: [],
-      getBackgroundImage: () => this._backgroundImage
+      getBackgroundImage: () => this._backgroundImage,
+      getHelpersVisible: () => this._helpersVisible,
+      getCurrentToolName: () => this.currentToolName
     })
   }
 
@@ -386,8 +389,7 @@ export default class VueFabric {
         return tool.redo()
       }
     }
-    return false
-    // return this.undoRedoManager?.redo() ?? false
+    return this.undoRedoManager?.redo() ?? false
   }
 
   canUndo(): boolean {
@@ -396,8 +398,7 @@ export default class VueFabric {
         return true
       }
     }
-    return false
-    // return this.undoRedoManager?.canUndo() ?? false
+    return this.undoRedoManager?.canUndo() ?? false
   }
 
   canRedo(): boolean {
@@ -691,6 +692,16 @@ export default class VueFabric {
             data.label.set({ visible: true, opacity: 1 })
             this.canvas!.bringObjectToFront(data.label)
           }
+        } else if (obj.customType === CustomType.Polyline && obj.customData) {
+          const data = obj.customData as PolylineCustomData
+          data.circles?.forEach((circle: Circle) => {
+            circle.set({ visible: true, opacity: 1 })
+            this.canvas!.bringObjectToFront(circle)
+          })
+          data.labels?.forEach((label: Text) => {
+            label.set({ visible: true, opacity: 1 })
+            this.canvas!.bringObjectToFront(label)
+          })
         } else if (obj.customType === CustomType.Rect && obj.customData) {
           const data = obj.customData as RectCustomData
           if (data.widthLabel) {
@@ -749,6 +760,14 @@ export default class VueFabric {
           if (data.label) {
             data.label.set({ visible: false })
           }
+        } else if (obj.customType === CustomType.Polyline && obj.customData) {
+          const data = obj.customData as PolylineCustomData
+          data.circles?.forEach((circle: Circle) => {
+            circle.set({ visible: false })
+          })
+          data.labels?.forEach((label: Text) => {
+            label.set({ visible: false })
+          })
         } else if (obj.customType === CustomType.Rect && obj.customData) {
           const data = obj.customData as RectCustomData
           if (data.widthLabel) {
@@ -950,6 +969,21 @@ export default class VueFabric {
     this.canvas.remove(lineObj)
   }
 
+  private _removePolylineWithHelpers(
+    polylineObj: FabricObject & { customData: PolylineCustomData }
+  ): void {
+    if (!this.canvas) return
+
+    const data = polylineObj.customData
+    data.circles?.forEach((circle: Circle) => {
+      this.canvas!.remove(circle)
+    })
+    data.labels?.forEach((label: Text) => {
+      this.canvas!.remove(label)
+    })
+    this.canvas.remove(polylineObj)
+  }
+
   private _removeRectWithHelpers(rectObj: FabricObject & { customData: RectCustomData }): void {
     if (!this.canvas) return
 
@@ -989,6 +1023,9 @@ export default class VueFabric {
             break
           case CustomType.Line:
             id = (customObj.customData as LineCustomData).drawId
+            break
+          case CustomType.Polyline:
+            id = (customObj.customData as PolylineCustomData).drawId
             break
           case CustomType.Rect:
             id = (customObj.customData as RectCustomData).drawId
@@ -1268,6 +1305,9 @@ export default class VueFabric {
             case CustomType.Line:
               objId = (customObj.customData as LineCustomData).drawId
               break
+            case CustomType.Polyline:
+              objId = (customObj.customData as PolylineCustomData).drawId
+              break
             case CustomType.Rect:
               objId = (customObj.customData as RectCustomData).drawId
               break
@@ -1294,6 +1334,10 @@ export default class VueFabric {
         this._removeCurveWithHelpers(customObj as FabricObject & { customData: CurveCustomData })
       } else if (customObj.customType === CustomType.Line) {
         this._removeLineWithHelpers(customObj as FabricObject & { customData: LineCustomData })
+      } else if (customObj.customType === CustomType.Polyline) {
+        this._removePolylineWithHelpers(
+          customObj as FabricObject & { customData: PolylineCustomData }
+        )
       } else if (customObj.customType === CustomType.Rect) {
         this._removeRectWithHelpers(customObj as FabricObject & { customData: RectCustomData })
       } else {
@@ -1393,6 +1437,9 @@ export default class VueFabric {
             break
           case CustomType.Line:
             objId = (customObj.customData as LineCustomData).drawId
+            break
+          case CustomType.Polyline:
+            objId = (customObj.customData as PolylineCustomData).drawId
             break
           case CustomType.Rect:
             objId = (customObj.customData as RectCustomData).drawId
