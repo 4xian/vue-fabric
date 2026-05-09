@@ -4,17 +4,6 @@ import type { Point, PersonData, TraceOptions } from '../../types'
 import EventBus from '../core/EventBus'
 import { DEFAULT_PERSON_TRACKER_OPTIONS, CustomType } from '../utils/settings'
 
-type ZoomInvariantFabricObject = fabric.FabricObject & {
-  customType?: string
-  zoomInvariantBase?: {
-    strokeWidth?: number
-    radius?: number
-    scaleX?: number
-    scaleY?: number
-  }
-  customData?: Record<string, unknown>
-}
-
 interface ZoomInvariantAdapter {
   isEnabled: () => boolean
   getZoomFactor: () => number
@@ -56,6 +45,7 @@ export default class PersonTracker {
   private zoomInvariantAdapter?: ZoomInvariantAdapter
   private readonly _onCanvasZoomed: () => void
   private readonly _onCanvasPanned: () => void
+  private readonly _onCanvasResized: () => void
 
   constructor(
     canvas: Canvas,
@@ -100,8 +90,13 @@ export default class PersonTracker {
       this._applyZoomInvariantState()
       this.canvas.renderAll()
     }
+    this._onCanvasResized = () => {
+      this._applyZoomInvariantState()
+      this.canvas.renderAll()
+    }
     this.eventBus.on('canvas:zoomed', this._onCanvasZoomed)
     this.eventBus.on('canvas:panned', this._onCanvasPanned)
+    this.eventBus.on('canvas:resized', this._onCanvasResized)
   }
 
   async createMultiplePersons(persons: PersonData[]): Promise<void> {
@@ -1077,6 +1072,7 @@ export default class PersonTracker {
         }
       }
       accumulated += segmentLengths[i]
+      this.eventBus.off('canvas:resized', this._onCanvasResized)
     }
 
     return points[points.length - 1]

@@ -338,5 +338,28 @@ describe('PersonTracker', () => {
 
       expect(traceData.pathLine.strokeWidth).toBeCloseTo(0.5)
     })
+
+    it('re-applies zoom invariant state after canvas:resized', async () => {
+      let zoom = 2
+      tracker = new PersonTracker(
+        canvas as unknown as Canvas,
+        eventBus,
+        {},
+        {
+          isEnabled: () => true,
+          getZoomFactor: () => zoom,
+          isExcludedType: () => false
+        }
+      )
+
+      await tracker.createSinglePerson(makePerson({ status: 'climbing' }))
+      const marker = tracker.getPersonById('person-1')!
+
+      zoom = 4
+      eventBus.emit('canvas:resized')
+
+      expect(marker.group.scaleX).toBeCloseTo(0.25)
+      expect(marker.group.scaleY).toBeCloseTo(0.25)
+    })
   })
 })

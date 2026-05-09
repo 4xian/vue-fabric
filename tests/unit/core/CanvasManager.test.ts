@@ -26,6 +26,7 @@ describe('CanvasManager', () => {
       expect(manager.options.minZoom).toBe(0.2)
       expect(manager.options.maxZoom).toBe(5)
       expect(manager.options.zoomOrigin).toBe('center')
+      expect(manager.options.enableWheelZoom).toBe(false)
     })
 
     it('应该使用自定义配置初始化', () => {
@@ -33,12 +34,26 @@ describe('CanvasManager', () => {
         zoomStep: 1.5,
         minZoom: 0.5,
         maxZoom: 10,
-        zoomOrigin: 'topLeft'
+        zoomOrigin: 'topLeft',
+        enableWheelZoom: true
       })
       expect(manager.options.zoomStep).toBe(1.5)
       expect(manager.options.minZoom).toBe(0.5)
       expect(manager.options.maxZoom).toBe(10)
       expect(manager.options.zoomOrigin).toBe('topLeft')
+      expect(manager.options.enableWheelZoom).toBe(true)
+    })
+
+    it('enableWheelZoom 默认为 false 时不绑定滚轮缩放', () => {
+      manager = new CanvasManager(canvas as unknown as Canvas, eventBus)
+      expect(vi.mocked(canvas.on).mock.calls.some(call => call[0] === 'mouse:wheel')).toBe(false)
+    })
+
+    it('enableWheelZoom=true 时绑定滚轮缩放', () => {
+      manager = new CanvasManager(canvas as unknown as Canvas, eventBus, {
+        enableWheelZoom: true
+      })
+      expect(vi.mocked(canvas.on).mock.calls.some(call => call[0] === 'mouse:wheel')).toBe(true)
     })
   })
 
@@ -69,7 +84,7 @@ describe('CanvasManager', () => {
       expect(callback).toHaveBeenCalled()
     })
 
-    it('使用 center 原点应该在画布中心缩放', () => {
+    it('使用 center 原点时应该在画布中心缩放', () => {
       manager.zoomIn('center')
       const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
       expect(callArgs[0]).toEqual(
@@ -80,7 +95,19 @@ describe('CanvasManager', () => {
       )
     })
 
-    it('使用 topLeft 原点应该在左上角缩放', () => {
+    it('display 尺寸变化后 center 原点应基于当前显示中心', () => {
+      canvas.lowerCanvasEl = { clientWidth: 1200, clientHeight: 600, style: {} }
+      manager.zoomIn('center')
+      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
+      expect(callArgs[0]).toEqual(
+        expect.objectContaining({
+          x: 600,
+          y: 300
+        })
+      )
+    })
+
+    it('使用 topLeft 原点时应该在左上角缩放', () => {
       manager.zoomIn('topLeft')
       const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
       expect(callArgs[0]).toEqual(

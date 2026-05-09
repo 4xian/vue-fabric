@@ -26,6 +26,8 @@ export interface FabricPaintOptions {
   backgroundColor?: string
   hoverCursor?: string
   moveCursor?: string
+  zoomOrigin?: ZoomOrigin
+  enableWheelZoom?: boolean
   backgroundImage?: string | BackgroundImageOptions
   lineColor?: string
   fillColor?: string
@@ -60,7 +62,6 @@ export interface CanvasManagerOptions extends FabricPaintOptions {
   maxZoom?: number
   expandMargin?: number
   expandSize?: number
-  zoomOrigin?: ZoomOrigin
 }
 
 export interface BaseToolOptions {

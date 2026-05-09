@@ -60,9 +60,12 @@ export default class VueFabric {
   private _bgImageOptions: BackgroundImageOptions | null
   private _personTracker: PersonTracker | null
   private _resizeObserver: ResizeObserver | null
+  private _resizeDebounceTimer: number | null
   private _originalWidth: number
   private _originalHeight: number
   private _pixelRatio: number
+  private _displayWidth: number
+  private _displayHeight: number
 
   constructor(container: string | HTMLElement, options: FabricPaintOptions = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container
@@ -81,9 +84,12 @@ export default class VueFabric {
     this._bgImageOptions = null
     this._personTracker = null
     this._resizeObserver = null
+    this._resizeDebounceTimer = null
     this._originalWidth = this.options.width
     this._originalHeight = this.options.height
     this._pixelRatio = this._getPixelRatio()
+    this._displayWidth = this.options.width
+    this._displayHeight = this.options.height
   }
 
   private _getPixelRatio(): number {
@@ -94,14 +100,74 @@ export default class VueFabric {
     return ratio
   }
 
+  private _getLogicalCanvasSize(): { width: number; height: number } {
+    return {
+      width: this._originalWidth,
+      height: this._originalHeight
+    }
+  }
+
+  private _setCanvasDisplaySize(width: number, height: number): void {
+    this._displayWidth = width
+    this._displayHeight = height
+
+    if (!this.canvas) return
+
+    this.canvas.setDimensions({ width, height }, { cssOnly: true })
+  }
+
+  private _getCurrentDisplaySize(): { width: number; height: number } {
+    return {
+      width: this._displayWidth,
+      height: this._displayHeight
+    }
+  }
+
+  private _getFitViewportTransform(
+    displayWidth: number,
+    displayHeight: number,
+    origin: ResizeOrigin = (this.options.zoomOrigin as ResizeOrigin) || 'center'
+  ): [number, number, number, number, number, number] {
+    const logical = this._getLogicalCanvasSize()
+    const scale = Math.min(displayWidth / logical.width, displayHeight / logical.height)
+    const tx = origin === 'center' ? (displayWidth - logical.width * scale) / 2 : 0
+    const ty = origin === 'center' ? (displayHeight - logical.height * scale) / 2 : 0
+    return [scale, 0, 0, scale, tx, ty]
+  }
+
+  private _syncViewportPresentation(): void {
+    this._updateBackgroundImageTransform()
+    this._applyZoomInvariantVisuals()
+    this._ensureBackgroundImageLocked()
+    this.canvas?.renderAll()
+  }
+
+  private _shouldResetToViewportFit(): boolean {
+    const logical = this._getLogicalCanvasSize()
+    const display = this._getCurrentDisplaySize()
+    return (
+      this.options.autoResize ||
+      display.width !== logical.width ||
+      display.height !== logical.height
+    )
+  }
+
+  private _applyCustomPixelRatio(): void {
+    if (!this.canvas) return
+
+    const retinaScaling = this._pixelRatio > 1 ? this._pixelRatio : 1
+    this.canvas.enableRetinaScaling = retinaScaling > 1
+    ;(this.canvas as Canvas & { getRetinaScaling: () => number }).getRetinaScaling = () =>
+      retinaScaling
+  }
+
   private _shouldLockObjectVisualSizeOnZoom(): boolean {
     return !!this.options.lockObjectVisualSizeOnZoom
   }
 
   private _getZoomInvariantFactor(): number {
     const rawZoom = this.canvasManager?.getZoom() ?? this.canvas?.getZoom() ?? 1
-    const normalizedZoom = rawZoom / (this._pixelRatio || 1)
-    return normalizedZoom > 0 ? normalizedZoom : 1
+    return rawZoom > 0 ? rawZoom : 1
   }
 
   private _getEffectiveBackgroundVpt(options?: BackgroundImageOptions | null): boolean {
@@ -311,6 +377,12 @@ export default class VueFabric {
 
     if (this.options.autoResize) {
       this.enableAutoResize()
+      this.resize(
+        this.container?.clientWidth || this.options.width,
+        this.container?.clientHeight || this.options.height,
+        undefined,
+        (this.options.zoomOrigin as ResizeOrigin) || 'center'
+      )
     }
 
     return this
@@ -325,11 +397,10 @@ export default class VueFabric {
 
     const logicalWidth = this.options.width
     const logicalHeight = this.options.height
-    const ratio = this._pixelRatio
 
     this.canvas = new fabric.Canvas(canvasEl, {
-      width: logicalWidth * ratio,
-      height: logicalHeight * ratio,
+      width: logicalWidth,
+      height: logicalHeight,
       backgroundColor: this.options.backgroundColor,
       hoverCursor: this.options.hoverCursor,
       moveCursor: this.options.moveCursor,
@@ -340,31 +411,12 @@ export default class VueFabric {
       stopContextMenu: true,
       fireRightClick: true,
       skipOffscreen: false,
-      enableRetinaScaling: false,
+      enableRetinaScaling: this._pixelRatio > 1,
       imageSmoothingEnabled: true
     })
 
-    const wrapper = this.canvas.wrapperEl
-    if (wrapper) {
-      wrapper.style.width = `${logicalWidth}px`
-      wrapper.style.height = `${logicalHeight}px`
-    }
-
-    const upperCanvas = this.canvas.upperCanvasEl
-    const lowerCanvas = this.canvas.lowerCanvasEl
-
-    if (upperCanvas) {
-      upperCanvas.style.width = `${logicalWidth}px`
-      upperCanvas.style.height = `${logicalHeight}px`
-    }
-    if (lowerCanvas) {
-      lowerCanvas.style.width = `${logicalWidth}px`
-      lowerCanvas.style.height = `${logicalHeight}px`
-    }
-
-    if (ratio !== 1) {
-      this.canvas.setZoom(ratio)
-    }
+    this._applyCustomPixelRatio()
+    this._setCanvasDisplaySize(logicalWidth, logicalHeight)
   }
 
   private _initCanvasManager(): void {
@@ -422,17 +474,15 @@ export default class VueFabric {
     })
 
     this.eventBus.on('canvas:zoomed', () => {
-      this._updateBackgroundImageTransform()
-      this._applyZoomInvariantVisuals()
-      this._ensureBackgroundImageLocked()
-      this.canvas?.renderAll()
+      this._syncViewportPresentation()
     })
 
     this.eventBus.on('canvas:panned', () => {
-      this._updateBackgroundImageTransform()
-      this._applyZoomInvariantVisuals()
-      this._ensureBackgroundImageLocked()
-      this.canvas?.renderAll()
+      this._syncViewportPresentation()
+    })
+
+    this.eventBus.on('canvas:resized', () => {
+      this._syncViewportPresentation()
     })
   }
 
@@ -484,7 +534,17 @@ export default class VueFabric {
   }
 
   resetZoom(): this {
-    this.canvasManager?.resetZoom()
+    if (this._shouldResetToViewportFit()) {
+      const display = this._getCurrentDisplaySize()
+      this.resize(
+        display.width,
+        display.height,
+        undefined,
+        (this.options.zoomOrigin as ResizeOrigin) || 'center'
+      )
+    } else {
+      this.canvasManager?.resetZoom()
+    }
     return this
   }
 
@@ -505,7 +565,7 @@ export default class VueFabric {
     width?: number,
     height?: number,
     reference?: ResizeReference,
-    origin: ResizeOrigin = 'topLeft'
+    origin: ResizeOrigin = (this.options.zoomOrigin as ResizeOrigin) || 'center'
   ): this {
     if (!this.canvas || !this.container) return this
 
@@ -514,51 +574,13 @@ export default class VueFabric {
 
     if (newWidth <= 0 || newHeight <= 0) return this
 
-    const ratio = this._pixelRatio
-    const oldLogicalWidth = this.canvas.getWidth() / ratio
-    const oldLogicalHeight = this.canvas.getHeight() / ratio
+    const logical = reference ?? this._getLogicalCanvasSize()
+    const transform = this._getFitViewportTransform(newWidth, newHeight, origin)
+    const scaleX = transform[0]
+    const scaleY = transform[3]
 
-    if (oldLogicalWidth === newWidth && oldLogicalHeight === newHeight) return this
-
-    const scaleX = newWidth / (reference ? reference.width : oldLogicalWidth)
-    const scaleY = newHeight / (reference ? reference.height : oldLogicalHeight)
-
-    const objects = this.canvas.getObjects()
-    objects.forEach(obj => {
-      if (obj === this._backgroundImage) return
-
-      obj.scaleX = (obj.scaleX || 1) * scaleX
-      obj.scaleY = (obj.scaleY || 1) * scaleY
-      obj.left = (obj.left || 0) * scaleX
-      obj.top = (obj.top || 0) * scaleY
-      obj.setCoords()
-    })
-
-    if (this._backgroundImage) {
-      this._backgroundImage.scaleX = (this._backgroundImage.scaleX || 1) * scaleX
-      this._backgroundImage.scaleY = (this._backgroundImage.scaleY || 1) * scaleY
-    }
-
-    this.canvas.setDimensions({ width: newWidth * ratio, height: newHeight * ratio })
-
-    const wrapper = this.canvas.wrapperEl
-    if (wrapper) {
-      wrapper.style.width = `${newWidth}px`
-      wrapper.style.height = `${newHeight}px`
-    }
-
-    const upperCanvas = this.canvas.upperCanvasEl
-    const lowerCanvas = this.canvas.lowerCanvasEl
-    if (upperCanvas) {
-      upperCanvas.style.width = `${newWidth}px`
-      upperCanvas.style.height = `${newHeight}px`
-    }
-    if (lowerCanvas) {
-      lowerCanvas.style.width = `${newWidth}px`
-      lowerCanvas.style.height = `${newHeight}px`
-    }
-
-    this.canvas.renderAll()
+    this._setCanvasDisplaySize(newWidth, newHeight)
+    this.canvas.setViewportTransform(transform)
 
     this.eventBus.emit('canvas:resized', {
       width: newWidth,
@@ -579,7 +601,19 @@ export default class VueFabric {
         if (entry.target === this.container) {
           const { width, height } = entry.contentRect
           if (width > 0 && height > 0) {
-            this.resize(width, height)
+            if (this._resizeDebounceTimer !== null) {
+              clearTimeout(this._resizeDebounceTimer)
+            }
+
+            this._resizeDebounceTimer = window.setTimeout(() => {
+              this._resizeDebounceTimer = null
+              this.resize(
+                width,
+                height,
+                undefined,
+                (this.options.zoomOrigin as ResizeOrigin) || 'center'
+              )
+            }, 500)
           }
         }
       }
@@ -590,6 +624,11 @@ export default class VueFabric {
   }
 
   disableAutoResize(): this {
+    if (this._resizeDebounceTimer !== null) {
+      clearTimeout(this._resizeDebounceTimer)
+      this._resizeDebounceTimer = null
+    }
+
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
       this._resizeObserver = null
@@ -753,8 +792,6 @@ export default class VueFabric {
     const vpt = this.canvas.viewportTransform
     if (!vpt) return
 
-    const canvasWidth = this.canvas.width || this.options.width
-    const canvasHeight = this.canvas.height || this.options.height
     const img = this._backgroundImage
     const imgWidth = img.width || 1
     const imgHeight = img.height || 1
@@ -762,6 +799,11 @@ export default class VueFabric {
 
     let baseScaleX = 1
     let baseScaleY = 1
+    const logical = this._getLogicalCanvasSize()
+    const display = this._getCurrentDisplaySize()
+    const useViewport = this._getEffectiveBackgroundVpt(this._bgImageOptions)
+    const canvasWidth = useViewport ? logical.width : display.width
+    const canvasHeight = useViewport ? logical.height : display.height
     let baseLeft = 0
     let baseTop = 0
 
@@ -802,7 +844,7 @@ export default class VueFabric {
         break
     }
 
-    if (this._getEffectiveBackgroundVpt(this._bgImageOptions)) {
+    if (useViewport) {
       img.set({
         scaleX: baseScaleX,
         scaleY: baseScaleY,
@@ -862,8 +904,7 @@ export default class VueFabric {
         this.canvas?.getObjects().forEach(obj => {
           this._initializeZoomInvariantBase(obj)
         })
-        this._applyZoomInvariantVisuals()
-        this.canvas?.renderAll()
+        this._syncViewportPresentation()
         this.eventBus.emit('canvas:loaded')
       })
   }

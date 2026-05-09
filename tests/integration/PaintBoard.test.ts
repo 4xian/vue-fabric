@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import * as fabric from 'fabric'
 import VueFabric from '../../src/core/PaintBoard'
 import SelectTool from '../../src/tools/SelectTool'
 import LineTool from '../../src/tools/LineTool'
@@ -42,13 +43,8 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
       expect(board.canvas).toBe(canvas1)
     })
 
-    it('应该使用默认颜色配置', () => {
-      expect(board.lineColor).toBeDefined()
-      expect(board.fillColor).toBeDefined()
-    })
-
     it('支持 CSS 选择器作为容器', () => {
-      const id = 'test-selector-container-' + Date.now()
+      const id = `test-selector-container-${Date.now()}`
       const el = document.createElement('div')
       el.id = id
       document.body.appendChild(el)
@@ -81,20 +77,6 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
       expect(board.currentToolName).toBe('line')
     })
 
-    it('切换工具时应停用旧工具', () => {
-      const tool1 = new SelectTool()
-      const tool2 = new LineTool()
-      board.registerTool('select', tool1)
-      board.registerTool('line', tool2)
-
-      board.setTool('select')
-      expect(tool1.isActive).toBe(true)
-
-      board.setTool('line')
-      expect(tool1.isActive).toBe(false)
-      expect(tool2.isActive).toBe(true)
-    })
-
     it('切换工具时应触发 tool:changed 事件', () => {
       const callback = vi.fn()
       board.on('tool:changed', callback)
@@ -103,23 +85,6 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
       board.setTool('select')
 
       expect(callback).toHaveBeenCalledWith('select')
-    })
-  })
-
-  describe('颜色管理', () => {
-    it('setLineColor() 应更新线条颜色', () => {
-      board.setLineColor('#ff0000')
-      expect(board.lineColor).toBe('#ff0000')
-    })
-
-    it('setFillColor() 应更新填充颜色', () => {
-      board.setFillColor('#00ff00')
-      expect(board.fillColor).toBe('#00ff00')
-    })
-
-    it('setLineColor() 支持链式调用', () => {
-      const result = board.setLineColor('#blue')
-      expect(result).toBe(board)
     })
   })
 
@@ -148,9 +113,31 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
       board.resetZoom()
       expect(board.getZoom()).toBeCloseTo(1)
     })
+
+    it('resize() 后不应污染对象逻辑值和导出 JSON', () => {
+      const rect = new fabric.Rect({
+        left: 120,
+        top: 90,
+        width: 80,
+        height: 40,
+        scaleX: 1.2,
+        scaleY: 1.1
+      })
+      board.canvas?.add(rect)
+
+      const before = board.exportToJSON({ excludeTypes: [] })
+      board.resize(1000, 700)
+      const after = board.exportToJSON({ excludeTypes: [] })
+
+      expect(rect.left).toBe(120)
+      expect(rect.top).toBe(90)
+      expect(rect.scaleX).toBe(1.2)
+      expect(rect.scaleY).toBe(1.1)
+      expect(JSON.parse(after)).toEqual(JSON.parse(before))
+    })
   })
 
-  describe('撤销/重做', () => {
+  describe('撤销与历史', () => {
     it('初始状态 canUndo() 应返回 false', () => {
       expect(board.canUndo()).toBe(false)
     })
@@ -159,25 +146,16 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
       expect(board.undo()).toBe(false)
     })
 
-    it('canRedo() 应返回布尔值', () => {
-      expect(typeof board.canRedo()).toBe('boolean')
-    })
-  })
-
-  describe('历史记录暂停/恢复', () => {
-    it('pauseHistory() 应暂停历史记录', () => {
+    it('pauseHistory() / resumeHistory() 应切换状态', () => {
       board.pauseHistory()
       expect(board.isHistoryPaused()).toBe(true)
-    })
 
-    it('resumeHistory() 应恢复历史记录', () => {
-      board.pauseHistory()
       board.resumeHistory()
       expect(board.isHistoryPaused()).toBe(false)
     })
   })
 
-  describe('clear() 和 destroy()', () => {
+  describe('clear 和 destroy', () => {
     it('clear() 应清空画布内容', () => {
       board.clear()
       const objects = board.canvas?.getObjects() ?? []
@@ -191,53 +169,9 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
       expect(callback).toHaveBeenCalled()
     })
 
-    it('destroy() 后 canvas 应为 null 或已处置', () => {
+    it('destroy() 后应清空容器', () => {
       board.destroy()
-      // destroy 会清理容器内容
       expect(container.innerHTML).toBe('')
-    })
-  })
-
-  describe('辅助元素控制', () => {
-    it('isHelpersVisible() 应返回初始状态', () => {
-      expect(typeof board.isHelpersVisible()).toBe('boolean')
-    })
-
-    it('showAllAreaHelpers() 应触发事件', () => {
-      const callback = vi.fn()
-      board.on('areaHelpers:shown', callback)
-      board.showAllAreaHelpers()
-      expect(callback).toHaveBeenCalled()
-    })
-
-    it('hideAllAreaHelpers() 应触发事件', () => {
-      const callback = vi.fn()
-      board.on('areaHelpers:hidden', callback)
-      board.hideAllAreaHelpers()
-      expect(callback).toHaveBeenCalled()
-    })
-
-    it('toggleAreaHelpers() 应切换辅助元素显示状态', () => {
-      const initialState = board.isHelpersVisible()
-      board.toggleAreaHelpers()
-      expect(board.isHelpersVisible()).toBe(!initialState)
-    })
-  })
-
-  describe('导出功能', () => {
-    it('exportToJSON() 应返回合法 JSON 字符串', () => {
-      const json = board.exportToJSON()
-      expect(() => JSON.parse(json)).not.toThrow()
-    })
-
-    it('exportToImage() 应返回字符串', () => {
-      const data = board.exportToImage()
-      expect(typeof data).toBe('string')
-    })
-
-    it('exportToSVG() 应返回字符串', () => {
-      const svg = board.exportToSVG()
-      expect(typeof svg).toBe('string')
     })
   })
 

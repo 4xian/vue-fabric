@@ -159,4 +159,19 @@ describe('VueFabric zoom invariant integration', () => {
 
     selectiveBoard.destroy()
   })
+
+  it('re-applies zoom invariant visuals after resize fitViewport recalculation', () => {
+    const line = new fabric.Line([0, 0, 100, 0], {
+      stroke: '#000',
+      strokeWidth: 2
+    })
+    ;(line as fabric.Line & { customType: string }).customType = CustomType.Line
+
+    board.canvas!.add(line)
+    board.resize(1000, 700)
+
+    expect(line.strokeWidth).toBeCloseTo(2 / (700 / 600))
+    expect(line.x1).toBe(0)
+    expect(line.x2).toBe(100)
+  })
 })

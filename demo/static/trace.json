@@ -30,7 +30,7 @@
       "y": "448"
     },
     {
-      "behavior": "climbing",
+      "behavior": "",
       "color": "",
       "monitorId": "1999024567884189697",
       "personId": "75",
@@ -41,7 +41,7 @@
   ],
   "1999318350609780736": [
     {
-      "behavior": "climbing",
+      "behavior": "",
       "color": "",
       "monitorId": "1999318350609780736",
       "personId": "01720",
@@ -52,7 +52,7 @@
   ],
   "1999318350593003524": [
     {
-      "behavior": "climbing",
+      "behavior": "",
       "color": "",
       "monitorId": "1999318350593003524",
       "personId": "00167",

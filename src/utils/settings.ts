@@ -101,6 +101,8 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   height: 800,
   hoverCursor: 'default',
   moveCursor: 'pointer',
+  zoomOrigin: 'center',
+  enableWheelZoom: false,
   backgroundColor: 'transparent',
   lineColor: 'rgba(2, 167, 240, 1)',
   fillColor: 'rgba(128, 255, 255, 1)',
@@ -122,7 +124,8 @@ export const DEFAULT_CANVAS_MANAGER_OPTIONS: CanvasManagerOptions = {
   maxZoom: 5,
   expandMargin: 50,
   expandSize: 200,
-  zoomOrigin: 'center'
+  zoomOrigin: 'center',
+  enableWheelZoom: false
 }
 
 // 默认基础工具配置

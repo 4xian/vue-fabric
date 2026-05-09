@@ -19,7 +19,13 @@ export default class CanvasManager {
   public options: Required<
     Pick<
       CanvasManagerOptions,
-      'zoomStep' | 'minZoom' | 'maxZoom' | 'expandMargin' | 'expandSize' | 'zoomOrigin'
+      | 'zoomStep'
+      | 'minZoom'
+      | 'maxZoom'
+      | 'expandMargin'
+      | 'expandSize'
+      | 'zoomOrigin'
+      | 'enableWheelZoom'
     >
   >
   private isDragging: boolean
@@ -36,7 +42,8 @@ export default class CanvasManager {
       maxZoom: options.maxZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.maxZoom!,
       expandMargin: options.expandMargin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandMargin!,
       expandSize: options.expandSize ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandSize!,
-      zoomOrigin: options.zoomOrigin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomOrigin!
+      zoomOrigin: options.zoomOrigin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomOrigin!,
+      enableWheelZoom: options.enableWheelZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.enableWheelZoom!
     }
     this.isDragging = false
     this.lastPosX = 0
@@ -46,7 +53,9 @@ export default class CanvasManager {
   }
 
   private _bindEvents(): void {
-    // this.canvas.on('mouse:wheel', this._onMouseWheel.bind(this))
+    if (this.options.enableWheelZoom) {
+      this.canvas.on('mouse:wheel', this._onMouseWheel.bind(this))
+    }
     // this.canvas.on('mouse:down', this._onMouseDown.bind(this))
     // this.canvas.on('mouse:move', this._onMouseMove.bind(this))
     // this.canvas.on('mouse:up', this._onMouseUp.bind(this))
@@ -61,7 +70,8 @@ export default class CanvasManager {
     let zoom = this.canvas.getZoom()
     zoom *= Math.pow(0.999, delta)
     zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
-    this.canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom)
+    const point = this._getZoomPoint()
+    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
     opt.e.preventDefault()
     opt.e.stopPropagation()
     this.eventBus.emit('canvas:zoomed', zoom)
@@ -167,15 +177,32 @@ export default class CanvasManager {
   }
 
   resetZoom(): void {
-    this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
-    this.eventBus.emit('canvas:zoomed', 1)
+    this.setViewportTransform([1, 0, 0, 1, 0, 0], 1)
+  }
+
+  private _getCanvasDisplaySize(): { width: number; height: number } {
+    const lowerCanvas = this.canvas.lowerCanvasEl
+    const wrapper = this.canvas.wrapperEl
+    const width = lowerCanvas?.clientWidth || wrapper?.clientWidth || this.canvas.getWidth()
+    const height = lowerCanvas?.clientHeight || wrapper?.clientHeight || this.canvas.getHeight()
+
+    return { width, height }
   }
 
   private _getCanvasCenter(): { x: number; y: number } {
+    const { width, height } = this._getCanvasDisplaySize()
     return {
-      x: this.canvas.getWidth() / 2,
-      y: this.canvas.getHeight() / 2
+      x: width / 2,
+      y: height / 2
     }
+  }
+
+  setViewportTransform(
+    transform: [number, number, number, number, number, number],
+    zoomPayload?: number | ZoomScale
+  ): void {
+    this.canvas.setViewportTransform(transform)
+    this.eventBus.emit('canvas:zoomed', zoomPayload ?? transform[0])
   }
 
   private _getZoomPoint(origin?: ZoomOrigin): { x: number; y: number } {
@@ -204,9 +231,9 @@ export default class CanvasManager {
         newVpt[3] = scaleY
         newVpt[4] = point.x - point.x * scaleX
         newVpt[5] = point.y - point.y * scaleY
-        this.canvas.setViewportTransform(newVpt)
+        this.setViewportTransform(newVpt, { x: scaleX, y: scaleY })
+        return
       }
-      this.eventBus.emit('canvas:zoomed', { x: scaleX, y: scaleY })
     }
   }
 

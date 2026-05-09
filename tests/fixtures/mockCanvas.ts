@@ -9,6 +9,9 @@ export interface MockCanvas {
   zoomToPoint: (point: { x: number; y: number }, zoom: number) => void
   setViewportTransform: (transform: number[]) => void
   viewportTransform: number[]
+  lowerCanvasEl?: { clientWidth: number; clientHeight: number; style?: Record<string, string> }
+  upperCanvasEl?: { clientWidth: number; clientHeight: number; style?: Record<string, string> }
+  wrapperEl?: { clientWidth: number; clientHeight: number; style?: Record<string, string> }
   getObjects: () => FabricObject[]
   add: (...objects: FabricObject[]) => void
   remove: (...objects: FabricObject[]) => void
@@ -35,6 +38,8 @@ export interface MockCanvas {
   _zoom: number
   _width: number
   _height: number
+  _displayWidth: number
+  _displayHeight: number
 }
 
 export function createMockCanvas(options: {
@@ -47,6 +52,8 @@ export function createMockCanvas(options: {
   let zoom = options.zoom ?? 1
   let width = options.width ?? 800
   let height = options.height ?? 800
+  let displayWidth = width
+  let displayHeight = height
   let viewportTransform = [1, 0, 0, 1, 0, 0]
 
   const canvas: MockCanvas = {
@@ -55,14 +62,22 @@ export function createMockCanvas(options: {
     getZoom: vi.fn(() => zoom),
     setZoom: vi.fn((z: number) => {
       zoom = z
+      canvas._zoom = z
     }),
     zoomToPoint: vi.fn((point: { x: number; y: number }, z: number) => {
       zoom = z
+      canvas._zoom = z
     }),
     setViewportTransform: vi.fn((transform: number[]) => {
       viewportTransform = [...transform]
+      zoom = transform[0]
+      canvas._zoom = zoom
+      canvas.viewportTransform = [...transform]
     }),
     viewportTransform,
+    lowerCanvasEl: { clientWidth: displayWidth, clientHeight: displayHeight, style: {} },
+    upperCanvasEl: { clientWidth: displayWidth, clientHeight: displayHeight, style: {} },
+    wrapperEl: { clientWidth: displayWidth, clientHeight: displayHeight, style: {} },
     getObjects: vi.fn(() => objects),
     add: vi.fn((...objs: FabricObject[]) => {
       objects.push(...objs)
@@ -117,15 +132,44 @@ export function createMockCanvas(options: {
     selection: true,
     defaultCursor: 'default',
     requestRenderAll: vi.fn(),
-    setDimensions: vi.fn((dimensions: { width: number; height: number }) => {
-      width = dimensions.width
-      height = dimensions.height
-    }),
+    setDimensions: vi.fn(
+      (
+        dimensions: { width: number; height: number },
+        options?: { cssOnly?: boolean; backstoreOnly?: boolean }
+      ) => {
+        if (!options?.cssOnly) {
+          width = dimensions.width
+          height = dimensions.height
+          canvas._width = width
+          canvas._height = height
+        }
+        if (!options?.backstoreOnly) {
+          displayWidth = dimensions.width
+          displayHeight = dimensions.height
+          canvas._displayWidth = displayWidth
+          canvas._displayHeight = displayHeight
+          if (canvas.lowerCanvasEl) {
+            canvas.lowerCanvasEl.clientWidth = displayWidth
+            canvas.lowerCanvasEl.clientHeight = displayHeight
+          }
+          if (canvas.upperCanvasEl) {
+            canvas.upperCanvasEl.clientWidth = displayWidth
+            canvas.upperCanvasEl.clientHeight = displayHeight
+          }
+          if (canvas.wrapperEl) {
+            canvas.wrapperEl.clientWidth = displayWidth
+            canvas.wrapperEl.clientHeight = displayHeight
+          }
+        }
+      }
+    ),
     _eventHandlers: eventHandlers,
     _objects: objects,
     _zoom: zoom,
     _width: width,
-    _height: height
+    _height: height,
+    _displayWidth: displayWidth,
+    _displayHeight: displayHeight
   }
 
   return canvas
