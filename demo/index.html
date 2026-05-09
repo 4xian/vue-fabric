@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vue-Fabric</title>
-  <link rel="icon" href="./static/favicon.ico">
+  <link rel="icon" href="/demo/static/favicon.ico">
   <style>
     * {
       margin: 0;
@@ -29,8 +29,7 @@
       border: 1px solid #ccc;
       overflow: hidden;
       height: 600px;
-      background: url(../demo/static/draw-bg.png) left top no-repeat;
-      background-size: 100% 100%;
+      background: #000;
     }
 
     .toolbar-top {
@@ -98,6 +97,13 @@
 <body>
   <div class="toolbar-top">
     <div class="toolbar-row">
+      <button onclick="loadZoomInvariantDemo()">Lock Zoom Demo</button>
+      <button onclick="setZoomInvariantExcludes([])">全补偿</button>
+      <button onclick="setZoomInvariantExcludes([CustomType.Text, CustomType.Image])">排除文字/图片</button>
+      <button onclick="loadPersonTrackerZoomDemo()">人员补偿示例</button>
+      <button onclick="setLockDemoZoom(0.5)">0.5x</button>
+      <button onclick="setLockDemoZoom(1)">1x</button>
+      <button onclick="setLockDemoZoom(2)">2x</button>
       <button onclick="board.setTool('select')">选择</button>
       <!-- <button onclick="batchDelete()">批量删除</button> -->
       <button onclick="addCustomText()">新增文字</button>
@@ -183,7 +189,7 @@
   <script src="/demo/static/fabric.js"></script>
   <script src="/dist/vue-fabric.umd.js"></script>
   <script>
-    const { FabricPaint, AreaTool, DragTool, SelectTool, RectTool, LineTool, PolylineTool, TextTool, CurveTool, ImageTool, Toolbar } = VueFabric
+    const { FabricPaint, AreaTool, DragTool, SelectTool, RectTool, LineTool, PolylineTool, TextTool, CurveTool, ImageTool, Toolbar, CustomType } = VueFabric
     const cameraBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAUCAYAAABmvqYOAAACsUlEQVR4AbRUW08TQRg9M7vbmy1YrFDk8sADJl5SNFpIGiDGRBISisToL9CE+KDRmPgi/gATY0z4A8ZnnohibCRCVC7aSCCioKigRNS2JNKyrbQdZ6YrgW4bXuhmzzfzne/M2dnZmaX+wTHdPzjOdhsnB8f7KQOJowQXA0tRApYogTf4rJMUjJTEnFGSpIyw0iwL4+bxWJTGI7+x29Bjv3TqrPDEnZ79yIdVVUycs5DOohXU2d2eBco/5grHtptl0vgbi2zjCiXZVBIbq9FCJRAoEUoYm4LpIiamIEEVECrmZ66mrNZZyqCM55eIosB2oC6fNuVU02CprDbxfI/PTHf4EvR10D/Ct+P1LNhEMhZZSSx9TccXP0P/8R2JhbkdoS9/g9ALbKwn5rnxM8Jot3iifKfJYPM9gF2JjY3+jLwcVqOvniM6EkJ0+PHOGH0Kqedj4nPvXvzJZnq435dNc9FJg64SVdVFX6LIWsra1rBFR22OtblgYPPcyJkLrQJ1WbHZY6IvoWpgslM8yDrX/Vc4vNVhECJpwW2ah7tOrFsrKkOClCAEsDmKPkA68DpIzkJ1lr3X3J5pOdYIuYqR2I/6Hmmu8hkjBcSsHC4wixVMUcH41pMtz8F5WTfEjtr6UEyJfjBS2VAZjTDV1fLR7fPfpKq2alCAWFOqApoFEKaqaG053hDZqmqGypqO3f3U2ZkyKNlQGbeEmcvnh1yNjdfs3tonfL+vgZ9CsCw0jnKrBhAA67lvZnHvm9xT3zDgbe+4EQ62LvHKtttkLqrzt64+cAdO91a2n+mDoqaRyWAjk0VCTwLpNMAPmd1bE6rq6L7jDjT3TpxtmRXj8lHQXIjengssTl/sue9qOt7mPOzrcx481G9raHzoPNJ0W/PWXdrb2nbhTbBlINx1quhP6B8AAAD//7KfP7kAAAAGSURBVAMAHm58isoK8SwAAAAASUVORK5CYII='
     const container = document.getElementById('canvas-container')
     const board = new FabricPaint('#canvas-container', {
@@ -192,7 +198,10 @@
       // 按照实际像素点击内容
       // perPixelTargetFind: false,
       backgroundColor: 'transparent',
-      defaultShowHelpers: false
+      defaultShowHelpers: false,
+      pixelRatio: 1,
+      lockObjectVisualSizeOnZoom: true,
+      zoomInvariantExcludeTypes: []
     }).init()
 
     board
@@ -344,6 +353,35 @@
       return canvas.toDataURL('image/png')
     }
     const sampleImageBase64 = createSampleImage()
+
+    function setZoomInvariantExcludes(excludes) {
+      board.options.zoomInvariantExcludeTypes = [...excludes]
+      const currentZoom = board.canvas?.getZoom?.() || 1
+      board.setZoom(currentZoom)
+      console.log('当前补偿排除类型:', board.options.zoomInvariantExcludeTypes)
+    }
+
+    async function loadZoomInvariantDemo() {
+      tracker.clearAll()
+      board.resetZoom()
+      board.originClear()
+      board.setTool('select')
+
+      await board.setBackgroundImage({
+        source: '/demo/static/draw-bg.png',
+        scaleMode: 'fill',
+        backgroundVpt: true
+      })
+
+      const canvas = board.canvas
+      if (!canvas) return
+      canvas.renderAll()
+      console.log('Lock zoom demo loaded')
+    }
+
+    function setLockDemoZoom(zoom) {
+      board.setZoom(zoom)
+    }
 
     let textCounter = 1
     let lastCreatedTextId = null
@@ -561,6 +599,41 @@
       }
     ]
 
+    async function loadPersonTrackerZoomDemo() {
+      await loadZoomInvariantDemo()
+
+      realPersonData = [
+        {
+          id: 'tracker-a',
+          name: '人员A',
+          x: 180,
+          y: 260,
+          lineColor: '#ff4d4f',
+          status: 'climbing',
+          base64: cameraBase64
+        },
+        {
+          id: 'tracker-b',
+          name: '人员B',
+          x: 420,
+          y: 320,
+          lineColor: '#1677ff',
+          status: '',
+          base64: cameraBase64
+        }
+      ]
+
+      await tracker.createMultiplePersons(realPersonData)
+      await tracker.createPersonTraces(realPersonData[0].id, realPersonData[0], [
+        { x: 180, y: 260 },
+        { x: 220, y: 220 },
+        { x: 280, y: 280 },
+        { x: 340, y: 240 },
+        { x: 420, y: 320 }
+      ])
+      console.log('PersonTracker 缩放示例已加载')
+    }
+
     function clonePersonList(persons) {
       return persons.map(person => ({ ...person }))
     }
@@ -658,18 +731,18 @@
       const person = realPersonData[0]
       const traces = [
         { x: person.x, y: person.y },
-        { x: person.x + 10, y: person.y - 50 },
-        { x: person.x + 40, y: person.y + 30 },
-        { x: person.x + 70, y: person.y - 20 },
-        { x: person.x + 110, y: person.y + 50 },
-        { x: person.x + 140, y: person.y - 50 },
+        { x: person.x + 10, y: person.y + 50 },
+        { x: person.x + 40, y: person.y + 150 },
+        { x: person.x + 70, y: person.y + 20 },
+        { x: person.x + 110, y: person.y + 80 },
+        { x: person.x + 140, y: person.y },
         { x: person.x + 170, y: person.y + 30 },
-        { x: person.x + 200, y: person.y - 20 },
+        { x: person.x + 200, y: person.y + 120 },
         { x: person.x + 240, y: person.y + 50 },
-        { x: person.x + 280, y: person.y - 50 },
-        { x: person.x + 320, y: person.y + 30 },
+        { x: person.x + 280, y: person.y - 10 },
+        { x: person.x + 320, y: person.y + 90 },
         { x: person.x + 350, y: person.y - 20 },
-        { x: person.x + 420, y: person.y + 50 }
+        { x: person.x + 420, y: person.y + 250 }
       ]
 
       tracker.createPersonTraces(person.id, person, traces)
@@ -812,6 +885,7 @@
     }
 
     console.log('PaintBoard 已初始化:', board)
+    loadZoomInvariantDemo()
   </script>
 </body>
 

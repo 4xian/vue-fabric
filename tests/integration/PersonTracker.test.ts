@@ -4,6 +4,7 @@ import EventBus from '../../src/core/EventBus'
 import { createMockCanvas } from '../fixtures/mockCanvas'
 import type { Canvas } from 'fabric'
 import type { PersonData } from '../../types'
+import { CustomType } from '../../src/utils/settings'
 
 function makePerson(overrides: Partial<PersonData> = {}): PersonData {
   return {
@@ -256,6 +257,86 @@ describe('PersonTracker', () => {
   describe('removePersonTraces()', () => {
     it('移除不存在的轨迹不应报错', () => {
       expect(() => tracker.removePersonTraces('nonexistent')).not.toThrow()
+    })
+  })
+
+  describe('zoom invariant', () => {
+    it('应在补偿缩放模式下保持 marker 视觉尺寸并跟随 zoom 更新', async () => {
+      let zoom = 2
+      tracker = new PersonTracker(
+        canvas as unknown as Canvas,
+        eventBus,
+        {},
+        {
+          isEnabled: () => true,
+          getZoomFactor: () => zoom,
+          isExcludedType: () => false
+        }
+      )
+
+      await tracker.createSinglePerson(makePerson({ status: 'climbing' }))
+      const marker = tracker.getPersonById('person-1')!
+
+      expect(marker.group.scaleX).toBeCloseTo(0.5)
+      expect(marker.group.scaleY).toBeCloseTo(0.5)
+      expect(canvas.sendObjectToBack).not.toHaveBeenCalled()
+      expect(canvas.bringObjectToFront).toHaveBeenCalledWith(marker.group)
+
+      zoom = 4
+      eventBus.emit('canvas:zoomed')
+
+      expect(marker.group.scaleX).toBeCloseTo(0.25)
+      expect(marker.group.scaleY).toBeCloseTo(0.25)
+    })
+
+    it('应支持按 customType 排除 marker 内文字补偿', async () => {
+      tracker = new PersonTracker(
+        canvas as unknown as Canvas,
+        eventBus,
+        {},
+        {
+          isEnabled: () => true,
+          getZoomFactor: () => 2,
+          isExcludedType: (customType?: string) => customType === CustomType.Text
+        }
+      )
+
+      await tracker.createSinglePerson(makePerson())
+      const marker = tracker.getPersonById('person-1')!
+
+      expect(marker.group.scaleX).toBeCloseTo(0.5)
+      expect(marker.text.scaleX).toBeCloseTo(2)
+      expect(marker.text.scaleY).toBeCloseTo(2)
+    })
+
+    it('应在补偿缩放模式下同步更新轨迹线宽', async () => {
+      let zoom = 2
+      tracker = new PersonTracker(
+        canvas as unknown as Canvas,
+        eventBus,
+        { showMovingMarker: false },
+        {
+          isEnabled: () => true,
+          getZoomFactor: () => zoom,
+          isExcludedType: () => false
+        }
+      )
+
+      const person = makePerson()
+      await tracker.createPersonTraces(person.id, person, [
+        { x: 10, y: 10 },
+        { x: 20, y: 20 },
+        { x: 40, y: 30 }
+      ])
+
+      const traceData = (tracker as any).traces.get(person.id)
+      expect(traceData.pathLine.customType).toBe(CustomType.TracePath)
+      expect(traceData.pathLine.strokeWidth).toBeCloseTo(1)
+
+      zoom = 4
+      eventBus.emit('canvas:zoomed')
+
+      expect(traceData.pathLine.strokeWidth).toBeCloseTo(0.5)
     })
   })
 })

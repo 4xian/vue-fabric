@@ -19,6 +19,7 @@ import type {
   ZoomOrigin,
   ZoomScale,
   CustomData,
+  ZoomInvariantBase,
   ResizeReference,
   ResizeOrigin
 } from '../../types'
@@ -31,6 +32,16 @@ import UndoRedoManager from '../utils/UndoRedoManager'
 import * as exportUtils from '../utils/export'
 import BaseTool from '../tools/BaseTool'
 import { PROJECT_NAME, DEFAULT_VUEFABRIC_OPTIONS, CustomType } from '../utils/settings'
+
+type ZoomInvariantFabricObject = FabricObject & {
+  customType?: string
+  zoomInvariantBase?: ZoomInvariantBase
+  strokeWidth?: number
+  radius?: number
+  fontSize?: number
+  scaleX?: number
+  scaleY?: number
+}
 
 export default class VueFabric {
   container: HTMLElement | null
@@ -81,6 +92,209 @@ export default class VueFabric {
       return typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
     }
     return ratio
+  }
+
+  private _shouldLockObjectVisualSizeOnZoom(): boolean {
+    return !!this.options.lockObjectVisualSizeOnZoom
+  }
+
+  private _getZoomInvariantFactor(): number {
+    const rawZoom = this.canvasManager?.getZoom() ?? this.canvas?.getZoom() ?? 1
+    const normalizedZoom = rawZoom / (this._pixelRatio || 1)
+    return normalizedZoom > 0 ? normalizedZoom : 1
+  }
+
+  private _getEffectiveBackgroundVpt(options?: BackgroundImageOptions | null): boolean {
+    if (options?.backgroundVpt !== undefined) {
+      return options.backgroundVpt
+    }
+    return this._shouldLockObjectVisualSizeOnZoom()
+  }
+
+  private _isBackgroundImageObject(target?: FabricObject | null): boolean {
+    return !!target && target === this._backgroundImage
+  }
+
+  private _isPersonTrackerObject(target?: FabricObject): boolean {
+    const customType = (target as ZoomInvariantFabricObject | undefined)?.customType
+    return customType === CustomType.PersonMarker || customType === CustomType.TracePath
+  }
+
+  private _isZoomInvariantExcludedType(customType?: string): boolean {
+    if (!customType) return false
+    return this.options.zoomInvariantExcludeTypes.includes(customType)
+  }
+
+  private _shouldApplyZoomInvariantToObject(target?: FabricObject): boolean {
+    if (!this._shouldLockObjectVisualSizeOnZoom() || !target) {
+      return false
+    }
+
+    if (this._isBackgroundImageObject(target) || this._isPersonTrackerObject(target)) {
+      return false
+    }
+
+    return !this._isZoomInvariantExcludedType(
+      (target as ZoomInvariantFabricObject | undefined)?.customType
+    )
+  }
+
+  private _walkZoomInvariantObjects(
+    target: FabricObject,
+    handler: (obj: ZoomInvariantFabricObject) => void
+  ): void {
+    if (this._isPersonTrackerObject(target)) {
+      return
+    }
+
+    handler(target as ZoomInvariantFabricObject)
+
+    const parent = target as FabricObject & { getObjects?: () => FabricObject[] }
+    if (typeof parent.getObjects !== 'function') return
+
+    parent.getObjects().forEach(child => {
+      this._walkZoomInvariantObjects(child, handler)
+    })
+  }
+
+  private _ensureBackgroundImageLocked(): void {
+    if (!this.canvas || !this._backgroundImage) return
+
+    const bgImage = this._backgroundImage
+    if (this.canvas.getActiveObject?.() === bgImage) {
+      this.canvas.discardActiveObject?.()
+    }
+
+    bgImage.set({
+      selectable: false,
+      evented: false,
+      hasControls: false,
+      hasBorders: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockRotation: true,
+      hoverCursor: 'default',
+      moveCursor: 'default',
+      excludeFromExport: true
+    })
+    bgImage.setCoords()
+    this.canvas.sendObjectToBack(bgImage)
+  }
+
+  private _createZoomInvariantBaseFromObject(
+    obj: ZoomInvariantFabricObject,
+    multiplyByZoom = false
+  ): ZoomInvariantBase | null {
+    const factor = multiplyByZoom ? this._getZoomInvariantFactor() : 1
+    const base: ZoomInvariantBase = {}
+
+    if (typeof obj.strokeWidth === 'number') {
+      base.strokeWidth = obj.strokeWidth * factor
+    }
+    if (typeof obj.radius === 'number') {
+      base.radius = obj.radius * factor
+    }
+    if (typeof obj.fontSize === 'number') {
+      base.fontSize = obj.fontSize * factor
+    }
+    if (obj.customType === CustomType.Image) {
+      if (typeof obj.scaleX === 'number') {
+        base.scaleX = obj.scaleX * factor
+      }
+      if (typeof obj.scaleY === 'number') {
+        base.scaleY = obj.scaleY * factor
+      }
+    }
+
+    return Object.keys(base).length > 0 ? base : null
+  }
+
+  private _initializeZoomInvariantBase(target?: FabricObject): void {
+    if (!target) return
+
+    this._walkZoomInvariantObjects(target, obj => {
+      if (!this._shouldApplyZoomInvariantToObject(obj) || obj.zoomInvariantBase) return
+
+      const base = this._createZoomInvariantBaseFromObject(obj)
+      if (base) {
+        obj.zoomInvariantBase = base
+      }
+    })
+  }
+
+  private _refreshZoomInvariantBase(target?: FabricObject): void {
+    if (!target) return
+
+    this._walkZoomInvariantObjects(target, obj => {
+      if (!this._shouldApplyZoomInvariantToObject(obj)) return
+
+      const base = this._createZoomInvariantBaseFromObject(obj, true)
+      if (base) {
+        obj.zoomInvariantBase = {
+          ...(obj.zoomInvariantBase || {}),
+          ...base
+        }
+      }
+    })
+  }
+
+  private _applyZoomInvariantVisualToObject(target?: FabricObject): void {
+    if (!target) return
+
+    this._walkZoomInvariantObjects(target, obj => {
+      if (!this._shouldApplyZoomInvariantToObject(obj)) return
+
+      const base = obj.zoomInvariantBase
+      if (!base) return
+
+      const zoom = this._getZoomInvariantFactor()
+      const nextValues: Partial<ZoomInvariantFabricObject> = {}
+
+      if (typeof base.strokeWidth === 'number') {
+        nextValues.strokeWidth = base.strokeWidth / zoom
+      }
+      if (typeof base.radius === 'number') {
+        nextValues.radius = base.radius / zoom
+      }
+      if (typeof base.fontSize === 'number') {
+        nextValues.fontSize = base.fontSize / zoom
+      }
+      if (typeof base.scaleX === 'number') {
+        nextValues.scaleX = base.scaleX / zoom
+      }
+      if (typeof base.scaleY === 'number') {
+        nextValues.scaleY = base.scaleY / zoom
+      }
+
+      if (Object.keys(nextValues).length === 0) return
+
+      obj.set(nextValues)
+      obj.setCoords()
+    })
+  }
+
+  private _applyZoomInvariantVisuals(): void {
+    if (!this._shouldLockObjectVisualSizeOnZoom() || !this.canvas) return
+
+    this.canvas.getObjects().forEach(obj => {
+      this._applyZoomInvariantVisualToObject(obj)
+    })
+  }
+
+  private _syncZoomInvariantObject(target?: FabricObject, refreshBase = false): void {
+    if (!this._shouldLockObjectVisualSizeOnZoom() || !target || !this.canvas) return
+
+    if (refreshBase) {
+      this._refreshZoomInvariantBase(target)
+    } else {
+      this._initializeZoomInvariantBase(target)
+    }
+
+    this._applyZoomInvariantVisualToObject(target)
+    this._ensureBackgroundImageLocked()
+    this.canvas.renderAll()
   }
 
   init(): this {
@@ -199,12 +413,26 @@ export default class VueFabric {
       this.eventBus.emit('object:modified', e.target)
     })
 
+    this.eventBus.on('object:created', target => {
+      this._syncZoomInvariantObject(target as FabricObject | undefined)
+    })
+
+    this.eventBus.on('object:modified', target => {
+      this._syncZoomInvariantObject(target as FabricObject | undefined, true)
+    })
+
     this.eventBus.on('canvas:zoomed', () => {
       this._updateBackgroundImageTransform()
+      this._applyZoomInvariantVisuals()
+      this._ensureBackgroundImageLocked()
+      this.canvas?.renderAll()
     })
 
     this.eventBus.on('canvas:panned', () => {
       this._updateBackgroundImageTransform()
+      this._applyZoomInvariantVisuals()
+      this._ensureBackgroundImageLocked()
+      this.canvas?.renderAll()
     })
   }
 
@@ -225,6 +453,7 @@ export default class VueFabric {
       tool.activate()
       this.eventBus.emit('tool:changed', toolName)
     }
+    this._ensureBackgroundImageLocked()
     return this
   }
 
@@ -446,6 +675,7 @@ export default class VueFabric {
     if (bgImage && bgOptions) {
       this.canvas.add(bgImage)
       this.canvas.sendObjectToBack(bgImage)
+      this._ensureBackgroundImageLocked()
     }
     this.canvas.renderAll()
     this.undoRedoManager?.clear()
@@ -460,10 +690,14 @@ export default class VueFabric {
         return
       }
 
-      const options: BackgroundImageOptions =
-        typeof source === 'string'
-          ? { source, scaleMode: 'fill', opacity: 1 }
-          : { scaleMode: 'fill', opacity: 1, ...source }
+      const normalizedSource = typeof source === 'string' ? { source } : source
+
+      const options: BackgroundImageOptions = {
+        source: normalizedSource.source,
+        scaleMode: normalizedSource.scaleMode ?? 'fill',
+        opacity: normalizedSource.opacity ?? 1,
+        backgroundVpt: normalizedSource.backgroundVpt ?? this._shouldLockObjectVisualSizeOnZoom()
+      }
 
       this._bgImageOptions = options
 
@@ -476,6 +710,13 @@ export default class VueFabric {
           originY: 'top',
           selectable: false,
           evented: false,
+          hasControls: false,
+          hasBorders: false,
+          lockMovementX: true,
+          lockMovementY: true,
+          lockScalingX: true,
+          lockScalingY: true,
+          lockRotation: true,
           excludeFromExport: true
         })
 
@@ -489,6 +730,7 @@ export default class VueFabric {
         this.canvas!.add(fabricImg)
         this.canvas!.sendObjectToBack(fabricImg)
         this._updateBackgroundImageTransform()
+        this._ensureBackgroundImageLocked()
         this.canvas!.renderAll()
 
         this.eventBus.emit('backgroundImage:set', { source: options.source })
@@ -510,10 +752,6 @@ export default class VueFabric {
 
     const vpt = this.canvas.viewportTransform
     if (!vpt) return
-
-    const zoom = this.canvas.getZoom()
-    const panX = vpt[4]
-    const panY = vpt[5]
 
     const canvasWidth = this.canvas.width || this.options.width
     const canvasHeight = this.canvas.height || this.options.height
@@ -564,13 +802,27 @@ export default class VueFabric {
         break
     }
 
-    img.set({
-      scaleX: baseScaleX / zoom,
-      scaleY: baseScaleY / zoom,
-      left: (baseLeft - panX) / zoom,
-      top: (baseTop - panY) / zoom
-    })
+    if (this._getEffectiveBackgroundVpt(this._bgImageOptions)) {
+      img.set({
+        scaleX: baseScaleX,
+        scaleY: baseScaleY,
+        left: baseLeft,
+        top: baseTop
+      })
+    } else {
+      const zoom = this.canvas.getZoom()
+      const panX = vpt[4]
+      const panY = vpt[5]
+
+      img.set({
+        scaleX: baseScaleX / zoom,
+        scaleY: baseScaleY / zoom,
+        left: (baseLeft - panX) / zoom,
+        top: (baseTop - panY) / zoom
+      })
+    }
     img.setCoords()
+    this._ensureBackgroundImageLocked()
   }
 
   clearBackgroundImage(): this {
@@ -607,6 +859,11 @@ export default class VueFabric {
         () => this.currentToolName
       )
       .then(() => {
+        this.canvas?.getObjects().forEach(obj => {
+          this._initializeZoomInvariantBase(obj)
+        })
+        this._applyZoomInvariantVisuals()
+        this.canvas?.renderAll()
         this.eventBus.emit('canvas:loaded')
       })
   }
@@ -1075,6 +1332,7 @@ export default class VueFabric {
           textObj.set('editable', options.editable)
         }
 
+        this._syncZoomInvariantObject(textObj, true)
         this.canvas.renderAll()
         this.eventBus.emit('text:updated', { id, textObj })
         return true
@@ -1094,16 +1352,35 @@ export default class VueFabric {
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: ImageCustomData }
       if (customObj.customType === CustomType.Image && customObj.customData?.drawId === id) {
-        if (options.x !== undefined) obj.set('left', options.x)
-        if (options.y !== undefined) obj.set('top', options.y)
-        if (options.angle !== undefined) obj.set('angle', options.angle)
-        if (options.scaleX !== undefined) obj.set('scaleX', options.scaleX)
-        if (options.scaleY !== undefined) obj.set('scaleY', options.scaleY)
-        if (options.opacity !== undefined) obj.set('opacity', options.opacity)
-        if (options.selectable !== undefined) obj.set('selectable', options.selectable)
+        const imageObj = obj as FabricImage
+        if (options.x !== undefined) imageObj.set('left', options.x)
+        if (options.y !== undefined) imageObj.set('top', options.y)
+        if (options.angle !== undefined) imageObj.set('angle', options.angle)
+        if (options.width !== undefined || options.height !== undefined) {
+          const imageWidth = imageObj.width || 1
+          const imageHeight = imageObj.height || 1
+          const widthScale =
+            options.width !== undefined ? options.width / imageWidth : imageObj.scaleX || 1
+          const heightScale =
+            options.height !== undefined
+              ? options.height / imageHeight
+              : options.width !== undefined
+                ? widthScale
+                : imageObj.scaleY || 1
 
+          imageObj.set({
+            scaleX: widthScale,
+            scaleY: heightScale
+          })
+        }
+        if (options.scaleX !== undefined) imageObj.set('scaleX', options.scaleX)
+        if (options.scaleY !== undefined) imageObj.set('scaleY', options.scaleY)
+        if (options.opacity !== undefined) imageObj.set('opacity', options.opacity)
+        if (options.selectable !== undefined) imageObj.set('selectable', options.selectable)
+
+        this._syncZoomInvariantObject(imageObj, true)
         this.canvas.renderAll()
-        this.eventBus.emit('image:updated', { id, obj })
+        this.eventBus.emit('image:updated', { id, obj: imageObj })
         return true
       }
     }
@@ -1381,6 +1658,7 @@ export default class VueFabric {
         if (options.selectable !== undefined) textObj.set('selectable', options.selectable)
         if (options.editable !== undefined) textObj.set('editable', options.editable)
 
+        this._syncZoomInvariantObject(textObj, true)
         return true
       }
     }
@@ -1398,14 +1676,33 @@ export default class VueFabric {
     for (const obj of objects) {
       const customObj = obj as FabricObject & { customType?: string; customData?: ImageCustomData }
       if (customObj.customType === CustomType.Image && customObj.customData?.drawId === id) {
-        if (options.x !== undefined) obj.set('left', options.x)
-        if (options.y !== undefined) obj.set('top', options.y)
-        if (options.angle !== undefined) obj.set('angle', options.angle)
-        if (options.scaleX !== undefined) obj.set('scaleX', options.scaleX)
-        if (options.scaleY !== undefined) obj.set('scaleY', options.scaleY)
-        if (options.opacity !== undefined) obj.set('opacity', options.opacity)
-        if (options.selectable !== undefined) obj.set('selectable', options.selectable)
+        const imageObj = obj as FabricImage
+        if (options.x !== undefined) imageObj.set('left', options.x)
+        if (options.y !== undefined) imageObj.set('top', options.y)
+        if (options.angle !== undefined) imageObj.set('angle', options.angle)
+        if (options.width !== undefined || options.height !== undefined) {
+          const imageWidth = imageObj.width || 1
+          const imageHeight = imageObj.height || 1
+          const widthScale =
+            options.width !== undefined ? options.width / imageWidth : imageObj.scaleX || 1
+          const heightScale =
+            options.height !== undefined
+              ? options.height / imageHeight
+              : options.width !== undefined
+                ? widthScale
+                : imageObj.scaleY || 1
 
+          imageObj.set({
+            scaleX: widthScale,
+            scaleY: heightScale
+          })
+        }
+        if (options.scaleX !== undefined) imageObj.set('scaleX', options.scaleX)
+        if (options.scaleY !== undefined) imageObj.set('scaleY', options.scaleY)
+        if (options.opacity !== undefined) imageObj.set('opacity', options.opacity)
+        if (options.selectable !== undefined) imageObj.set('selectable', options.selectable)
+
+        this._syncZoomInvariantObject(imageObj, true)
         return true
       }
     }
@@ -1462,7 +1759,11 @@ export default class VueFabric {
     if (this._personTracker) {
       this._personTracker.destroy()
     }
-    this._personTracker = new PersonTracker(this.canvas, this.eventBus, options)
+    this._personTracker = new PersonTracker(this.canvas, this.eventBus, options, {
+      isEnabled: () => this._shouldLockObjectVisualSizeOnZoom(),
+      getZoomFactor: () => this._getZoomInvariantFactor(),
+      isExcludedType: (customType?: string) => this._isZoomInvariantExcludedType(customType)
+    })
     return this._personTracker
   }
 

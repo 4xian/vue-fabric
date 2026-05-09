@@ -49,7 +49,9 @@ export default class ImageTool extends BaseTool {
   onDeactivate(): void {
     if (!this.canvas) return
     this.canvas.selection = true
+    const backgroundImage = this.paintBoard?.getBackgroundImage?.()
     this.canvas.forEachObject(obj => {
+      if (obj === backgroundImage) return
       obj.set({ selectable: true, evented: true })
     })
   }
@@ -370,6 +372,7 @@ export default class ImageTool extends BaseTool {
     const imageObj = this._findImageById(id)
     if (!imageObj) return false
     imageObj.set({ scaleX, scaleY: scaleY ?? scaleX })
+    this.eventBus?.emit('object:modified', imageObj)
     this.canvas?.renderAll()
     this.eventBus?.emit('image:updated', {
       id,
@@ -390,6 +393,7 @@ export default class ImageTool extends BaseTool {
     const scaleY = height ? height / imgHeight : scaleX
 
     imageObj.set({ scaleX, scaleY })
+    this.eventBus?.emit('object:modified', imageObj)
     this.canvas?.renderAll()
     this.eventBus?.emit('image:updated', {
       id,

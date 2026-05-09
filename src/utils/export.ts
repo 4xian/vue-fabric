@@ -10,7 +10,8 @@ import type {
   RectCustomData,
   ExportImageOptions,
   CustomData,
-  TextData
+  TextData,
+  ZoomInvariantBase
 } from '../../types'
 import EventBus from '../core/EventBus'
 import {
@@ -23,6 +24,67 @@ import type { ExportJSONOptions } from '../../types'
 import { setupRectEvents } from './rectEvents'
 import { setupAreaEvents, configureControls } from './areaEvents'
 
+type SerializedZoomInvariantNode = {
+  customType?: string
+  zoomInvariantBase?: ZoomInvariantBase
+  strokeWidth?: number
+  radius?: number
+  fontSize?: number
+  scaleX?: number
+  scaleY?: number
+  [key: string]: unknown
+}
+
+function normalizeZoomInvariantNode<T>(value: T, visited = new WeakSet<object>()): T | undefined {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => normalizeZoomInvariantNode(item, visited))
+      .filter(item => item !== undefined) as T
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  if (visited.has(value as object)) {
+    return undefined
+  }
+
+  visited.add(value as object)
+
+  const normalized: SerializedZoomInvariantNode = {}
+  Object.entries(value as Record<string, unknown>).forEach(([key, childValue]) => {
+    const normalizedChild = normalizeZoomInvariantNode(childValue, visited)
+    if (normalizedChild !== undefined) {
+      normalized[key] = normalizedChild
+    }
+  })
+
+  applyZoomInvariantBase(normalized)
+  return normalized as T
+}
+
+function applyZoomInvariantBase(node: SerializedZoomInvariantNode): void {
+  const base = node.zoomInvariantBase
+  if (!base) return
+
+  if (typeof base.strokeWidth === 'number') {
+    node.strokeWidth = base.strokeWidth
+  }
+  if (typeof base.radius === 'number') {
+    node.radius = base.radius
+  }
+  if (typeof base.fontSize === 'number') {
+    node.fontSize = base.fontSize
+  }
+  if (typeof base.scaleX === 'number') {
+    node.scaleX = base.scaleX
+  }
+  if (typeof base.scaleY === 'number') {
+    node.scaleY = base.scaleY
+  }
+}
+
 export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string[] = []): string {
   const normalizedOptions: ExportJSONOptions = Array.isArray(options)
     ? { additionalProperties: options }
@@ -30,7 +92,9 @@ export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string
 
   const { additionalProperties = [], excludeTypes = ['text', 'image'] } = normalizedOptions
   const propertiesToInclude = [...SERIALIZATION_PROPERTIES, ...additionalProperties]
-  const canvasData = canvas.toObject(propertiesToInclude)
+  const canvasData =
+    normalizeZoomInvariantNode(canvas.toObject(propertiesToInclude)) ||
+    canvas.toObject(propertiesToInclude)
 
   if (excludeTypes.length > 0) {
     const typesToExclude = new Set<string>()
@@ -872,14 +936,18 @@ export function getAreasData(canvas: Canvas): AreaCustomData[] {
 export function getTextsData(canvas: Canvas): TextData[] {
   const texts: TextData[] = []
   canvas.getObjects().forEach(obj => {
-    const customObj = obj as fabric.IText & { customType?: string; customData?: { drawId: string } }
+    const customObj = obj as fabric.IText & {
+      customType?: string
+      customData?: { drawId: string }
+      zoomInvariantBase?: ZoomInvariantBase
+    }
     if (customObj.customType === CustomType.Text && customObj.customData) {
       texts.push({
         drawId: customObj.customData.drawId,
         text: customObj.text || '',
         left: customObj.left || 0,
         top: customObj.top || 0,
-        fontSize: customObj.fontSize || 16,
+        fontSize: customObj.zoomInvariantBase?.fontSize || customObj.fontSize || 16,
         fontFamily: customObj.fontFamily || 'Arial',
         fill: (customObj.fill as string) || '#000'
       })

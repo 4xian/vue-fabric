@@ -31,7 +31,9 @@ export default class TextTool extends BaseTool {
   onDeactivate(): void {
     if (!this.canvas) return
     this.canvas.selection = true
+    const backgroundImage = this.paintBoard?.getBackgroundImage?.()
     this.canvas.forEachObject(obj => {
+      if (obj === backgroundImage) return
       obj.set({ selectable: true, evented: true })
     })
     this._exitAllEditing()
@@ -142,6 +144,7 @@ export default class TextTool extends BaseTool {
     const activeObject = this.canvas.getActiveObject() as FabricObject & { customType?: string }
     if (activeObject && activeObject.customType === CustomType.Text) {
       activeObject.set('fontSize', size)
+      this.eventBus?.emit('object:modified', activeObject)
       this.canvas.renderAll()
     }
   }

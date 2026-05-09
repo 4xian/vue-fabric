@@ -27,3 +27,6 @@ Thumbs.db
 npm-debug.log*
 .serena
 .cunzhi-memory
+.agents
+.codex
+.trellis

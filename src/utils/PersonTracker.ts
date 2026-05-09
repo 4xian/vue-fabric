@@ -4,6 +4,23 @@ import type { Point, PersonData, TraceOptions } from '../../types'
 import EventBus from '../core/EventBus'
 import { DEFAULT_PERSON_TRACKER_OPTIONS, CustomType } from '../utils/settings'
 
+type ZoomInvariantFabricObject = fabric.FabricObject & {
+  customType?: string
+  zoomInvariantBase?: {
+    strokeWidth?: number
+    radius?: number
+    scaleX?: number
+    scaleY?: number
+  }
+  customData?: Record<string, unknown>
+}
+
+interface ZoomInvariantAdapter {
+  isEnabled: () => boolean
+  getZoomFactor: () => number
+  isExcludedType: (customType?: string) => boolean
+}
+
 interface PersonMarker {
   group: Group
   circle: Circle
@@ -36,10 +53,19 @@ export default class PersonTracker {
   private displayTimers: Map<string, number> = new Map()
   private options: Required<TraceOptions>
   private renderVersion = 0
+  private zoomInvariantAdapter?: ZoomInvariantAdapter
+  private readonly _onCanvasZoomed: () => void
+  private readonly _onCanvasPanned: () => void
 
-  constructor(canvas: Canvas, eventBus: EventBus, options?: Partial<TraceOptions>) {
+  constructor(
+    canvas: Canvas,
+    eventBus: EventBus,
+    options?: Partial<TraceOptions>,
+    zoomInvariantAdapter?: ZoomInvariantAdapter
+  ) {
     this.canvas = canvas
     this.eventBus = eventBus
+    this.zoomInvariantAdapter = zoomInvariantAdapter
     this.options = {
       radius: options?.radius ?? DEFAULT_PERSON_TRACKER_OPTIONS.radius!,
       strokeWidth: options?.strokeWidth ?? DEFAULT_PERSON_TRACKER_OPTIONS.strokeWidth!,
@@ -66,6 +92,16 @@ export default class PersonTracker {
       showMovingMarker:
         options?.showMovingMarker ?? DEFAULT_PERSON_TRACKER_OPTIONS.showMovingMarker!
     }
+    this._onCanvasZoomed = () => {
+      this._applyZoomInvariantState()
+      this.canvas.renderAll()
+    }
+    this._onCanvasPanned = () => {
+      this._applyZoomInvariantState()
+      this.canvas.renderAll()
+    }
+    this.eventBus.on('canvas:zoomed', this._onCanvasZoomed)
+    this.eventBus.on('canvas:panned', this._onCanvasPanned)
   }
 
   async createMultiplePersons(persons: PersonData[]): Promise<void> {
@@ -177,6 +213,167 @@ export default class PersonTracker {
     this.canvas.renderAll()
   }
 
+  private _isZoomInvariantEnabled(): boolean {
+    return this.zoomInvariantAdapter?.isEnabled() ?? false
+  }
+
+  private _getZoomInvariantFactor(): number {
+    const zoom = this.zoomInvariantAdapter?.getZoomFactor() ?? 1
+    return zoom > 0 ? zoom : 1
+  }
+
+  private _isZoomInvariantExcluded(customType?: string): boolean {
+    return this.zoomInvariantAdapter?.isExcludedType(customType) ?? false
+  }
+
+  private _getMarkerAnchor(marker: PersonMarker): Point {
+    const customData = ((marker.group as Group & { customData?: Record<string, unknown> })
+      .customData || {}) as Record<string, unknown>
+
+    if (typeof customData.anchorX === 'number' && typeof customData.anchorY === 'number') {
+      return {
+        x: customData.anchorX,
+        y: customData.anchorY
+      }
+    }
+
+    return this._getMarkerCircleCenter(marker)
+  }
+
+  private _setMarkerAnchor(
+    marker: PersonMarker,
+    x: number,
+    y: number,
+    persistAnchor: boolean = true
+  ): void {
+    const group = marker.group as Group & { customData?: Record<string, unknown> }
+    group.customData = {
+      ...(group.customData || {}),
+      ...(persistAnchor ? { anchorX: x, anchorY: y } : {})
+    }
+
+    group.set({ left: x, top: y })
+    group.setCoords()
+
+    const circleCenter = this._getMarkerCircleCenter(marker)
+    group.set({
+      left: (group.left ?? 0) + (x - circleCenter.x),
+      top: (group.top ?? 0) + (y - circleCenter.y)
+    })
+    group.setCoords()
+
+    if (marker.rippleCircle) {
+      const nextCenter = this._getMarkerCircleCenter(marker)
+      marker.rippleCircle.set({ left: nextCenter.x, top: nextCenter.y })
+      marker.rippleCircle.setCoords()
+    }
+  }
+
+  private _applyZoomInvariantToPath(pathLine?: Polyline | Path): void {
+    if (!pathLine) return
+
+    const target = pathLine as Polyline & {
+      customType?: string
+      zoomInvariantBase?: { strokeWidth?: number }
+    }
+    const baseStrokeWidth = target.zoomInvariantBase?.strokeWidth ?? this.options.lineWidth
+    const zoom =
+      this._isZoomInvariantEnabled() && !this._isZoomInvariantExcluded(target.customType)
+        ? this._getZoomInvariantFactor()
+        : 1
+
+    pathLine.set({ strokeWidth: baseStrokeWidth / zoom })
+    pathLine.setCoords()
+  }
+
+  private _applyZoomInvariantToRipple(marker: PersonMarker): void {
+    if (!marker.rippleCircle) return
+
+    const ripple = marker.rippleCircle as Circle & {
+      customType?: string
+      zoomInvariantBase?: { radius?: number }
+      customData?: Record<string, unknown>
+    }
+    const rawRadius =
+      typeof ripple.customData?.rawRadius === 'number'
+        ? ripple.customData.rawRadius
+        : ripple.zoomInvariantBase?.radius || this.options.radius
+    const zoom =
+      this._isZoomInvariantEnabled() && !this._isZoomInvariantExcluded(ripple.customType)
+        ? this._getZoomInvariantFactor()
+        : 1
+
+    ripple.customData = {
+      ...(ripple.customData || {}),
+      rawRadius
+    }
+    ripple.set({ radius: rawRadius / zoom })
+    ripple.setCoords()
+  }
+
+  private _applyZoomInvariantToMarker(marker: PersonMarker): void {
+    const group = marker.group as Group & {
+      customType?: string
+      zoomInvariantBase?: { scaleX?: number; scaleY?: number }
+    }
+    const baseScaleX = group.zoomInvariantBase?.scaleX ?? 1
+    const baseScaleY = group.zoomInvariantBase?.scaleY ?? 1
+    const shouldCompensateMarker =
+      this._isZoomInvariantEnabled() && !this._isZoomInvariantExcluded(group.customType)
+    const zoom = shouldCompensateMarker ? this._getZoomInvariantFactor() : 1
+
+    group.set({
+      scaleX: baseScaleX / zoom,
+      scaleY: baseScaleY / zoom
+    })
+
+    const textBaseScaleX =
+      (marker.text as fabric.FabricText & { zoomInvariantBase?: { scaleX?: number } })
+        .zoomInvariantBase?.scaleX ?? 1
+    const textBaseScaleY =
+      (marker.text as fabric.FabricText & { zoomInvariantBase?: { scaleY?: number } })
+        .zoomInvariantBase?.scaleY ?? 1
+    const textScaleFactor =
+      shouldCompensateMarker && this._isZoomInvariantExcluded(CustomType.Text) ? zoom : 1
+    marker.text.set({
+      scaleX: textBaseScaleX * textScaleFactor,
+      scaleY: textBaseScaleY * textScaleFactor
+    })
+
+    if (marker.image) {
+      const image = marker.image as FabricImage & {
+        zoomInvariantBase?: { scaleX?: number; scaleY?: number }
+      }
+      const imageScaleFactor =
+        shouldCompensateMarker && this._isZoomInvariantExcluded(CustomType.Image) ? zoom : 1
+
+      image.set({
+        scaleX: (image.zoomInvariantBase?.scaleX ?? image.scaleX ?? 1) * imageScaleFactor,
+        scaleY: (image.zoomInvariantBase?.scaleY ?? image.scaleY ?? 1) * imageScaleFactor
+      })
+    }
+
+    const anchor = this._getMarkerAnchor(marker)
+    this._setMarkerAnchor(marker, anchor.x, anchor.y, false)
+    this._applyZoomInvariantToRipple(marker)
+    this.canvas.bringObjectToFront(marker.group)
+  }
+
+  private _applyZoomInvariantState(): void {
+    this.persons.forEach(marker => {
+      this._applyZoomInvariantToMarker(marker)
+    })
+
+    this.traces.forEach(trace => {
+      this._applyZoomInvariantToPath(trace.pathLine)
+      this._applyZoomInvariantToMarker(trace.startMarker)
+      this._applyZoomInvariantToMarker(trace.endMarker)
+      if (trace.movingMarker) {
+        this._applyZoomInvariantToMarker(trace.movingMarker)
+      }
+    })
+  }
+
   removePerson(id: string): boolean {
     const marker = this.persons.get(id)
     if (!marker) return false
@@ -281,6 +478,15 @@ export default class PersonTracker {
     if (this.options.showMovingMarker && movingMarker) {
       this.canvas.add(movingMarker.group)
     }
+    this._applyZoomInvariantToPath(pathLine)
+    this._applyZoomInvariantToMarker(startMarker)
+    this._setMarkerAnchor(startMarker, traces[0].x, traces[0].y)
+    this._applyZoomInvariantToMarker(endMarker)
+    this._setMarkerAnchor(endMarker, traces[traces.length - 1].x, traces[traces.length - 1].y)
+    if (this.options.showMovingMarker && movingMarker) {
+      this._applyZoomInvariantToMarker(movingMarker)
+      this._setMarkerAnchor(movingMarker, traces[0].x, traces[0].y)
+    }
 
     const traceData: TraceData = {
       pathLine,
@@ -345,6 +551,8 @@ export default class PersonTracker {
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
     this._bindMarkerClickHandler(marker)
+    this._applyZoomInvariantToMarker(marker)
+    this._setMarkerAnchor(marker, person.x, person.y)
 
     if (this._shouldBlink(person.status)) {
       this._startBlinkAnimation(person.id)
@@ -369,6 +577,8 @@ export default class PersonTracker {
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
     this._bindMarkerClickHandler(marker)
+    this._applyZoomInvariantToMarker(marker)
+    this._setMarkerAnchor(marker, person.x, person.y)
 
     if (this._shouldBlink(person.status)) {
       this._startBlinkAnimation(person.id)
@@ -404,20 +614,15 @@ export default class PersonTracker {
     const marker = this.persons.get(person.id)
     if (!marker) return
 
-    const currentLeft = marker.group.left ?? 0
-    const currentTop = marker.group.top ?? 0
-
-    // 计算目标位置：circle 中心在 (x, y)，与 _createMarkerGroup 保持一致
-    const textHeight = marker.text.height || this.options.fontSize
-    const groupOffsetY = (4 + textHeight) / 2
-    const targetLeft = person.x
-    const targetTop = person.y + groupOffsetY
-
     marker.circle.set({ stroke: person.lineColor })
     marker.text.set({ text: person.name })
+    this._applyZoomInvariantToMarker(marker)
 
     const prevStatus = marker.personData?.status
     marker.personData = person
+    const currentAnchor = this._getMarkerAnchor(marker)
+    const targetLeft = person.x
+    const targetTop = person.y
 
     const prevShouldBlink = this._shouldBlink(prevStatus)
     const nowShouldBlink = this._shouldBlink(person.status)
@@ -431,21 +636,15 @@ export default class PersonTracker {
       this._stopBlinkAnimation(person.id)
     }
 
-    // const needsAnimation = Math.abs(targetLeft - currentLeft) > 1 || Math.abs(targetTop - currentTop) > 1
+    // const needsAnimation = Math.abs(targetLeft - currentAnchor.x) > 1 || Math.abs(targetTop - currentAnchor.y) > 1
     // console.log(111, targetLeft, targetTop)
     if (marker.isInitialized && this.options.maxMoveAnimationDuration > 0) {
       const distance = Math.sqrt(
-        Math.pow(targetLeft - currentLeft, 2) + Math.pow(targetTop - currentTop, 2)
+        Math.pow(targetLeft - currentAnchor.x, 2) + Math.pow(targetTop - currentAnchor.y, 2)
       )
 
       if (distance <= 1) {
-        marker.group.set({ left: targetLeft, top: targetTop })
-        marker.group.setCoords()
-        if (marker.rippleCircle) {
-          const circleCenter = this._getMarkerCircleCenter(marker)
-          marker.rippleCircle.set({ left: circleCenter.x, top: circleCenter.y })
-          marker.rippleCircle.setCoords()
-        }
+        this._setMarkerAnchor(marker, targetLeft, targetTop)
         return
       }
 
@@ -453,20 +652,21 @@ export default class PersonTracker {
       const minDuration = this.options.minMoveAnimationDuration
       const maxDuration = this.options.maxMoveAnimationDuration
       const duration = Math.min(maxDuration, Math.max(minDuration, calculatedDuration))
-      this._animateMarkerPosition(marker, currentLeft, currentTop, targetLeft, targetTop, duration)
+      this._animateMarkerPosition(
+        marker,
+        currentAnchor.x,
+        currentAnchor.y,
+        targetLeft,
+        targetTop,
+        duration
+      )
     } else {
       if (marker.moveAnimationFrameId) {
         cancelAnimationFrame(marker.moveAnimationFrameId)
         marker.moveAnimationFrameId = undefined
       }
       marker.isAnimating = false
-      marker.group.set({ left: targetLeft, top: targetTop })
-      marker.group.setCoords()
-      if (marker.rippleCircle) {
-        const circleCenter = this._getMarkerCircleCenter(marker)
-        marker.rippleCircle.set({ left: circleCenter.x, top: circleCenter.y })
-        marker.rippleCircle.setCoords()
-      }
+      this._setMarkerAnchor(marker, targetLeft, targetTop)
     }
 
     this.eventBus.emit('person:updated', { ...person })
@@ -491,15 +691,7 @@ export default class PersonTracker {
       const nextLeft = startLeft + (targetLeft - startLeft) * progress
       const nextTop = startTop + (targetTop - startTop) * progress
 
-      marker.group.set({ left: nextLeft, top: nextTop })
-      marker.group.setCoords()
-
-      if (marker.rippleCircle) {
-        const circleCenter = this._getMarkerCircleCenter(marker)
-        marker.rippleCircle.set({ left: circleCenter.x, top: circleCenter.y })
-        marker.rippleCircle.setCoords()
-      }
-
+      this._setMarkerAnchor(marker, nextLeft, nextTop)
       this.canvas.renderAll()
     }
 
@@ -552,6 +744,13 @@ export default class PersonTracker {
           scaleX: scale,
           scaleY: scale
         })
+        ;(img as FabricImage & { customType: string }).customType = CustomType.Image
+        ;(
+          img as FabricImage & { zoomInvariantBase: { scaleX: number; scaleY: number } }
+        ).zoomInvariantBase = {
+          scaleX: scale,
+          scaleY: scale
+        }
       } catch {
         img = null
       }
@@ -568,6 +767,7 @@ export default class PersonTracker {
       top: 0,
       visible: !img
     })
+    ;(circle as Circle & { customType: string }).customType = CustomType.PersonMarker
 
     // 文字在 circle/图片 下方
     const textTopOffset = img ? scaledHeight / 2 + 4 : this.options.radius + 4
@@ -579,6 +779,13 @@ export default class PersonTracker {
       left: 0,
       top: textTopOffset
     })
+    ;(text as fabric.FabricText & { customType: string }).customType = CustomType.Text
+    ;(
+      text as fabric.FabricText & { zoomInvariantBase: { scaleX: number; scaleY: number } }
+    ).zoomInvariantBase = {
+      scaleX: text.scaleX || 1,
+      scaleY: text.scaleY || 1
+    }
 
     const groupItems: (Circle | fabric.FabricText | FabricImage)[] = img
       ? [img, circle, text]
@@ -601,7 +808,13 @@ export default class PersonTracker {
     })
 
     ;(group as Group & { customType: string }).customType = CustomType.PersonMarker
-    ;(group as Group & { customData: any }).customData = { textHeight }
+    ;(group as Group & { customData: any }).customData = { textHeight, anchorX: x, anchorY: y }
+    ;(
+      group as Group & { zoomInvariantBase: { scaleX: number; scaleY: number } }
+    ).zoomInvariantBase = {
+      scaleX: group.scaleX || 1,
+      scaleY: group.scaleY || 1
+    }
 
     const marker: PersonMarker = { group, circle, text }
     if (img) {
@@ -631,6 +844,7 @@ export default class PersonTracker {
       top: 0,
       visible: true
     })
+    ;(circle as Circle & { customType: string }).customType = CustomType.PersonMarker
 
     // 文字在 circle 下方
     const text = new fabric.FabricText(name, {
@@ -641,6 +855,13 @@ export default class PersonTracker {
       left: 0,
       top: this.options.radius + 4
     })
+    ;(text as fabric.FabricText & { customType: string }).customType = CustomType.Text
+    ;(
+      text as fabric.FabricText & { zoomInvariantBase: { scaleX: number; scaleY: number } }
+    ).zoomInvariantBase = {
+      scaleX: text.scaleX || 1,
+      scaleY: text.scaleY || 1
+    }
 
     // 计算 group 偏移量
     const textHeight = text.height || this.options.fontSize
@@ -659,6 +880,13 @@ export default class PersonTracker {
     })
 
     ;(group as Group & { customType: string }).customType = CustomType.PersonMarker
+    ;(group as Group & { customData: any }).customData = { anchorX: x, anchorY: y }
+    ;(
+      group as Group & { zoomInvariantBase: { scaleX: number; scaleY: number } }
+    ).zoomInvariantBase = {
+      scaleX: group.scaleX || 1,
+      scaleY: group.scaleY || 1
+    }
 
     return { group, circle, text }
   }
@@ -673,6 +901,9 @@ export default class PersonTracker {
       evented: false
     })
     ;(polyline as Polyline & { customType: string }).customType = CustomType.TracePath
+    ;(polyline as Polyline & { zoomInvariantBase: { strokeWidth: number } }).zoomInvariantBase = {
+      strokeWidth: this.options.lineWidth
+    }
     return polyline
   }
 
@@ -686,6 +917,9 @@ export default class PersonTracker {
       evented: false
     })
     ;(path as Path & { customType: string }).customType = CustomType.TracePath
+    ;(path as Path & { zoomInvariantBase: { strokeWidth: number } }).zoomInvariantBase = {
+      strokeWidth: this.options.lineWidth
+    }
     return path
   }
 
@@ -794,8 +1028,7 @@ export default class PersonTracker {
 
       const position = this._getPositionAtDistance(animationPoints, segmentLengths, currentDistance)
       if (data.movingMarker) {
-        data.movingMarker.group.set({ left: position.x, top: position.y })
-        data.movingMarker.group.setCoords()
+        this._setMarkerAnchor(data.movingMarker, position.x, position.y)
       }
 
       this.canvas.renderAll()
@@ -851,6 +1084,8 @@ export default class PersonTracker {
 
   destroy(): void {
     this.clearAll()
+    this.eventBus.off('canvas:zoomed', this._onCanvasZoomed)
+    this.eventBus.off('canvas:panned', this._onCanvasPanned)
   }
 
   abortRendering(): void {
@@ -903,11 +1138,19 @@ export default class PersonTracker {
       selectable: false,
       evented: false
     })
+    ;(rippleCircle as Circle & { customType: string }).customType = CustomType.PersonMarker
+    ;(rippleCircle as Circle & { zoomInvariantBase: { radius: number } }).zoomInvariantBase = {
+      radius: baseRadius
+    }
+    ;(rippleCircle as Circle & { customData: Record<string, unknown> }).customData = {
+      rawRadius: baseRadius
+    }
 
     this.canvas.add(rippleCircle)
-    this.canvas.sendObjectToBack(rippleCircle)
     marker.rippleCircle = rippleCircle
     marker.rippleAnimating = true
+    this._applyZoomInvariantToRipple(marker)
+    this.canvas.bringObjectToFront(marker.group)
 
     const animateRipple = () => {
       if (!marker.rippleAnimating || !marker.rippleCircle) return
@@ -920,18 +1163,29 @@ export default class PersonTracker {
           if (!marker.rippleAnimating || !marker.rippleCircle) return
           const progress = (value - baseRadius) / (maxRadius - baseRadius)
           const opacity = 0.8 * (1 - progress)
+          ;(marker.rippleCircle as Circle & { customData?: Record<string, unknown> }).customData = {
+            ...((marker.rippleCircle as Circle & { customData?: Record<string, unknown> })
+              .customData || {}),
+            rawRadius: value
+          }
           marker.rippleCircle.set({
-            radius: value,
             fill: this._colorWithOpacity('#ff0000', opacity)
           })
+          this._applyZoomInvariantToRipple(marker)
           this.canvas.renderAll()
         },
         onComplete: () => {
           if (marker.rippleAnimating && marker.rippleCircle) {
+            ;(marker.rippleCircle as Circle & { customData?: Record<string, unknown> }).customData =
+              {
+                ...((marker.rippleCircle as Circle & { customData?: Record<string, unknown> })
+                  .customData || {}),
+                rawRadius: baseRadius
+              }
             marker.rippleCircle.set({
-              radius: baseRadius,
               fill: this._colorWithOpacity('#ff0000', 1)
             })
+            this._applyZoomInvariantToRipple(marker)
             animateRipple()
           }
         }

@@ -33,6 +33,28 @@ describe('export utils', () => {
       })
       expect(typeof result).toBe('string')
     })
+
+    it('遇到 customData 循环引用时不应导出爆栈', () => {
+      const cyclicObject: any = {
+        customType: CustomType.Line,
+        strokeWidth: 1
+      }
+      cyclicObject.customData = { self: cyclicObject }
+      cyclicObject.zoomInvariantBase = { strokeWidth: 2 }
+
+      canvas.toObject = vi.fn(() => ({
+        version: '6.0.0',
+        objects: [cyclicObject]
+      }))
+
+      const json = exportToJSON(canvas as unknown as Canvas, {
+        excludeTypes: []
+      })
+      const data = JSON.parse(json)
+
+      expect(data.objects[0].strokeWidth).toBe(2)
+      expect(data.objects[0].customData.self).toBeUndefined()
+    })
   })
 
   describe('importFromJSON', () => {

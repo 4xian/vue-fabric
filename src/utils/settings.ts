@@ -110,7 +110,9 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   targetFindTolerance: 0,
   defaultShowHelpers: true,
   autoResize: false,
-  pixelRatio: 'auto'
+  pixelRatio: 'auto',
+  lockObjectVisualSizeOnZoom: false,
+  zoomInvariantExcludeTypes: []
 }
 
 // 默认canvas管理器配置
@@ -371,6 +373,7 @@ export const DEFAULT_HISTORY_EXCLUDE_TYPES: string[] = [
 export const SERIALIZATION_PROPERTIES = [
   'customType',
   'customData',
+  'zoomInvariantBase',
   'hasControls',
   'hasBorders',
   'lockMovementX',

@@ -51,7 +51,9 @@ export default class CurveTool extends BaseTool {
   onDeactivate(): void {
     if (!this.canvas) return
     this.canvas.selection = true
+    const backgroundImage = this.paintBoard?.getBackgroundImage?.()
     this.canvas.forEachObject(obj => {
+      if (obj === backgroundImage) return
       obj.set({ selectable: true, evented: true })
     })
     this._cancelDrawing()

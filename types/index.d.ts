@@ -12,6 +12,14 @@ export interface BackgroundImageOptions {
   backgroundVpt?: boolean
 }
 
+export interface ZoomInvariantBase {
+  strokeWidth?: number
+  radius?: number
+  fontSize?: number
+  scaleX?: number
+  scaleY?: number
+}
+
 export interface FabricPaintOptions {
   width?: number
   height?: number
@@ -28,6 +36,8 @@ export interface FabricPaintOptions {
   defaultShowHelpers?: boolean
   autoResize?: boolean
   pixelRatio?: number | 'auto'
+  lockObjectVisualSizeOnZoom?: boolean
+  zoomInvariantExcludeTypes?: string[]
 }
 
 export type ZoomOrigin = 'center' | 'topLeft'
