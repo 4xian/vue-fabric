@@ -18,11 +18,13 @@ import {
   SERIALIZATION_PROPERTIES,
   CustomType,
   CUSTOM_TYPE_HELPER_MAP,
+  DEFAULT_AREATOOL_OPTIONS,
+  DEFAULT_RECTTOOL_OPTIONS,
   type MainCustomType
 } from './settings'
 import type { ExportJSONOptions } from '../../types'
 import { setupRectEvents } from './rectEvents'
-import { setupAreaEvents, configureControls } from './areaEvents'
+import { setupAreaEvents, configureControls, setAreaHelpersVisibility } from './areaEvents'
 
 type SerializedZoomInvariantNode = {
   customType?: string
@@ -85,6 +87,116 @@ function applyZoomInvariantBase(node: SerializedZoomInvariantNode): void {
   }
 }
 
+type SerializableCustomData = Record<string, unknown>
+
+function buildSerializableCustomData(
+  customType: string,
+  customData: SerializableCustomData
+): SerializableCustomData | undefined {
+  switch (customType) {
+    case CustomType.Area:
+      return {
+        drawId: customData.drawId,
+        points: customData.points,
+        distances: customData.distances,
+        lineColor: customData.lineColor,
+        fillColor: customData.fillColor,
+        originalOptions: customData.originalOptions
+      }
+    case CustomType.Line:
+      return {
+        drawId: customData.drawId,
+        startPoint: customData.startPoint,
+        endPoint: customData.endPoint,
+        distance: customData.distance,
+        lineColor: customData.lineColor
+      }
+    case CustomType.Polyline:
+      return {
+        drawId: customData.drawId,
+        points: customData.points,
+        distances: customData.distances,
+        lineColor: customData.lineColor
+      }
+    case CustomType.Curve:
+      return {
+        drawId: customData.drawId,
+        points: customData.points,
+        isClosed: customData.isClosed,
+        lineColor: customData.lineColor,
+        fillColor: customData.fillColor,
+        distances: customData.distances
+      }
+    case CustomType.Rect:
+      return {
+        drawId: customData.drawId,
+        startPoint: customData.startPoint,
+        endPoint: customData.endPoint,
+        width: customData.width,
+        height: customData.height,
+        lineColor: customData.lineColor,
+        fillColor: customData.fillColor,
+        originalOptions: customData.originalOptions
+      }
+    default:
+      return undefined
+  }
+}
+
+function sanitizeCanvasDataForExport(canvasData: SerializedZoomInvariantNode): void {
+  if (!Array.isArray(canvasData.objects)) return
+
+  canvasData.objects = canvasData.objects.map(obj => sanitizeSerializedObject(obj))
+}
+
+function sanitizeSerializedObject(object: unknown): unknown {
+  if (!object || typeof object !== 'object') return object
+
+  const serializedObject = object as SerializedZoomInvariantNode
+  if (!serializedObject.customType || !serializedObject.customData) {
+    return serializedObject
+  }
+
+  const sanitized = buildSerializableCustomData(
+    serializedObject.customType,
+    serializedObject.customData as SerializableCustomData
+  )
+  if (sanitized) {
+    serializedObject.customData = sanitized
+  }
+
+  return serializedObject
+}
+
+function createSerializableCanvasSnapshot(canvas: Canvas, propertiesToInclude: string[]) {
+  const mutatedObjects: Array<{
+    object: fabric.FabricObject & { customType?: string; customData?: SerializableCustomData }
+    customData: SerializableCustomData
+  }> = []
+
+  try {
+    canvas.getObjects().forEach(obj => {
+      const customObj = obj as fabric.FabricObject & {
+        customType?: string
+        customData?: SerializableCustomData
+      }
+      if (!customObj.customType || !customObj.customData) return
+
+      const sanitized = buildSerializableCustomData(customObj.customType, customObj.customData)
+      if (!sanitized) return
+
+      mutatedObjects.push({ object: customObj, customData: customObj.customData })
+      customObj.customData = sanitized
+    })
+
+    return canvas.toObject(propertiesToInclude)
+  } finally {
+    mutatedObjects.forEach(({ object, customData }) => {
+      object.customData = customData
+    })
+  }
+}
+
 export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string[] = []): string {
   const normalizedOptions: ExportJSONOptions = Array.isArray(options)
     ? { additionalProperties: options }
@@ -92,9 +204,10 @@ export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string
 
   const { additionalProperties = [], excludeTypes = ['text', 'image'] } = normalizedOptions
   const propertiesToInclude = [...SERIALIZATION_PROPERTIES, ...additionalProperties]
-  const canvasData =
-    normalizeZoomInvariantNode(canvas.toObject(propertiesToInclude)) ||
-    canvas.toObject(propertiesToInclude)
+  const rawCanvasData = createSerializableCanvasSnapshot(canvas, propertiesToInclude)
+  const canvasData = normalizeZoomInvariantNode(rawCanvasData) || rawCanvasData
+
+  sanitizeCanvasDataForExport(canvasData)
 
   if (excludeTypes.length > 0) {
     const typesToExclude = new Set<string>()
@@ -153,13 +266,18 @@ function rebindObjectEvents(
 
     switch (customObj.customType) {
       case CustomType.Area:
+        hydrateAreaRuntimeData(customObj as Polygon & { customData: AreaCustomData })
         rebindAreaEvents(
           customObj as Polygon & { customData: AreaCustomData },
           canvas,
           eventBus,
           getCurrentToolName
         )
-        applyHelperVisibility(customObj as Polygon & { customData: AreaCustomData }, helpersVisible)
+        applyAreaHelperVisibility(
+          customObj as Polygon & { customData: AreaCustomData },
+          helpersVisible,
+          canvas
+        )
         break
       case CustomType.Line:
         rebindLineEvents(customObj as Line & { customData: LineCustomData }, canvas, eventBus)
@@ -169,6 +287,7 @@ function rebindObjectEvents(
         )
         break
       case CustomType.Polyline:
+        hydratePolylineRuntimeData(customObj as Polyline & { customData: PolylineCustomData })
         rebindPolylineEvents(
           customObj as Polyline & { customData: PolylineCustomData },
           canvas,
@@ -180,6 +299,7 @@ function rebindObjectEvents(
         )
         break
       case CustomType.Curve:
+        hydrateCurveRuntimeData(customObj as fabric.FabricObject & { customData: CurveCustomData })
         rebindCurveEvents(
           customObj as fabric.FabricObject & { customData: CurveCustomData },
           canvas,
@@ -191,6 +311,7 @@ function rebindObjectEvents(
         )
         break
       case CustomType.Rect:
+        hydrateRectRuntimeData(customObj as Rect & { customData: RectCustomData })
         rebindRectEvents(
           customObj as Rect & { customData: RectCustomData },
           canvas,
@@ -217,32 +338,45 @@ function rebindObjectEvents(
   })
 }
 
-function applyHelperVisibility(
+function hydrateAreaRuntimeData(obj: Polygon & { customData: AreaCustomData }): void {
+  obj.customData = {
+    ...obj.customData,
+    originalOptions: {
+      ...DEFAULT_AREATOOL_OPTIONS,
+      ...(obj.customData?.originalOptions || {})
+    }
+  }
+}
+
+function hydratePolylineRuntimeData(obj: Polyline & { customData: PolylineCustomData }): void {
+  obj.customData = {
+    ...obj.customData,
+    polyline: obj
+  }
+}
+
+function hydrateCurveRuntimeData(obj: fabric.FabricObject & { customData: CurveCustomData }): void {
+  obj.customData = {
+    ...obj.customData
+  }
+}
+
+function hydrateRectRuntimeData(obj: Rect & { customData: RectCustomData }): void {
+  obj.customData = {
+    ...obj.customData,
+    originalOptions: {
+      ...DEFAULT_RECTTOOL_OPTIONS,
+      ...(obj.customData?.originalOptions || {})
+    }
+  }
+}
+
+function applyAreaHelperVisibility(
   obj: Polygon & { customData: AreaCustomData },
-  visible: boolean
+  visible: boolean,
+  canvas: Canvas
 ): void {
-  const { circles, labels, lines } = obj.customData || {}
-  if (circles && Array.isArray(circles)) {
-    circles.forEach(circle => {
-      if (circle && typeof circle.set === 'function') {
-        circle.set({ visible })
-      }
-    })
-  }
-  if (labels && Array.isArray(labels)) {
-    labels.forEach(label => {
-      if (label && typeof label.set === 'function') {
-        label.set({ visible })
-      }
-    })
-  }
-  if (lines && Array.isArray(lines)) {
-    lines.forEach(line => {
-      if (line && typeof line.set === 'function') {
-        line.set({ visible })
-      }
-    })
-  }
+  setAreaHelpersVisibility(obj, canvas, visible)
 }
 
 function applyLineHelperVisibility(
@@ -537,9 +671,16 @@ function relinkHelperElements(canvas: Canvas): void {
   areas.forEach((area, drawId) => {
     const helpers = areaHelpers.get(drawId)
     if (helpers && area.customData) {
-      area.customData.circles = helpers.circles.length > 0 ? helpers.circles : undefined
-      area.customData.labels = helpers.labels.length > 0 ? helpers.labels : undefined
-      area.customData.lines = helpers.lines.length > 0 ? helpers.lines : undefined
+      area.customData = {
+        ...area.customData,
+        circles: helpers.circles.length > 0 ? helpers.circles : undefined,
+        labels: helpers.labels.length > 0 ? helpers.labels : undefined,
+        lines: helpers.lines.length > 0 ? helpers.lines : undefined,
+        originalOptions: {
+          ...DEFAULT_AREATOOL_OPTIONS,
+          ...(area.customData.originalOptions || {})
+        }
+      }
     }
   })
 
@@ -555,25 +696,38 @@ function relinkHelperElements(canvas: Canvas): void {
   polylines.forEach((polyline, drawId) => {
     const helpers = polylineHelpers.get(drawId)
     if (helpers && polyline.customData) {
-      polyline.customData.circles = sortHelpersByIndex(helpers.circles)
-      polyline.customData.labels = sortHelpersByIndex(helpers.labels)
-      polyline.customData.polyline = polyline
+      polyline.customData = {
+        ...polyline.customData,
+        circles: sortHelpersByIndex(helpers.circles),
+        labels: sortHelpersByIndex(helpers.labels),
+        polyline
+      }
     }
   })
 
   curves.forEach((curve, drawId) => {
     const helpers = curveHelpers.get(drawId)
     if (helpers && curve.customData) {
-      curve.customData.circles = helpers.circles.length > 0 ? helpers.circles : undefined
-      curve.customData.labels = helpers.labels.length > 0 ? helpers.labels : undefined
+      curve.customData = {
+        ...curve.customData,
+        circles: helpers.circles.length > 0 ? helpers.circles : undefined,
+        labels: helpers.labels.length > 0 ? helpers.labels : undefined
+      }
     }
   })
 
   rects.forEach((rect, drawId) => {
     const helpers = rectHelpers.get(drawId)
     if (helpers && rect.customData) {
-      rect.customData.widthLabel = helpers.widthLabel
-      rect.customData.heightLabel = helpers.heightLabel
+      rect.customData = {
+        ...rect.customData,
+        widthLabel: helpers.widthLabel,
+        heightLabel: helpers.heightLabel,
+        originalOptions: {
+          ...DEFAULT_RECTTOOL_OPTIONS,
+          ...(rect.customData.originalOptions || {})
+        }
+      }
     }
   })
 }

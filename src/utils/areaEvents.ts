@@ -7,6 +7,44 @@ import { calculateDistance, getMidPoint } from './geometry'
 
 type PolygonWithCustomData = Polygon & { customData: AreaCustomData }
 
+export function setAreaHelpersVisibility(
+  polygon: PolygonWithCustomData,
+  canvas: Canvas,
+  visible: boolean
+): void {
+  const { circles, labels, lines } = polygon.customData || {}
+
+  if (!visible) {
+    circles?.forEach(circle => {
+      circle.set({ visible: false, evented: false })
+    })
+    labels?.forEach(label => {
+      label.set({ visible: false })
+    })
+    lines?.forEach(line => {
+      line.set({ visible: false })
+    })
+    return
+  }
+
+  lines?.forEach(line => {
+    line.set({ visible: true, opacity: 1, evented: false, selectable: false })
+    canvas.bringObjectToFront(line)
+  })
+
+  canvas.bringObjectToFront(polygon)
+
+  circles?.forEach(circle => {
+    circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
+    canvas.bringObjectToFront(circle)
+  })
+
+  labels?.forEach(label => {
+    label.set({ visible: true, opacity: 1 })
+    canvas.bringObjectToFront(label)
+  })
+}
+
 export function handleAreaSelected(
   polygon: PolygonWithCustomData,
   eventBus: EventBus,

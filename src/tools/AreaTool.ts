@@ -5,7 +5,7 @@ import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
 import { DEFAULT_AREATOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
-import { setupAreaEvents, configureControls } from '../utils/areaEvents'
+import { setupAreaEvents, configureControls, setAreaHelpersVisibility } from '../utils/areaEvents'
 
 interface UndoState {
   point: Point
@@ -359,11 +359,11 @@ export default class AreaTool extends BaseTool {
     this.canvas.add(polygon)
 
     const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
-    if (shouldShowHelpers) {
-      this._bringHelpersToFront()
-    } else {
-      this._hideHelpers()
-    }
+    setAreaHelpersVisibility(
+      polygon as Polygon & { customType: string; customData: AreaCustomData },
+      this.canvas,
+      shouldShowHelpers
+    )
 
     this._setupAreaEvents(polygon as Polygon & { customType: string; customData: AreaCustomData })
 
@@ -398,38 +398,13 @@ export default class AreaTool extends BaseTool {
 
   private _showAreaHelpers(polygon: Polygon & { customData: AreaCustomData }): void {
     if (!this.canvas) return
-    const data = polygon.customData
-
-    data.lines?.forEach(line => {
-      line.set({ visible: true, opacity: 1 })
-      this.canvas!.bringObjectToFront(line)
-    })
-    data.circles?.forEach(circle => {
-      circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
-      this.canvas!.bringObjectToFront(circle)
-    })
-    data.labels?.forEach(label => {
-      label.set({ visible: true, opacity: 1 })
-      this.canvas!.bringObjectToFront(label)
-    })
-
+    setAreaHelpersVisibility(polygon, this.canvas, true)
     this.canvas.renderAll()
   }
 
   private _hideAreaHelpers(polygon: Polygon & { customData: AreaCustomData }): void {
     if (!this.canvas) return
-    const data = polygon.customData
-
-    data.circles?.forEach(circle => {
-      circle.set({ visible: false })
-    })
-    data.labels?.forEach(label => {
-      label.set({ visible: false })
-    })
-    data.lines?.forEach(line => {
-      line.set({ visible: false })
-    })
-
+    setAreaHelpersVisibility(polygon, this.canvas, false)
     this.canvas.renderAll()
   }
 

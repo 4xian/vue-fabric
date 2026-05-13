@@ -112,6 +112,9 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   targetFindTolerance: 0,
   defaultShowHelpers: true,
   autoResize: false,
+  autoResizeMode: 'canvas',
+  autoResizeFit: 'contain',
+  referenceSize: undefined,
   pixelRatio: 'auto',
   lockObjectVisualSizeOnZoom: false,
   zoomInvariantExcludeTypes: []

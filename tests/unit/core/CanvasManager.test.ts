@@ -65,16 +65,17 @@ describe('CanvasManager', () => {
     it('应该放大画布', () => {
       const initialZoom = canvas.getZoom()
       manager.zoomIn()
-      expect(canvas.zoomToPoint).toHaveBeenCalled()
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[1]).toBeCloseTo(initialZoom * 1.1)
+      expect(canvas.setViewportTransform).toHaveBeenCalled()
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBeCloseTo(initialZoom * 1.1)
+      expect(callArgs[0][3]).toBeCloseTo(initialZoom * 1.1)
     })
 
     it('应该限制最大缩放', () => {
-      canvas.getZoom = vi.fn(() => 4.8)
+      canvas.viewportTransform = [4.8, 0, 0, 4.8, 0, 0]
       manager.zoomIn()
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[1]).toBe(5)
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBe(5)
     })
 
     it('应该触发 canvas:zoomed 事件', () => {
@@ -86,36 +87,16 @@ describe('CanvasManager', () => {
 
     it('使用 center 原点时应该在画布中心缩放', () => {
       manager.zoomIn('center')
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[0]).toEqual(
-        expect.objectContaining({
-          x: TEST_CANVAS_SIZE.width / 2,
-          y: TEST_CANVAS_SIZE.height / 2
-        })
-      )
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][4]).toBeCloseTo((TEST_CANVAS_SIZE.width - TEST_CANVAS_SIZE.width * 1.1) / 2)
+      expect(callArgs[0][5]).toBeCloseTo((TEST_CANVAS_SIZE.height - TEST_CANVAS_SIZE.height * 1.1) / 2)
     })
 
-    it('display 尺寸变化后 center 原点应基于当前显示中心', () => {
-      canvas.lowerCanvasEl = { clientWidth: 1200, clientHeight: 600, style: {} }
-      manager.zoomIn('center')
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[0]).toEqual(
-        expect.objectContaining({
-          x: 600,
-          y: 300
-        })
-      )
-    })
-
-    it('使用 topLeft 原点时应该在左上角缩放', () => {
+    it('使用 topLeft 原点时应贴左上缩放', () => {
       manager.zoomIn('topLeft')
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[0]).toEqual(
-        expect.objectContaining({
-          x: 0,
-          y: 0
-        })
-      )
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][4]).toBe(0)
+      expect(callArgs[0][5]).toBe(0)
     })
   })
 
@@ -127,16 +108,17 @@ describe('CanvasManager', () => {
     it('应该缩小画布', () => {
       const initialZoom = canvas.getZoom()
       manager.zoomOut()
-      expect(canvas.zoomToPoint).toHaveBeenCalled()
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[1]).toBeCloseTo(initialZoom / 1.1)
+      expect(canvas.setViewportTransform).toHaveBeenCalled()
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBeCloseTo(initialZoom / 1.1)
+      expect(callArgs[0][3]).toBeCloseTo(initialZoom / 1.1)
     })
 
     it('应该限制最小缩放', () => {
-      canvas.getZoom = vi.fn(() => 0.25)
+      canvas.viewportTransform = [0.25, 0, 0, 0.25, 0, 0]
       manager.zoomOut()
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[1]).toBeCloseTo(0.2, 1)
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBeCloseTo(0.2, 1)
     })
 
     it('应该触发 canvas:zoomed 事件', () => {
@@ -173,19 +155,29 @@ describe('CanvasManager', () => {
 
     it('应该设置指定的缩放值', () => {
       manager.setZoom(2)
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[1]).toBe(2)
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBe(2)
+    })
+
+    it('display 尺寸与 logical 不一致时，number zoom 应按相对 fit 倍率计算', () => {
+      canvas.lowerCanvasEl = { clientWidth: 1200, clientHeight: 600, style: {} }
+      canvas.wrapperEl = { clientWidth: 1200, clientHeight: 600, style: {} }
+
+      manager.setZoom(2)
+
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBeCloseTo(1.5)
     })
 
     it('应该限制缩放范围', () => {
       manager.setZoom(10)
-      const callArgs = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs[1]).toBe(5)
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][0]).toBe(5)
 
-      vi.mocked(canvas.zoomToPoint).mockClear()
+      vi.mocked(canvas.setViewportTransform).mockClear()
       manager.setZoom(0.1)
-      const callArgs2 = vi.mocked(canvas.zoomToPoint).mock.calls[0]
-      expect(callArgs2[1]).toBe(0.2)
+      const callArgs2 = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs2[0][0]).toBe(0.2)
     })
 
     it('应该支持 ZoomScale 对象', () => {
@@ -199,6 +191,39 @@ describe('CanvasManager', () => {
       manager.setZoom(2)
       expect(callback).toHaveBeenCalledWith(2)
     })
+
+    it('center 模式应按容器与缩放后画布差值平均居中', () => {
+      canvas.lowerCanvasEl = { clientWidth: 1000, clientHeight: 600, style: {} }
+      canvas.wrapperEl = { clientWidth: 1000, clientHeight: 600, style: {} }
+      canvas.getWidth = vi.fn(() => 1000)
+      canvas.getHeight = vi.fn(() => 600)
+
+      manager.setZoom(0.5, 'center')
+
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][4]).toBeCloseTo(250)
+      expect(callArgs[0][5]).toBeCloseTo(150)
+    })
+
+    it('center 模式在画布已平移后应围绕当前画布内容中心缩放', () => {
+      canvas.viewportTransform = [1, 0, 0, 1, 120, 80]
+
+      manager.setZoom(2, 'center')
+
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][4]).toBeCloseTo(-280)
+      expect(callArgs[0][5]).toBeCloseTo(-320)
+    })
+
+    it('topLeft 模式在画布已平移后应保持当前画布左上锚点', () => {
+      canvas.viewportTransform = [1, 0, 0, 1, 120, 80]
+
+      manager.setZoom(2, 'topLeft')
+
+      const callArgs = vi.mocked(canvas.setViewportTransform).mock.calls[0]
+      expect(callArgs[0][4]).toBeCloseTo(120)
+      expect(callArgs[0][5]).toBeCloseTo(80)
+    })
   })
 
   describe('getZoom() - 获取缩放', () => {
@@ -209,6 +234,29 @@ describe('CanvasManager', () => {
     it('应该返回当前缩放值', () => {
       const zoom = manager.getZoom()
       expect(zoom).toBe(1)
+    })
+
+    it('fitViewport 场景下应返回相对 fit 的业务 zoom', () => {
+      canvas.viewportTransform = [0.75, 0, 0, 0.75, 100, 50]
+      canvas.lowerCanvasEl = { clientWidth: 1200, clientHeight: 600, style: {} }
+      canvas.wrapperEl = { clientWidth: 1200, clientHeight: 600, style: {} }
+
+      const zoom = manager.getZoom()
+      expect(zoom).toBeCloseTo(1)
+    })
+  })
+
+  describe('resetZoom() - 指定还原倍率', () => {
+    beforeEach(() => {
+      manager = new CanvasManager(canvas as unknown as Canvas, eventBus)
+    })
+
+    it('应该支持传入还原倍率，并回到容器居中视图', () => {
+      canvas.viewportTransform = [2, 0, 0, 2, 120, 80]
+
+      manager.resetZoom(0.5)
+
+      expect(canvas.setViewportTransform).toHaveBeenCalledWith([0.5, 0, 0, 0.5, 200, 200])
     })
   })
 })

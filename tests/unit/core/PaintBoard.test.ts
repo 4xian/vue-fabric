@@ -42,6 +42,14 @@ describe('PaintBoard - 核心功能', () => {
     container = document.createElement('div')
     container.style.width = '800px'
     container.style.height = '600px'
+    Object.defineProperty(container, 'clientWidth', {
+      configurable: true,
+      get: () => 800
+    })
+    Object.defineProperty(container, 'clientHeight', {
+      configurable: true,
+      get: () => 600
+    })
     document.body.appendChild(container)
     board = new PaintBoard(container, { width: 800, height: 600, autoResize: false })
     board.init()
@@ -54,7 +62,7 @@ describe('PaintBoard - 核心功能', () => {
   })
 
   describe('resize', () => {
-    it('resize() 应只调整展示层，不改逻辑对象数据', () => {
+    it('resize() 应重建画布尺寸，但不改逻辑对象数据', () => {
       const rect = new fabric.Rect({
         left: 100,
         top: 80,
@@ -78,9 +86,12 @@ describe('PaintBoard - 核心功能', () => {
       expect(rect.top).toBe(before.top)
       expect(rect.scaleX).toBe(before.scaleX)
       expect(rect.scaleY).toBe(before.scaleY)
-      expect(board.canvas?.getWidth()).toBe(800)
-      expect(board.canvas?.getHeight()).toBe(600)
-      expect(board.canvas?.viewportTransform?.[0]).toBeCloseTo(1000 / 800 > 700 / 600 ? 700 / 600 : 1000 / 800)
+      expect(board.canvas?.getWidth()).toBe(1000)
+      expect(board.canvas?.getHeight()).toBe(700)
+      expect(board.canvas?.viewportTransform?.[0]).toBeCloseTo(1)
+      expect(board.canvas?.viewportTransform?.[3]).toBeCloseTo(1)
+      expect(board.canvas?.viewportTransform?.[4]).toBeCloseTo(0)
+      expect(board.canvas?.viewportTransform?.[5]).toBeCloseTo(0)
     })
 
     it('resize() 应触发 canvas:resized 事件', () => {
@@ -96,10 +107,153 @@ describe('PaintBoard - 核心功能', () => {
       )
     })
 
+    it('fitViewport resize() 应同步触发 canvas:zoomed 事件并重置业务 zoom', () => {
+      const callback = vi.fn()
+      board.on('canvas:zoomed', callback)
+
+      board.resize(900, 700)
+
+      expect(callback).toHaveBeenCalledWith(1)
+      expect(board.getZoom()).toBeCloseTo(1)
+    })
+
     it('resize() 传入 0 或负数时应被忽略', () => {
       const oldTransform = [...(board.canvas?.viewportTransform || [])]
       board.resize(0, 0)
       expect(board.canvas?.viewportTransform).toEqual(oldTransform)
+    })
+
+    it('autoResize 场景下 resize() 应按新尺寸重建画布，并延续当前业务缩放', () => {
+      const fitBoard = new PaintBoard(container, {
+        width: 1000,
+        height: 800,
+        autoResize: true
+      })
+      fitBoard.init()
+
+      expect(fitBoard.canvas?.getWidth()).toBe(800)
+      expect(fitBoard.canvas?.getHeight()).toBe(600)
+      expect(fitBoard.getZoom()).toBeCloseTo(1)
+
+      fitBoard.zoomIn()
+      expect(fitBoard.getZoom()).toBeCloseTo(1.1)
+
+      fitBoard.resize(1200, 700)
+
+      expect(fitBoard.getZoom()).toBeCloseTo(1.1)
+      expect(fitBoard.canvas?.getWidth()).toBe(1200)
+      expect(fitBoard.canvas?.getHeight()).toBe(700)
+      expect(fitBoard.canvas?.viewportTransform?.[0]).toBeCloseTo(1.1)
+      expect(fitBoard.canvas?.viewportTransform?.[3]).toBeCloseTo(1.1)
+      expect(fitBoard.canvas?.viewportTransform?.[4]).toBeCloseTo(-60)
+      expect(fitBoard.canvas?.viewportTransform?.[5]).toBeCloseTo(-35)
+
+      fitBoard.destroy()
+    })
+
+    it('topLeft 原点下 resize() 也应延续当前业务缩放', () => {
+      const fitBoard = new PaintBoard(container, {
+        width: 1000,
+        height: 800,
+        autoResize: true,
+        zoomOrigin: 'topLeft'
+      })
+      fitBoard.init()
+      fitBoard.zoomIn()
+      fitBoard.resize(1200, 700)
+
+      expect(fitBoard.getZoom()).toBeCloseTo(1.1)
+      expect(fitBoard.canvas?.getWidth()).toBe(1200)
+      expect(fitBoard.canvas?.getHeight()).toBe(700)
+      expect(fitBoard.canvas?.viewportTransform?.[0]).toBeCloseTo(1.1)
+      expect(fitBoard.canvas?.viewportTransform?.[3]).toBeCloseTo(1.1)
+      expect(fitBoard.canvas?.viewportTransform?.[4]).toBeCloseTo(0)
+      expect(fitBoard.canvas?.viewportTransform?.[5]).toBeCloseTo(0)
+
+      fitBoard.destroy()
+    })
+
+    it('autoResizeMode viewport should keep reference size while fitting display', () => {
+      const fitBoard = new PaintBoard(container, {
+        width: 800,
+        height: 600,
+        autoResize: true,
+        autoResizeMode: 'viewport',
+        referenceSize: { width: 800, height: 600 }
+      })
+      fitBoard.init()
+
+      fitBoard.resize(1200, 700)
+
+      expect((fitBoard as any)._getLogicalCanvasSize()).toEqual({ width: 800, height: 600 })
+      expect(fitBoard.canvas?.getWidth()).toBe(1200)
+      expect(fitBoard.canvas?.getHeight()).toBe(700)
+      expect(fitBoard.canvas?.viewportTransform?.[0]).toBeCloseTo(700 / 600)
+      expect(fitBoard.canvas?.viewportTransform?.[3]).toBeCloseTo(700 / 600)
+      expect(fitBoard.canvas?.viewportTransform?.[4]).toBeCloseTo((1200 - 800 * (700 / 600)) / 2)
+      expect(fitBoard.canvas?.viewportTransform?.[5]).toBeCloseTo(0)
+
+      fitBoard.destroy()
+    })
+
+    it('autoResizeMode viewport should default referenceSize to initial container size', () => {
+      const fitBoard = new PaintBoard(container, {
+        width: 1000,
+        height: 800,
+        autoResize: true,
+        autoResizeMode: 'viewport'
+      })
+      fitBoard.init()
+
+      expect((fitBoard as any)._getLogicalCanvasSize()).toEqual({ width: 800, height: 600 })
+
+      fitBoard.resize(1200, 700)
+
+      expect((fitBoard as any)._getLogicalCanvasSize()).toEqual({ width: 800, height: 600 })
+
+      fitBoard.destroy()
+    })
+
+    it('autoResizeFit cover should fill display from reference size', () => {
+      const fitBoard = new PaintBoard(container, {
+        width: 800,
+        height: 600,
+        autoResize: true,
+        autoResizeMode: 'viewport',
+        autoResizeFit: 'cover',
+        referenceSize: { width: 800, height: 600 }
+      })
+      fitBoard.init()
+
+      fitBoard.resize(1200, 700)
+
+      expect(fitBoard.canvas?.viewportTransform?.[0]).toBeCloseTo(1.5)
+      expect(fitBoard.canvas?.viewportTransform?.[3]).toBeCloseTo(1.5)
+      expect(fitBoard.canvas?.viewportTransform?.[4]).toBeCloseTo(0)
+      expect(fitBoard.canvas?.viewportTransform?.[5]).toBeCloseTo(-100)
+
+      fitBoard.destroy()
+    })
+
+    it('autoResizeFit stretch should scale x and y independently', () => {
+      const fitBoard = new PaintBoard(container, {
+        width: 800,
+        height: 600,
+        autoResize: true,
+        autoResizeMode: 'viewport',
+        autoResizeFit: 'stretch',
+        referenceSize: { width: 800, height: 600 }
+      })
+      fitBoard.init()
+
+      fitBoard.resize(1200, 700)
+
+      expect(fitBoard.canvas?.viewportTransform?.[0]).toBeCloseTo(1.5)
+      expect(fitBoard.canvas?.viewportTransform?.[3]).toBeCloseTo(700 / 600)
+      expect(fitBoard.canvas?.viewportTransform?.[4]).toBeCloseTo(0)
+      expect(fitBoard.canvas?.viewportTransform?.[5]).toBeCloseTo(0)
+
+      fitBoard.destroy()
     })
   })
 
@@ -168,6 +322,33 @@ describe('PaintBoard - 核心功能', () => {
       expect(ratioBoard.canvas?.getHeight()).toBe(600)
 
       ratioBoard.destroy()
+    })
+  })
+
+  describe('zoomOrigin', () => {
+    it('修改 board.options.zoomOrigin 后默认缩放应同步使用新的锚点', () => {
+      board.options.zoomOrigin = 'topLeft'
+      board.zoomIn()
+
+      expect(board.canvas?.viewportTransform?.[4]).toBeCloseTo(0)
+      expect(board.canvas?.viewportTransform?.[5]).toBeCloseTo(0)
+    })
+
+    it('setZoomOrigin() 应同步更新默认缩放锚点', () => {
+      board.setZoomOrigin('topLeft').resetZoom().zoomIn()
+
+      expect(board.canvas?.viewportTransform?.[4]).toBeCloseTo(0)
+      expect(board.canvas?.viewportTransform?.[5]).toBeCloseTo(0)
+    })
+
+    it('resetZoom() 应支持传入还原倍率，默认仍回到居中视图', () => {
+      board.setZoom(2)
+
+      board.resetZoom(0.5)
+
+      expect(board.getZoom()).toBeCloseTo(0.5)
+      expect(board.canvas?.viewportTransform?.[4]).toBeCloseTo(200)
+      expect(board.canvas?.viewportTransform?.[5]).toBeCloseTo(150)
     })
   })
 

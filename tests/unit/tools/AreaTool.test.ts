@@ -20,7 +20,8 @@ describe('AreaTool', () => {
       fillColor: '#00ff00',
       pauseHistory: vi.fn(),
       resumeHistory: vi.fn(),
-      setTool: vi.fn()
+      setTool: vi.fn(),
+      isHelpersVisible: vi.fn(() => true)
     }
     tool = new AreaTool({})
     tool.bindCanvas(canvas as unknown as Canvas, eventBus, mockPaintBoard)
@@ -200,6 +201,40 @@ describe('AreaTool', () => {
       } as any)
 
       expect(canvas.setActiveObject).toHaveBeenCalledWith(mockArea)
+    })
+  })
+
+  describe('helper 命中层级', () => {
+    it('完成 area 后应让 polygon 压在线段 helper 之上，避免线段吃掉命中', () => {
+      tool.activate()
+      canvas.getPointer = vi.fn()
+
+      ;[
+        { x: 100, y: 100 },
+        { x: 200, y: 100 },
+        { x: 200, y: 200 }
+      ].forEach(point => {
+        canvas.getPointer.mockReturnValue(point)
+        tool.onMouseDown({
+          e: new MouseEvent('mousedown', { button: 0 }),
+          target: null
+        } as any)
+      })
+
+      const startPoint = canvas._objects.find((obj: any) => obj.customType === 'areaPoint' && obj.isStartPoint)
+      tool.onMouseDown({
+        e: new MouseEvent('mousedown', { button: 0 }),
+        target: startPoint
+      } as any)
+
+      const bringOrder = canvas.bringObjectToFront.mock.calls.map(([obj]) => obj.customType || obj.type)
+      const areaIndex = bringOrder.indexOf('area')
+      const firstLineIndex = bringOrder.indexOf('areaLine')
+      const lastCircleIndex = bringOrder.lastIndexOf('areaPoint')
+
+      expect(firstLineIndex).toBeGreaterThanOrEqual(0)
+      expect(areaIndex).toBeGreaterThan(firstLineIndex)
+      expect(lastCircleIndex).toBeGreaterThan(areaIndex)
     })
   })
 })

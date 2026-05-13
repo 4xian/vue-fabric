@@ -29,4 +29,6 @@ npm-debug.log*
 .cunzhi-memory
 .agents
 .codex
-.trellis
+.claude
+AGENTS.md
+CLAUDE.md

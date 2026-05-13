@@ -21,7 +21,8 @@ import type {
   CustomData,
   ZoomInvariantBase,
   ResizeReference,
-  ResizeOrigin
+  ResizeOrigin,
+  AutoResizeFit
 } from '../../types'
 import PersonTracker from '../utils/PersonTracker'
 import TextTool from '../tools/TextTool'
@@ -32,6 +33,7 @@ import UndoRedoManager from '../utils/UndoRedoManager'
 import * as exportUtils from '../utils/export'
 import BaseTool from '../tools/BaseTool'
 import { PROJECT_NAME, DEFAULT_VUEFABRIC_OPTIONS, CustomType } from '../utils/settings'
+import { setAreaHelpersVisibility } from '../utils/areaEvents'
 
 type ZoomInvariantFabricObject = FabricObject & {
   customType?: string
@@ -90,6 +92,23 @@ export default class VueFabric {
     this._pixelRatio = this._getPixelRatio()
     this._displayWidth = this.options.width
     this._displayHeight = this.options.height
+    this._initOptionMirrors()
+  }
+
+  private _initOptionMirrors(): void {
+    let zoomOrigin = this.options.zoomOrigin
+
+    Object.defineProperty(this.options, 'zoomOrigin', {
+      configurable: true,
+      enumerable: true,
+      get: () => zoomOrigin,
+      set: value => {
+        zoomOrigin = value
+        if (this.canvasManager) {
+          this.canvasManager.options.zoomOrigin = value
+        }
+      }
+    })
   }
 
   private _getPixelRatio(): number {
@@ -107,13 +126,54 @@ export default class VueFabric {
     }
   }
 
-  private _setCanvasDisplaySize(width: number, height: number): void {
+  private _isViewportAutoResize(): boolean {
+    return !!this.options.autoResize && this.options.autoResizeMode === 'viewport'
+  }
+
+  private _resolveAutoResizeReferenceSize(
+    width: number,
+    height: number,
+    reference?: ResizeReference
+  ): ResizeReference {
+    const configuredReference = reference ?? this.options.referenceSize
+    const referenceWidth =
+      configuredReference?.width && configuredReference.width > 0
+        ? configuredReference.width
+        : width
+    const referenceHeight =
+      configuredReference?.height && configuredReference.height > 0
+        ? configuredReference.height
+        : height
+    const resolved = { width: referenceWidth, height: referenceHeight }
+
+    this.options.referenceSize = resolved
+    return resolved
+  }
+
+  private _syncCanvasManagerResizeOptions(): void {
+    if (!this.canvasManager) return
+
+    this.canvasManager.options.autoResize = this.options.autoResize
+    this.canvasManager.options.autoResizeMode = this.options.autoResizeMode
+    this.canvasManager.options.autoResizeFit = this.options.autoResizeFit
+    this.canvasManager.options.referenceSize = this.options.referenceSize
+  }
+
+  private _setCanvasDisplaySize(
+    width: number,
+    height: number,
+    logicalSize: ResizeReference = { width, height }
+  ): void {
+    this._originalWidth = logicalSize.width
+    this._originalHeight = logicalSize.height
     this._displayWidth = width
     this._displayHeight = height
+    this.options.width = logicalSize.width
+    this.options.height = logicalSize.height
 
     if (!this.canvas) return
 
-    this.canvas.setDimensions({ width, height }, { cssOnly: true })
+    this.canvas.setDimensions({ width, height })
   }
 
   private _getCurrentDisplaySize(): { width: number; height: number } {
@@ -128,11 +188,81 @@ export default class VueFabric {
     displayHeight: number,
     origin: ResizeOrigin = (this.options.zoomOrigin as ResizeOrigin) || 'center'
   ): [number, number, number, number, number, number] {
+    return this._getViewportTransformForDisplay(displayWidth, displayHeight, 1, origin)
+  }
+
+  private _getViewportTransformForDisplay(
+    displayWidth: number,
+    displayHeight: number,
+    zoomScale: number | ZoomScale = 1,
+    origin: ResizeOrigin = (this.options.zoomOrigin as ResizeOrigin) || 'center'
+  ): [number, number, number, number, number, number] {
     const logical = this._getLogicalCanvasSize()
-    const scale = Math.min(displayWidth / logical.width, displayHeight / logical.height)
-    const tx = origin === 'center' ? (displayWidth - logical.width * scale) / 2 : 0
-    const ty = origin === 'center' ? (displayHeight - logical.height * scale) / 2 : 0
-    return [scale, 0, 0, scale, tx, ty]
+    const fitScale = this._getFitScaleForDisplay(displayWidth, displayHeight, logical)
+    const relativeScaleX = typeof zoomScale === 'number' ? zoomScale : zoomScale.x
+    const relativeScaleY = typeof zoomScale === 'number' ? zoomScale : zoomScale.y
+    const scaleX = fitScale.x * relativeScaleX
+    const scaleY = fitScale.y * relativeScaleY
+    const tx = origin === 'center' ? (displayWidth - logical.width * scaleX) / 2 : 0
+    const ty = origin === 'center' ? (displayHeight - logical.height * scaleY) / 2 : 0
+    return [scaleX, 0, 0, scaleY, tx, ty]
+  }
+
+  private _getFitScaleForDisplay(
+    displayWidth: number,
+    displayHeight: number,
+    logical: ResizeReference
+  ): ZoomScale {
+    if (logical.width <= 0 || logical.height <= 0) {
+      return { x: 1, y: 1 }
+    }
+
+    const scaleX = displayWidth / logical.width
+    const scaleY = displayHeight / logical.height
+    const fit: AutoResizeFit = this._isViewportAutoResize() ? this.options.autoResizeFit : 'contain'
+
+    if (fit === 'cover') {
+      const scale = Math.max(scaleX, scaleY)
+      return { x: scale, y: scale }
+    }
+    if (fit === 'stretch') {
+      return { x: scaleX, y: scaleY }
+    }
+
+    const scale = Math.min(scaleX, scaleY)
+    return { x: scale, y: scale }
+  }
+
+  private _applyViewportResize(
+    width: number,
+    height: number,
+    zoomScale: number | ZoomScale,
+    origin: ResizeOrigin = (this.options.zoomOrigin as ResizeOrigin) || 'center',
+    reference?: ResizeReference
+  ): this {
+    if (!this.canvas) return this
+
+    const logicalSize = this._isViewportAutoResize()
+      ? this._resolveAutoResizeReferenceSize(width, height, reference)
+      : { width, height }
+
+    this._setCanvasDisplaySize(width, height, logicalSize)
+    this._syncCanvasManagerResizeOptions()
+    const transform = this._getViewportTransformForDisplay(width, height, zoomScale, origin)
+    const scaleX = transform[0]
+    const scaleY = transform[3]
+    this.canvas.setViewportTransform(transform)
+    this.eventBus.emit('canvas:zoomed', zoomScale)
+
+    this.eventBus.emit('canvas:resized', {
+      width,
+      height,
+      scaleX,
+      scaleY,
+      origin
+    })
+
+    return this
   }
 
   private _syncViewportPresentation(): void {
@@ -166,7 +296,7 @@ export default class VueFabric {
   }
 
   private _getZoomInvariantFactor(): number {
-    const rawZoom = this.canvasManager?.getZoom() ?? this.canvas?.getZoom() ?? 1
+    const rawZoom = this.canvas?.getZoom() ?? 1
     return rawZoom > 0 ? rawZoom : 1
   }
 
@@ -480,10 +610,6 @@ export default class VueFabric {
     this.eventBus.on('canvas:panned', () => {
       this._syncViewportPresentation()
     })
-
-    this.eventBus.on('canvas:resized', () => {
-      this._syncViewportPresentation()
-    })
   }
 
   registerTool(name: string, tool: BaseTool): this {
@@ -524,32 +650,37 @@ export default class VueFabric {
   }
 
   zoomIn(origin?: ZoomOrigin): this {
-    this.canvasManager?.zoomIn(origin)
+    this.canvasManager?.zoomIn(origin ?? this.options.zoomOrigin)
     return this
   }
 
   zoomOut(origin?: ZoomOrigin): this {
-    this.canvasManager?.zoomOut(origin)
+    this.canvasManager?.zoomOut(origin ?? this.options.zoomOrigin)
     return this
   }
 
-  resetZoom(): this {
+  resetZoom(zoomScale: number | ZoomScale = 1): this {
     if (this._shouldResetToViewportFit()) {
       const display = this._getCurrentDisplaySize()
-      this.resize(
+      this._applyViewportResize(
         display.width,
         display.height,
-        undefined,
+        zoomScale,
         (this.options.zoomOrigin as ResizeOrigin) || 'center'
       )
     } else {
-      this.canvasManager?.resetZoom()
+      this.canvasManager?.resetZoom(zoomScale)
     }
     return this
   }
 
   setZoom(zoom: number | ZoomScale, origin?: ZoomOrigin): this {
-    this.canvasManager?.setZoom(zoom, origin)
+    this.canvasManager?.setZoom(zoom, origin ?? this.options.zoomOrigin)
+    return this
+  }
+
+  setZoomOrigin(origin: ZoomOrigin): this {
+    this.options.zoomOrigin = origin
     return this
   }
 
@@ -571,26 +702,11 @@ export default class VueFabric {
 
     const newWidth = width ?? this.container.clientWidth
     const newHeight = height ?? this.container.clientHeight
+    const currentZoom = this.getZoom()
 
     if (newWidth <= 0 || newHeight <= 0) return this
 
-    const logical = reference ?? this._getLogicalCanvasSize()
-    const transform = this._getFitViewportTransform(newWidth, newHeight, origin)
-    const scaleX = transform[0]
-    const scaleY = transform[3]
-
-    this._setCanvasDisplaySize(newWidth, newHeight)
-    this.canvas.setViewportTransform(transform)
-
-    this.eventBus.emit('canvas:resized', {
-      width: newWidth,
-      height: newHeight,
-      scaleX,
-      scaleY,
-      origin
-    })
-
-    return this
+    return this._applyViewportResize(newWidth, newHeight, currentZoom, origin, reference)
   }
 
   enableAutoResize(): this {
@@ -953,19 +1069,11 @@ export default class VueFabric {
         }
       ) => {
         if (obj.customType === CustomType.Area && obj.customData) {
-          const data = obj.customData as AreaCustomData
-          data.lines?.forEach((line: Line) => {
-            line.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(line)
-          })
-          data.circles?.forEach((circle: Circle) => {
-            circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
-            this.canvas!.bringObjectToFront(circle)
-          })
-          data.labels?.forEach((label: Text) => {
-            label.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(label)
-          })
+          setAreaHelpersVisibility(
+            obj as fabric.Polygon & { customData: AreaCustomData },
+            this.canvas!,
+            true
+          )
         } else if (obj.customType === CustomType.Curve && obj.customData) {
           const data = obj.customData as CurveCustomData
           data.circles?.forEach((circle: Circle) => {
@@ -1029,16 +1137,11 @@ export default class VueFabric {
         }
       ) => {
         if (obj.customType === CustomType.Area && obj.customData) {
-          const data = obj.customData as AreaCustomData
-          data.circles?.forEach((circle: Circle) => {
-            circle.set({ visible: false })
-          })
-          data.labels?.forEach((label: Text) => {
-            label.set({ visible: false })
-          })
-          data.lines?.forEach((line: Line) => {
-            line.set({ visible: false })
-          })
+          setAreaHelpersVisibility(
+            obj as fabric.Polygon & { customData: AreaCustomData },
+            this.canvas!,
+            false
+          )
         } else if (obj.customType === CustomType.Curve && obj.customData) {
           const data = obj.customData as CurveCustomData
           data.circles?.forEach((circle: Circle) => {

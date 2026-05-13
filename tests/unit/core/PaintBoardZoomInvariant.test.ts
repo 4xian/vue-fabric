@@ -29,7 +29,6 @@ describe('VueFabric zoom invariant background transform', () => {
       scaleMode: 'fit',
       backgroundVpt: false
     }
-
     ;(board as any)._updateBackgroundImageTransform()
 
     expect(image.set).toHaveBeenCalledWith({
@@ -66,7 +65,6 @@ describe('VueFabric zoom invariant background transform', () => {
       scaleMode: 'fit',
       backgroundVpt: true
     }
-
     ;(board as any)._updateBackgroundImageTransform()
 
     expect(image.set).toHaveBeenCalledWith({
@@ -74,6 +72,43 @@ describe('VueFabric zoom invariant background transform', () => {
       scaleY: 2,
       left: 0,
       top: 100
+    })
+  })
+
+  it('keeps stretch background aligned to viewport reference size after resize', () => {
+    const container = document.createElement('div')
+    const board = new VueFabric(container, {
+      width: 800,
+      height: 600,
+      autoResize: true,
+      autoResizeMode: 'viewport',
+      referenceSize: { width: 800, height: 600 }
+    })
+    const canvas = createMockCanvas({ width: 800, height: 600, zoom: 1 }) as any
+
+    const image = {
+      width: 800,
+      height: 600,
+      set: vi.fn(),
+      setCoords: vi.fn()
+    }
+
+    ;(board as any).canvas = canvas
+    ;(board as any)._backgroundImage = image
+    ;(board as any)._bgImageOptions = {
+      source: 'mock',
+      scaleMode: 'stretch',
+      backgroundVpt: true
+    }
+
+    board.resize(1200, 700)
+    ;(board as any)._updateBackgroundImageTransform()
+
+    expect(image.set).toHaveBeenNthCalledWith(1, {
+      scaleX: 1,
+      scaleY: 1,
+      left: 0,
+      top: 0
     })
   })
 
@@ -92,7 +127,6 @@ describe('VueFabric zoom invariant background transform', () => {
     canvas.getActiveObject = vi.fn(() => image)
     ;(board as any).canvas = canvas
     ;(board as any)._backgroundImage = image
-
     ;(board as any)._ensureBackgroundImageLocked()
 
     expect(canvas.discardActiveObject).toHaveBeenCalled()

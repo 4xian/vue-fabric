@@ -1,4 +1,3 @@
-import * as fabric from 'fabric'
 import type {
   Canvas,
   TPointerEventInfo,
@@ -12,22 +11,28 @@ import EventBus from './EventBus'
 import { DEFAULT_CANVAS_MANAGER_OPTIONS } from '../utils/settings'
 
 type ObjectMovingEvent = BasicTransformEvent<TPointerEvent> & { target: FabricObject }
+type ViewportResetMode = 'preserveContentAnchor' | 'resetToDisplayAnchor'
+type CanvasManagerRuntimeOptions = Required<
+  Pick<
+    CanvasManagerOptions,
+    | 'zoomStep'
+    | 'minZoom'
+    | 'maxZoom'
+    | 'expandMargin'
+    | 'expandSize'
+    | 'zoomOrigin'
+    | 'enableWheelZoom'
+    | 'autoResize'
+    | 'autoResizeMode'
+    | 'autoResizeFit'
+  >
+> &
+  Pick<CanvasManagerOptions, 'referenceSize'>
 
 export default class CanvasManager {
   private canvas: Canvas
   private eventBus: EventBus
-  public options: Required<
-    Pick<
-      CanvasManagerOptions,
-      | 'zoomStep'
-      | 'minZoom'
-      | 'maxZoom'
-      | 'expandMargin'
-      | 'expandSize'
-      | 'zoomOrigin'
-      | 'enableWheelZoom'
-    >
-  >
+  public options: CanvasManagerRuntimeOptions
   private isDragging: boolean
   private lastPosX: number
   private lastPosY: number
@@ -43,7 +48,11 @@ export default class CanvasManager {
       expandMargin: options.expandMargin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandMargin!,
       expandSize: options.expandSize ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandSize!,
       zoomOrigin: options.zoomOrigin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomOrigin!,
-      enableWheelZoom: options.enableWheelZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.enableWheelZoom!
+      enableWheelZoom: options.enableWheelZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.enableWheelZoom!,
+      autoResize: options.autoResize ?? false,
+      autoResizeMode: options.autoResizeMode ?? 'canvas',
+      autoResizeFit: options.autoResizeFit ?? 'contain',
+      referenceSize: options.referenceSize
     }
     this.isDragging = false
     this.lastPosX = 0
@@ -67,14 +76,12 @@ export default class CanvasManager {
 
   private _onMouseWheel(opt: TPointerEventInfo<WheelEvent>): void {
     const delta = opt.e.deltaY
-    let zoom = this.canvas.getZoom()
+    let zoom = this.getZoom()
     zoom *= Math.pow(0.999, delta)
     zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
-    const point = this._getZoomPoint()
-    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
+    this.setZoom(zoom)
     opt.e.preventDefault()
     opt.e.stopPropagation()
-    this.eventBus.emit('canvas:zoomed', zoom)
   }
 
   private _onMouseDown(opt: TPointerEventInfo<TPointerEvent>): void {
@@ -161,39 +168,120 @@ export default class CanvasManager {
   }
 
   zoomIn(origin?: ZoomOrigin): void {
-    const point = this._getZoomPoint(origin)
-    let zoom = this.canvas.getZoom() * this.options.zoomStep
+    let zoom = this.getZoom() * this.options.zoomStep
     zoom = Math.min(zoom, this.options.maxZoom)
-    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
-    this.eventBus.emit('canvas:zoomed', zoom)
+    this.setZoom(zoom, origin)
   }
 
   zoomOut(origin?: ZoomOrigin): void {
-    const point = this._getZoomPoint(origin)
-    let zoom = this.canvas.getZoom() / this.options.zoomStep
+    let zoom = this.getZoom() / this.options.zoomStep
     zoom = Math.max(zoom, this.options.minZoom)
-    this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
-    this.eventBus.emit('canvas:zoomed', zoom)
+    this.setZoom(zoom, origin)
   }
 
-  resetZoom(): void {
-    this.setViewportTransform([1, 0, 0, 1, 0, 0], 1)
+  resetZoom(zoom: number | ZoomScale = 1, origin?: ZoomOrigin): void {
+    const { scale, payload } = this._normalizeZoomInput(zoom)
+    this.setViewportTransform(
+      this._buildViewportTransform(scale, origin, 'resetToDisplayAnchor'),
+      payload
+    )
   }
 
   private _getCanvasDisplaySize(): { width: number; height: number } {
     const lowerCanvas = this.canvas.lowerCanvasEl
     const wrapper = this.canvas.wrapperEl
-    const width = lowerCanvas?.clientWidth || wrapper?.clientWidth || this.canvas.getWidth()
-    const height = lowerCanvas?.clientHeight || wrapper?.clientHeight || this.canvas.getHeight()
+    const resolveStyleSize = (value?: string): number => {
+      if (!value) return 0
+      const parsed = Number.parseFloat(value)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+    const width =
+      lowerCanvas?.clientWidth ||
+      resolveStyleSize(lowerCanvas?.style?.width) ||
+      wrapper?.clientWidth ||
+      resolveStyleSize(wrapper?.style?.width) ||
+      this.canvas.getWidth()
+    const height =
+      lowerCanvas?.clientHeight ||
+      resolveStyleSize(lowerCanvas?.style?.height) ||
+      wrapper?.clientHeight ||
+      resolveStyleSize(wrapper?.style?.height) ||
+      this.canvas.getHeight()
 
     return { width, height }
   }
 
-  private _getCanvasCenter(): { x: number; y: number } {
-    const { width, height } = this._getCanvasDisplaySize()
+  private _getLogicalCanvasSize(): { width: number; height: number } {
+    const reference = this._isViewportAutoResize() ? this.options.referenceSize : undefined
     return {
-      x: width / 2,
-      y: height / 2
+      width: reference?.width && reference.width > 0 ? reference.width : this.canvas.getWidth(),
+      height: reference?.height && reference.height > 0 ? reference.height : this.canvas.getHeight()
+    }
+  }
+
+  private _isViewportAutoResize(): boolean {
+    return !!this.options.autoResize && this.options.autoResizeMode === 'viewport'
+  }
+
+  private _getFitScale(): ZoomScale {
+    const logical = this._getLogicalCanvasSize()
+    const display = this._getCanvasDisplaySize()
+
+    if (logical.width <= 0 || logical.height <= 0) {
+      return { x: 1, y: 1 }
+    }
+
+    const scaleX = display.width / logical.width
+    const scaleY = display.height / logical.height
+
+    if (this._isViewportAutoResize()) {
+      if (this.options.autoResizeFit === 'cover') {
+        const scale = Math.max(scaleX, scaleY)
+        return { x: scale, y: scale }
+      }
+      if (this.options.autoResizeFit === 'stretch') {
+        return { x: scaleX, y: scaleY }
+      }
+    }
+
+    const scale = Math.min(scaleX, scaleY)
+    return { x: scale, y: scale }
+  }
+
+  private _getRelativeZoomScale(): ZoomScale {
+    const fitScale = this._getFitScale()
+    const vpt = this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+
+    return {
+      x: vpt[0] / (fitScale.x || 1),
+      y: vpt[3] / (fitScale.y || 1)
+    }
+  }
+
+  private _clampZoomValue(zoom: number): number {
+    return Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
+  }
+
+  private _normalizeZoomInput(zoom: number | ZoomScale): {
+    scale: ZoomScale
+    payload: number | ZoomScale
+  } {
+    if (typeof zoom === 'number') {
+      const scale = this._clampZoomValue(zoom)
+      return {
+        scale: { x: scale, y: scale },
+        payload: scale
+      }
+    }
+
+    const scale = {
+      x: this._clampZoomValue(zoom.x),
+      y: this._clampZoomValue(zoom.y)
+    }
+
+    return {
+      scale,
+      payload: scale
     }
   }
 
@@ -205,39 +293,39 @@ export default class CanvasManager {
     this.eventBus.emit('canvas:zoomed', zoomPayload ?? transform[0])
   }
 
-  private _getZoomPoint(origin?: ZoomOrigin): { x: number; y: number } {
-    const effectiveOrigin = origin ?? this.options.zoomOrigin
-    if (effectiveOrigin === 'topLeft') {
-      return { x: 0, y: 0 }
-    }
-    return this._getCanvasCenter()
+  private _buildViewportTransform(
+    zoom: ZoomScale,
+    origin: ZoomOrigin = this.options.zoomOrigin,
+    resetMode: ViewportResetMode = 'preserveContentAnchor'
+  ): [number, number, number, number, number, number] {
+    const logical = this._getLogicalCanvasSize()
+    const display = this._getCanvasDisplaySize()
+    const vpt = this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+    const fitScale = this._getFitScale()
+    const scaleX = fitScale.x * zoom.x
+    const scaleY = fitScale.y * zoom.y
+    const isTopLeft = origin === 'topLeft'
+    const currentContentAnchor = isTopLeft
+      ? { x: vpt[4], y: vpt[5] }
+      : {
+          x: vpt[4] + (logical.width * vpt[0]) / 2,
+          y: vpt[5] + (logical.height * vpt[3]) / 2
+        }
+    const displayAnchor = isTopLeft
+      ? { x: 0, y: 0 }
+      : { x: display.width / 2, y: display.height / 2 }
+    const anchor = resetMode === 'preserveContentAnchor' ? currentContentAnchor : displayAnchor
+    const tx = isTopLeft ? anchor.x : anchor.x - (logical.width * scaleX) / 2
+    const ty = isTopLeft ? anchor.y : anchor.y - (logical.height * scaleY) / 2
+    return [scaleX, 0, 0, scaleY, tx, ty]
   }
 
   setZoom(zoom: number | ZoomScale, origin?: ZoomOrigin): void {
-    const point = this._getZoomPoint(origin)
-
-    if (typeof zoom === 'number') {
-      zoom = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom))
-      this.canvas.zoomToPoint(new fabric.Point(point.x, point.y), zoom)
-      this.eventBus.emit('canvas:zoomed', zoom)
-    } else {
-      const scaleX = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom.x))
-      const scaleY = Math.max(this.options.minZoom, Math.min(this.options.maxZoom, zoom.y))
-
-      const vpt = this.canvas.viewportTransform
-      if (vpt) {
-        const newVpt: [number, number, number, number, number, number] = [...vpt]
-        newVpt[0] = scaleX
-        newVpt[3] = scaleY
-        newVpt[4] = point.x - point.x * scaleX
-        newVpt[5] = point.y - point.y * scaleY
-        this.setViewportTransform(newVpt, { x: scaleX, y: scaleY })
-        return
-      }
-    }
+    const { scale, payload } = this._normalizeZoomInput(zoom)
+    this.setViewportTransform(this._buildViewportTransform(scale, origin), payload)
   }
 
   getZoom(): number {
-    return this.canvas.getZoom()
+    return this._getRelativeZoomScale().x
   }
 }

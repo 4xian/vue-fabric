@@ -37,6 +37,9 @@ export interface FabricPaintOptions {
   targetFindTolerance?: number
   defaultShowHelpers?: boolean
   autoResize?: boolean
+  autoResizeMode?: AutoResizeMode
+  autoResizeFit?: AutoResizeFit
+  referenceSize?: ResizeReference
   pixelRatio?: number | 'auto'
   lockObjectVisualSizeOnZoom?: boolean
   zoomInvariantExcludeTypes?: string[]
@@ -55,6 +58,10 @@ export interface ResizeReference {
   width: number
   height: number
 }
+
+export type AutoResizeMode = 'canvas' | 'viewport'
+
+export type AutoResizeFit = 'contain' | 'cover' | 'stretch'
 
 export interface CanvasManagerOptions extends FabricPaintOptions {
   zoomStep?: number
@@ -338,9 +345,9 @@ export interface TraceOptions {
   blinkReasons?: string[]
   deleteOld?: boolean
   fillColor?: string
-  moveAnimationSpeed?:number
-  minMoveAnimationDuration?:number
-  maxMoveAnimationDuration?:number
+  moveAnimationSpeed?: number
+  minMoveAnimationDuration?: number
+  maxMoveAnimationDuration?: number
   markerBase64?: string
   showMovingMarker: boolean
 }

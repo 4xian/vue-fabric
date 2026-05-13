@@ -41,6 +41,7 @@
     }
 
     #canvas-container {
+      position: relative;
       flex: 1;
       height: 0;
       border: 1px solid #ccc;
@@ -136,7 +137,7 @@
         <!-- <button onclick="board.redo()">还原</button> -->
         <button onclick="board.zoomIn()">放大</button>
         <button onclick="board.zoomOut()">缩小</button>
-        <button onclick="board.resetZoom()">还原视图</button>
+        <button onclick="board.resetZoom(1)">还原视图</button>
         <!-- <button onclick="board.toggleAreaHelpers()">显示/隐藏距离</button> -->
         <!-- <button onclick="toolbar.show()">显示工具栏</button> -->
         <!-- <button onclick="toolbar.hide()">隐藏工具栏</button> -->
@@ -379,7 +380,7 @@
 
     function setZoomInvariantExcludes(excludes) {
       board.options.zoomInvariantExcludeTypes = [...excludes]
-      const currentZoom = board.canvas?.getZoom?.() || 1
+      const currentZoom = board.getZoom?.() || 1
       board.setZoom(currentZoom)
       console.log('当前补偿排除类型:', board.options.zoomInvariantExcludeTypes)
     }
@@ -392,7 +393,7 @@
 
       await board.setBackgroundImage({
         source: '/demo/static/draw-bg.png',
-        scaleMode: 'fill',
+        scaleMode: 'stretch',
         backgroundVpt: true
       })
 
@@ -407,10 +408,7 @@
     }
 
     function setZoomOriginMode(origin) {
-      board.options.zoomOrigin = origin
-      if (board.canvasManager) {
-        board.canvasManager.options.zoomOrigin = origin
-      }
+      board.setZoomOrigin(origin)
       board.resetZoom()
       console.log('当前 zoomOrigin:', origin)
     }

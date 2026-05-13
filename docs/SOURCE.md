@@ -1,505 +1,488 @@
 # @4xian/vue-fabric 源码说明
 
-本文档说明当前仓库的真实源码结构、模块职责和几个容易被误读的实现边界。
+本文档只说明当前仓库真实实现，不复述历史计划。
 
 ## 目录结构
 
 ```text
 src/
-├── index.ts
-├── core/
-│   ├── PaintBoard.ts
-│   ├── CanvasManager.ts
-│   └── EventBus.ts
-├── tools/
-│   ├── BaseTool.ts
-│   ├── SelectTool.ts
-│   ├── DragTool.ts
-│   ├── LineTool.ts
-│   ├── PolylineTool.ts
-│   ├── AreaTool.ts
-│   ├── CurveTool.ts
-│   ├── RectTool.ts
-│   ├── TextTool.ts
-│   └── ImageTool.ts
-├── ui/
-│   ├── Toolbar.ts
-│   └── ColorPicker.ts
-├── utils/
-│   ├── areaEvents.ts
-│   ├── rectEvents.ts
-│   ├── export.ts
-│   ├── geometry.ts
-│   ├── generateId.ts
-│   ├── ObjectPool.ts
-│   ├── PersonTracker.ts
-│   ├── settings.ts
-│   ├── throttle.ts
-│   └── UndoRedoManager.ts
-├── assets/svg/
-└── styles/
+  index.ts
+  core/
+    PaintBoard.ts
+    CanvasManager.ts
+    EventBus.ts
+  tools/
+    BaseTool.ts
+    SelectTool.ts
+    DragTool.ts
+    LineTool.ts
+    PolylineTool.ts
+    AreaTool.ts
+    CurveTool.ts
+    RectTool.ts
+    TextTool.ts
+    ImageTool.ts
+  ui/
+    Toolbar.ts
+    ColorPicker.ts
+  utils/
+    areaEvents.ts
+    rectEvents.ts
+    export.ts
+    geometry.ts
+    generateId.ts
+    ObjectPool.ts
+    PersonTracker.ts
+    settings.ts
+    throttle.ts
+    UndoRedoManager.ts
 
 types/
-└── index.d.ts
+  index.d.ts
 
 tests/
-├── unit/
-├── integration/
-└── fixtures/
+  unit/
+  integration/
 
 demo/
-├── index.html
-└── esm/
+  index.html
 ```
 
-## 入口与导出
+## 入口与公开边界
 
-`src/index.ts` 做了三件事：
+`src/index.ts` 做三件事：
 
 1. 默认导出 `FabricPaint`
-2. 命名导出核心类、工具类、UI 组件、`PersonTracker`
-3. 命名导出公共类型以及 `SERIALIZATION_PROPERTIES`、`CustomType`
+2. 命名导出核心类、工具类、UI、`PersonTracker`、`SERIALIZATION_PROPERTIES`、`CustomType`
+3. 只重新导出 `types/index.d.ts` 里列出来的公共类型
 
-这里有两个结论：
+所以：
 
-- 对外类名是 `FabricPaint`，不是源码文件名里的 `PaintBoard`。
-- 默认导出可以被业务侧自由起名成 `PaintBoard`，但命名导出要写 `FabricPaint`。
+- 对外类名是 `FabricPaint`
+- `PaintBoard` 只是业务层常见别名，不是命名导出
+- 判断某个类型是否真的公开，优先看 `src/index.ts`
 
 ## PaintBoard.ts
 
-`src/core/PaintBoard.ts` 是总入口，负责把画布、工具系统、事件总线、历史管理、背景图、导出导入、辅助元素显隐和人员轨迹串起来。
+`src/core/PaintBoard.ts` 是总入口，负责：
 
-### 初始化流程
+- 创建 Fabric canvas
+- 管理工具注册与切换
+- 转发缩放、resize、背景图、导入导出
+- 接 Undo/Redo
+- 接 helper 显隐
+- 接 `PersonTracker`
 
-`init()` 当前流程是：
+### 初始化链
+
+`init()` 当前流程：
 
 1. `_createCanvas()`
 2. `_initCanvasManager()`
 3. `_initUndoRedo()`
 4. `_bindEvents()`
-5. 如果 `autoResize` 为真，则启用 `ResizeObserver`
+5. 若 `autoResize=true`，绑定 `ResizeObserver`，并立即按容器尺寸调一次 `resize()`
 
-两个要点：
+注意：
 
-- `_initialized` 阻止重复初始化。
-- `options.backgroundImage` 的自动应用逻辑现在被注释掉了，所以构造配置里的 `backgroundImage` 不会在 `init()` 时自动生效。
+- `_initialized` 阻止重复初始化
+- 构造配置里的 `backgroundImage` 自动应用逻辑当前被注释掉了，所以不会在 `init()` 生效
 
-### 画布尺寸和像素比
+### pixelRatio 真实语义
 
-`_createCanvas()` 用逻辑尺寸乘 `pixelRatio` 创建底层 Fabric canvas，再把 wrapper 和上下层 canvas 的 CSS 尺寸设回逻辑尺寸。
+当前 `pixelRatio` 不再走“业务 zoom 乘上倍率”的旧路子。
 
-这意味着：
+现在做法：
 
-- `width` / `height` 是逻辑尺寸。
-- Retina 支持不是靠 Fabric 默认的 `enableRetinaScaling`，而是靠库自己乘了 `_pixelRatio`。
-- 如果 `ratio !== 1`，会在初始化时调用 `canvas.setZoom(ratio)`。
+- 初始化时根据 `pixelRatio` 或 `window.devicePixelRatio` 计算 `_pixelRatio`
+- 通过 `enableRetinaScaling` 和重写 `getRetinaScaling()` 控制 backing store
+- `getZoom()`、逻辑坐标、对象创建尺寸、导出逻辑值都不应该再被 `pixelRatio` 改写
 
-### 工具系统
+所以 `pixelRatio` 现在是显示清晰度开关，不是业务缩放参数。
 
-`registerTool()` 会把工具实例放进 `Map<string, BaseTool>`，并调用 `tool.bindCanvas(...)` 注入依赖。
+### zoomOrigin、viewport 与 resetZoom
 
-`setTool()` 会：
-
-1. 先 `deactivate()` 当前工具
-2. 再 `activate()` 目标工具
-3. 最后发出 `tool:changed`
-
-工具切换不是 Fabric 原生能力，是这层策略模式包装。
-
-### 缩放、平移、resize
-
-`PaintBoard` 暴露的缩放入口最终都走 `CanvasManager`：
+`PaintBoard` 的缩放公开入口都转发给 `CanvasManager`：
 
 - `zoomIn`
 - `zoomOut`
-- `resetZoom`
 - `setZoom`
-- `getZoom`
+- `resetZoom`
 
-`resize()` 不是简单改 canvas 尺寸，而是：
+当 `autoResize` 打开或显示尺寸不等于当前内部基准尺寸时，`resetZoom(zoomScale = 1)` 走 `_applyViewportResize(...)`，按传入业务倍率重新归位；不传时默认回到业务 zoom `1`。
 
-1. 计算新旧逻辑尺寸比例
-2. 遍历对象并缩放 `scaleX` / `scaleY` / `left` / `top`
-3. 更新底层像素尺寸和 DOM 样式尺寸
-4. 发出 `canvas:resized`
+### autoResize 当前语义
 
-这也是为什么文档里不能把它写成“纯视口缩放”。
+当前 `autoResize` 有两种模式。
 
-### 辅助元素体系
+默认 `autoResizeMode='canvas'`：
 
-辅助元素不是临时态 UI，而是实际 Fabric 对象：
+- 监听容器尺寸变化
+- 500ms 防抖
+- 调 `resize(width, height, undefined, origin)`
+- 保留当前 `getZoom()`
+- 重算 viewport、背景图、补偿缩放、`PersonTracker`
+- `_setCanvasDisplaySize()` 会同步更新 `_originalWidth/_originalHeight`、`_displayWidth/_displayHeight`、`options.width/options.height`
+- resize 后内部“当前基准画布尺寸”会被更新为新的显示尺寸
 
-- `line` 有端点和距离标签
-- `polyline` 有点和标签
-- `area` 有点、边、标签
-- `curve` 有点和标签
-- `rect` 有宽高标签
+`autoResizeMode='viewport'`：
 
-`showAllAreaHelpers()` / `hideAllAreaHelpers()` 实际处理的不是只有 `area`，而是所有上述自定义图元。
+- `referenceSize` 作为逻辑参考尺寸
+- `referenceSize` 不传时，首次自适应取当前容器尺寸
+- Fabric canvas 的实际显示尺寸仍会改成容器尺寸
+- `_originalWidth/_originalHeight` 保持为 `referenceSize`
+- `autoResizeFit='contain' | 'cover' | 'stretch'` 决定 reference 到 display 的 viewport transform
+- `contain` 完整显示参考画布，`cover` 铺满显示区域并可能裁切，`stretch` 按 X/Y 独立缩放并可能变形
 
-命名是旧的，作用面已经扩大了。
+两种模式都不会遍历对象去改：
 
-### 文本、图片、批量接口
+- `left/top`
+- `points`
+- `x1/y1/x2/y2`
+- `fontSize`
+- `scaleX/scaleY`
 
-`addText()` / `addImage()` / `insertText()` / `insertImage()` 不是自己创建对象，而是转发给已注册的 `TextTool` / `ImageTool`。
+### 背景图链路
 
-因此这些 API 的前置条件是：
+`setBackgroundImage()` 当前做法：
 
-- 先 `registerTool('text', new TextTool())`
-- 或先 `registerTool('image', new ImageTool())`
+- 归一化 `BackgroundImageOptions`
+- `scaleMode` 默认 `fill`
+- `backgroundVpt` 未显式传入时，默认取“是否开启补偿缩放”
+- 创建 `FabricImage`
+- 强制锁定为不可交互对象
+- 加到 canvas，送到底层
+- 触发 `_updateBackgroundImageTransform()`
 
-`insertText()` / `insertImage()` 是 upsert 语义：
+`_updateBackgroundImageTransform()` 当前分两支：
 
-- 传入 `id`
-- 如果对象已存在且类型匹配，则更新
-- 否则新建
+- `backgroundVpt=true`：背景图直接跟 viewport
+- `backgroundVpt=false`：用 `/ zoom` 和 `- pan` 反算，让背景不跟 viewport
+- `autoResizeMode='viewport'` 且 `backgroundVpt=true` 时，背景缩放使用固定的 `referenceSize`，而不是变化后的显示尺寸
 
-`batchInsertTexts()` / `batchInsertImages()` 也是同一套语义，只是改成批量。
+各模式真实效果：
 
-### 人员轨迹入口
+- `fill`：铺满，可能裁切
+- `fit`：完整显示，可能留白
+- `stretch`：强制铺满
+- `center`：不缩放，居中
+- `repeat`：当前只是原始尺寸停在左上角，没有真正平铺逻辑
 
-`createPersonTracker()` 会：
+背景图每次同步后都会再走 `_ensureBackgroundImageLocked()`，保证：
 
-1. 校验 canvas 已初始化
-2. 如果旧 tracker 存在，先 `destroy()`
-3. 创建新的 `PersonTracker`
-4. 挂到 `_personTracker`
+- 不可选中
+- 不可拖动
+- 不可缩放
+- 始终在最底层
 
-这意味着一个 `FabricPaint` 同时只维护一个活动 `PersonTracker`。
+### 补偿缩放
+
+当前补偿缩放核心在 `PaintBoard`，不是分散在各工具里。
+
+关键点：
+
+- 每个对象可挂 `zoomInvariantBase`
+- `object:added` 时补采基准
+- `object:modified` 时刷新基准
+- `canvas:zoomed` / `canvas:panned` 时统一重算运行时显示值
+- `importFromJSON()` 后重跑一遍基准采集和 viewport 展示同步
+
+补偿规则：
+
+- `strokeWidth = base.strokeWidth / zoom`
+- `radius = base.radius / zoom`
+- `fontSize = base.fontSize / zoom`
+- `scaleX = base.scaleX / zoom`
+- `scaleY = base.scaleY / zoom`
+
+排除规则：
+
+- `zoomInvariantExcludeTypes` 命中时，不做补偿
+- 背景图和 `PersonTracker` 走单独分支，不由 `_walkZoomInvariantObjects()` 直接处理
 
 ## CanvasManager.ts
 
-`CanvasManager` 主要负责：
+`CanvasManager` 当前职责：
 
-- 缩放计算
-- 视口平移
-- 对象靠边时扩展画布
+- 统一计算 viewportTransform
+- 维护业务 zoom
+- 可选绑定滚轮缩放
+- 保留自动扩布逻辑
 
-但当前实现有一个非常关键的事实：
+### 当前已启用的部分
 
-- `_bindEvents()` 里的 `mouse:wheel`、`mouse:down`、`mouse:move`、`mouse:up`、`object:moving` 监听全部被注释了
+- `zoomIn()`
+- `zoomOut()`
+- `setZoom()`
+- `resetZoom()`
+- `getZoom()`
+- `enableWheelZoom=true` 时绑定 `mouse:wheel`
 
-所以当前真实状态是：
+### 当前未启用的部分
 
-- 公共方法 `zoomIn()` / `zoomOut()` / `setZoom()` / `resetZoom()` 可用
-- 内部写好的滚轮缩放、中键平移、自动扩展逻辑默认不生效
+这些内部能力还在文件里，但默认没有挂监听：
 
-这点必须和“源码存在”区分开。
+- `mouse:down`
+- `mouse:move`
+- `mouse:up`
+- `object:moving`
+
+所以：
+
+- 视口拖拽主要靠 `DragTool`
+- 中键 / Alt 平移不是当前默认行为
+- 自动扩布逻辑存在，但默认也不靠 `CanvasManager` 监听去触发
+
+### center / topLeft 的真实计算
+
+`_buildViewportTransform()` 当前算法是：
+
+- 先算 fit scale：`min(displayWidth / logicalWidth, displayHeight / logicalHeight)`
+- 再乘业务 zoom
+- `zoomIn()`、`zoomOut()`、`setZoom()` 默认保留当前内容锚点：
+  - `center` 锚点是当前 viewport 下的画布内容中心
+  - `topLeft` 锚点是当前 viewport 下的画布左上点
+- `resetZoom()` 使用显示区锚点重新归位：
+  - `center` 锚点是当前显示区中心
+  - `topLeft` 锚点是 `{ x: 0, y: 0 }`
+- 最后用锚点反算 `tx` / `ty`
+
+也就是普通缩放保留拖拽后的画布内容位置，`resetZoom()` 才回到显示区锚点。
 
 ## EventBus.ts
 
-`EventBus` 是一个轻量 `Map<string, Set<callback>>` 发布订阅实现。
-
-职责很纯：
+`EventBus` 很薄，只做：
 
 - `on`
 - `off`
 - `emit`
 - `clear`
 
-它让：
+它把 `PaintBoard`、工具、`Toolbar`、`PersonTracker`、导入导出重绑逻辑串起来。
 
-- 工具层
-- `PaintBoard`
-- `Toolbar`
-- `PersonTracker`
-- 导入导出重绑逻辑
-
-之间通过事件协作，而不是直接互相引用业务细节。
-
-## BaseTool 与工具体系
+## 工具体系
 
 ### BaseTool.ts
 
-所有工具都继承 `BaseTool`。
+所有工具继承 `BaseTool`。
 
-基类提供：
+基类负责：
 
-- `bindCanvas()`
-- `activate()` / `deactivate()`
-- `onActivate()` / `onDeactivate()`
-- `onMouseDown()` / `onMouseMove()` / `onMouseUp()` / `onKeyDown()`
-- `undo()` / `redo()` 能力占位
+- 注入 `canvas` / `eventBus` / `paintBoard`
+- 统一 `activate()` / `deactivate()`
+- 挂 `mouse:*` 和 `keydown`
+- 提供 `isDrawing()`、`undo()`、`redo()`、`getPointer()`
 
-工具激活时会挂：
+注意：
 
-- Fabric `mouse:*` 事件
-- `document` 的 `keydown`
-
-注意：基类没有统一挂 `keyup`，所以像 `DragTool` 里写的 `onKeyUp()` 当前不会自动生效。
+- 基类默认只挂 `keydown`
+- 没有统一挂 `keyup`
 
 ### SelectTool.ts
 
-当前选择工具非常克制：
+当前是一个较克制的选择工具：
 
-- 激活时设置 `canvas.selection`
-- 主要保证对象可被选中
-- 删除快捷键逻辑 `_deleteSelected()` 已存在，但键盘入口被注释
-
-所以“Delete 删除选中对象”不能写成当前默认行为。
+- 负责让对象可选中
+- `allowSelection` 默认 `false`
+- 删除快捷键逻辑不是当前默认行为
 
 ### DragTool.ts
 
-拖拽工具不负责拖动画布上对象本身，它处理的是视口平移。
+当前视口拖拽主实现。
 
-触发方式：
+触发条件：
 
-- 激活工具
+- 当前工具是 `drag`
 - 按住 `Ctrl` 或 `Meta`
-- 鼠标拖动
+- 拖动鼠标
 
-实现上直接改 `viewportTransform[4]` / `viewportTransform[5]`。
+它直接改 `viewportTransform[4]` / `viewportTransform[5]`，完成后发 `canvas:panned`。
 
 ### LineTool.ts
 
-线段工具是两段式状态机：
+两次点击完成一条线：
 
-1. 第一次点击记录起点并创建起点辅助圆
-2. 第二次点击落终点，生成正式 `Line`、终点辅助圆、距离标签
-
-线段对象的业务标识保存在：
-
-- `customType = CustomType.Line`
-- `customData: LineCustomData`
+1. 记录起点并创建起点 helper
+2. 第二次点击确定终点，创建正式 `Line`、终点 helper、距离 label
 
 ### PolylineTool.ts
 
-折线工具用右键结束绘制，这是它和 `AreaTool` 最大的交互差异。
+当前不是“第二个点自动结束”的语义。
 
-辅助元素：
+真实行为：
 
-- 每个节点一个 helper circle
-- 每一段一个距离标签
-
-完成后主对象是 `fabric.Polyline`，辅助元素继续作为独立对象保留在 canvas 上。
+- 左键逐点
+- `Enter` 结束
+- 右键结束
+- `Escape` 取消
 
 ### AreaTool.ts
-
-区域工具和旧文档里“line tool 画区域”已经不是一回事了。
 
 真实行为：
 
 - 左键逐点
 - 靠近首点闭合
-- 闭合后生成 `fabric.Polygon`
-- 辅助点、辅助边、标签与主对象通过 `drawPid` 关联
-
-源码里 `allowOverlap`、`enableFill`、`continueDraw` 都是当前有效选项。
+- 生成 `fabric.Polygon`
+- helper 通过 `drawPid` 关联
 
 ### CurveTool.ts
 
-曲线工具使用平滑路径数据拼装 `fabric.Path`。
+真实行为：
 
-特点：
-
-- 靠近首点可闭合
-- `Enter` 可结束开放曲线
-- `setTension()` 可以动态调整张力
-- 路径长度与中点位置会通过临时 SVG path 计算
+- 左键逐点
+- `Enter` 结束开放曲线
+- 靠近首点闭合
+- 主对象是 `fabric.Path`
 
 ### RectTool.ts
 
-矩形工具是点两次完成，不是按下拖拽后松开完成。
+不是按住拖拽结束，而是两次点击：
 
-它会：
-
-- 预览矩形
-- 预览宽高标签
-- 完成后调用 `setupRectEvents()` 绑定事件和控制点逻辑
+1. 第一次确定起点
+2. 第二次确定终点
 
 ### TextTool.ts
 
-文本工具支持两种入口：
+两类入口：
 
-1. 交互点击画布创建默认 `IText`
-2. 编程式 `createTextAt()` / `createTextWithoutRender()`
+- 交互点击画布创建
+- `createTextAt()` / `createTextWithoutRender()` 编程式创建
 
-退出编辑时如果文本为空，会自动删除。
+编辑退出后若文本为空，会自动删掉。
 
 ### ImageTool.ts
 
-图片工具也分两类入口：
+两类入口：
 
-1. `openFileDialog()` 走本地文件选择
-2. `addImageAt()` / `addImageWithoutRender()` 走编程式插入
+- `openFileDialog()` 本地上传
+- `addImageAt()` / `addImageWithoutRender()` 编程式插入
 
-图片对象的 `customData` 会尽量保存 `base64`，如果传的是 URL，会加载后自行转成 base64 存进去。
+更新图片尺寸或缩放后，会和 `PaintBoard` 的补偿缩放基线同步。
 
-这就是为什么导入导出时图片能靠 JSON 自保，而不是只保留远端 URL。
+## 导入导出：export.ts
 
-## 导入导出链路
-
-`src/utils/export.ts` 是序列化、反序列化和事件重绑的中心。
+`src/utils/export.ts` 是当前序列化核心。
 
 ### exportToJSON
 
-关键点：
+当前链路：
 
-- 使用 `SERIALIZATION_PROPERTIES`
-- 默认 `excludeTypes = ['text', 'image']`
-- 排除主类型时，会连带排除对应 helper 类型
+1. 用 `SERIALIZATION_PROPERTIES` 调 `canvas.toObject(...)`
+2. 临时把对象 `customData` 规整成可序列化结构
+3. 用 `normalizeZoomInvariantNode()` 把 `zoomInvariantBase` 写回逻辑视觉值
+4. 默认排除 `text` 和 `image`
+5. 排除主类型时，也连带排掉对应 helper 类型
 
-也就是说，默认 JSON 导出不是“完整画布快照”，而是偏业务标注图元快照。
+所以默认 JSON 不是“全画布原样快照”，而是偏业务标注快照。
 
 ### importFromJSON
 
-导入后不是直接结束，而是会继续做两件事：
+导入后还会继续做：
 
 1. `relinkHelperElements(canvas)`
 2. `rebindObjectEvents(...)`
+3. 在 `PaintBoard.importFromJSON()` 里重新初始化补偿缩放基线
+4. 重新同步背景图、helper、当前 viewport 展示
 
-`relinkHelperElements()` 会重新把主对象和 helper 对象按 `drawId` / `drawPid` 关联起来。
-
-`rebindObjectEvents()` 会按 `customType` 重挂：
-
-- area 事件
-- line 事件
-- polyline 事件
-- curve 事件
-- rect 事件
-- text 事件
-- image 事件
-
-这是整个仓库最关键的“导入后恢复行为”逻辑。
+这是导入后还能继续编辑和点击的关键。
 
 ## UndoRedoManager.ts
 
-历史系统和交互式绘制中的临时点状态是分开的。
+当前历史系统和工具临时绘制状态是分层的。
 
-- `UndoRedoManager` 负责 canvas 级历史
-- `AreaTool` / `CurveTool` / `LineTool` / `PolylineTool` / `RectTool` 各自还维护绘制过程里的临时 undo/redo
+`board.undo()` / `board.redo()` 的优先级：
 
-所以 `board.undo()` 的真实顺序是：
-
-1. 如果当前工具能处理临时绘制 undo，优先交给当前工具
-2. 否则遍历其他工具，看是否有工具处在可撤销的绘制态
-3. 都没有，再走 `UndoRedoManager`
-
-这也是为什么撤销语义会随当前绘制状态变化。
+1. 先给当前工具机会处理临时绘制撤销/重做
+2. 再看其他工具是否还处于可撤销的绘制中
+3. 最后才回退到全局 `UndoRedoManager`
 
 ## Toolbar.ts
 
 `Toolbar` 是纯 DOM 组件，不依赖 Vue。
 
-职责：
+它负责：
 
 - 生成按钮
-- 管理高亮状态
+- 管理 active 状态
 - 监听 `tool:changed` / `history:changed`
 - 管理两个 `ColorPicker`
 - 支持面板拖动
 
-几个实现细节：
+要点：
 
-- `fitZoom` 按钮当前调用的是 `paintBoard.resetZoom()`
-- `helpers` 按钮实际控制的是所有图元 helper 显隐
-- `image` 按钮本身不切换工具，而是直接触发 `ImageTool.openFileDialog()`
+- `fitZoom` 实际调的是 `resetZoom()`
+- `image` 按钮不会切换当前工具，只是直接触发 `ImageTool.openFileDialog()`
+- `helpers` 按钮控制的是所有业务 helper，不只 area
 
 ## ColorPicker.ts
 
-颜色选择器是纯原生 DOM + HSV 状态模型。
+`ColorPicker` 是独立的 DOM 颜色选择器。
 
 内部维护：
 
-- RGB
-- Alpha
+- RGBA
 - HSV
+- HEX 输入同步
 
-并在这些表示之间双向转换。
-
-支持入口：
-
-- 饱和度面板拖拽
-- 色相条拖拽
-- 透明度条拖拽
-- RGBA 数值输入
-- HEX 文本输入
+如果只是要 SDK 自带工具栏色板，通常不需要单独操作它。
 
 ## PersonTracker.ts
 
-`PersonTracker` 是一个独立于绘图工具体系的运行时模块。
+`PersonTracker` 是独立运行时模块，不属于绘图工具继承链。
 
-### 核心能力
+当前能力：
 
-- 人员标记批量创建与更新
-- 通过 `yid` 把旧标记迁移成新 `id`
-- 平滑移动动画
-- 告警状态涟漪效果
-- 轨迹绘制与可选移动 marker
-- 分批渲染与中断渲染
+- `createMultiplePersons()` 批量 upsert
+- `createSinglePerson()` 单点 upsert
+- `createPersonTraces()` 绘制 line / curve 轨迹
+- 可选 moving marker
+- `yid` 迁移
+- 状态触发的水波纹闪烁
+- `renderVersion` 中断旧批次渲染
 
-### 设计要点
+当前还会监听：
 
-1. `renderVersion` 用来中断旧批次渲染
-2. `deleteOld` 控制新一帧数据是否清理旧人员
-3. `displayDuration` 控制标记自动消失
-4. `blinkReasons` 决定哪些状态触发涟漪
+- `canvas:zoomed`
+- `canvas:panned`
+- `canvas:resized`
 
-### 真实公开方法
-
-- `createMultiplePersons`
-- `createSinglePerson`
-- `removePerson`
-- `createPersonTraces`
-- `removePersonTraces`
-- `clearAll`
-- `clearAllPersons`
-- `clearAllTraces`
-- `getPersonById`
-- `getAllPersonIds`
-- `abortRendering`
-
-旧文档里的 `setPersons`、`updatePerson`、`showTrace`、`hideTrace` 不是当前公开方法。
+所以一旦 viewport 或容器尺寸变化，轨迹、marker、文字、水波纹都会重算。
 
 ## settings.ts
 
-`src/utils/settings.ts` 是全仓库的常量中心，文档和测试对齐时要重点看这里。
+`src/utils/settings.ts` 是常量真值源。
 
-包括：
+重点看这里：
 
 - `CustomType`
-- 默认工具提示文案
-- 默认画板配置
+- 默认 `FabricPaintOptions`
 - 默认各工具配置
-- 默认 `PersonTracker` 配置
-- 默认 `Toolbar` 工具列表
+- 默认 `TraceOptions`
+- 默认 `ToolbarOptions`
 - `SERIALIZATION_PROPERTIES`
 
-如果文档里的默认值和这里不一致，以这里为准。
+如果 README、API 文档、skills 参考文档和这里冲突，以这里和公开类型为准。
 
-## 测试与示例
+## demo 与 tests
 
-### tests/
+看真实集成方式优先读：
 
-测试覆盖：
-
-- `core`
-- `tools`
-- `ui`
-- `utils`
-- `integration`
-
-文档对 API 是否存在拿不准时，先看：
-
+- `demo/index.html`
 - `tests/unit/core/PaintBoard.test.ts`
+- `tests/unit/core/CanvasManager.test.ts`
 - `tests/integration/PaintBoard.test.ts`
+- `tests/integration/PaintBoardZoomInvariant.test.ts`
 - `tests/integration/PersonTracker.test.ts`
+- `tests/integration/export.test.ts`
 
-### demo/
+这些文件比旧 prose 文档更能反映当前实际行为。
 
-`demo/index.html` 是当前最完整的集成示例。
+## 当前最容易误判的边界
 
-它能直接反映：
-
-- UMD 下应使用 `FabricPaint`
-- `polyline`、`area`、`rect`、`curve`、`text`、`image` 的真实注册方式
-- `insertText()` / `insertImage()` / `batchInsert*()` / `createMultiplePersons()` 的真实调用方式
-
-## 当前需要特别注意的边界
-
-1. `backgroundImage` 配置项目前不会在 `init()` 自动生效。
-2. `CanvasManager` 的滚轮缩放 / 中键平移 / 自动扩展默认未绑定事件。
-3. `SelectTool` 删除快捷键代码存在，但默认未启用。
-4. 多个工具里的 `Ctrl+Z` 键盘入口被注释，撤销主要依赖外部调用 `board.undo()`。
-5. `Toolbar` 的 `fitZoom` 现在等价于 `resetZoom()`，不是适配容器。
-6. `exportToJSON()` 默认排除 `text` 和 `image`，这会直接影响“导出再导入”的预期。
+1. `backgroundImage` 构造参数当前不会在 `init()` 自动生效。
+2. `pixelRatio` 现在只负责清晰度，不再等价于业务 zoom。
+3. `enableWheelZoom` 默认关闭，滚轮缩放不是开箱即用默认行为。
+4. `autoResize` 当前是展示层 resize，不会遍历对象改逻辑坐标。
+5. `showAllAreaHelpers()` 名称旧，但现在不只管 area。
+6. `repeat` 背景模式当前不会真正平铺。
+7. `CanvasManager` 里中键平移和 `object:moving` 自动扩布监听默认未挂载。

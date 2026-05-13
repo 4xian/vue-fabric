@@ -42,6 +42,8 @@ export default FabricPaint
 
 export type {
   Point,
+  AutoResizeMode,
+  AutoResizeFit,
   FabricPaintOptions,
   CanvasManagerOptions,
   ExportImageOptions,

@@ -170,7 +170,7 @@ describe('VueFabric zoom invariant integration', () => {
     board.canvas!.add(line)
     board.resize(1000, 700)
 
-    expect(line.strokeWidth).toBeCloseTo(2 / (700 / 600))
+    expect(line.strokeWidth).toBeCloseTo(2)
     expect(line.x1).toBe(0)
     expect(line.x2).toBe(100)
   })
