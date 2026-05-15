@@ -34,6 +34,7 @@ const board = new PaintBoard('#canvas-container', {
   height: 600,
   backgroundColor: '#fff',
   zoomOrigin: 'center',
+  zoomAnimationDuration: 1000,
   enableWheelZoom: false,
   autoResize: true,
   pixelRatio: 'auto'
@@ -79,7 +80,13 @@ board.on('line:created', data => {
 
 `FabricPaintOptions` 当前与缩放相关的重点配置：
 
+- `zoomStep?: number`
+- `minZoom?: number`
+- `maxZoom?: number`
+- `expandMargin?: number`
+- `expandSize?: number`
 - `zoomOrigin?: 'center' | 'topLeft'`
+- `zoomAnimationDuration?: number`
 - `enableWheelZoom?: boolean`
 - `autoResize?: boolean`
 - `autoResizeMode?: 'canvas' | 'viewport'`
@@ -92,13 +99,20 @@ board.on('line:created', data => {
 真实语义：
 
 - `zoomIn()`、`zoomOut()`、`setZoom()` 在 `center` 下围绕当前画布内容中心缩放；拖拽平移后不会跳回容器中心。
+- `zoomStep` 默认 `0.2`，当前按“额外比例”计算；默认 `zoomIn()` 是乘 `1.2`，`zoomOut()` 是除 `1.2`。
+- `minZoom` 默认 `0.2`，`maxZoom` 默认 `3`。
+- `expandMargin` 默认 `50`，`expandSize` 默认 `200`；仅在对应自动扩布链路启用时生效。
 - `topLeft` 下缩放会保留当前画布左上锚点。
 - `resetZoom(zoomScale = 1)` 会按当前显示尺寸归位，可传入还原倍率，默认回到业务 zoom `1`。
+- `zoomAnimationDuration` 默认 `500` ms；传 `0` 或负数会关闭动画，回退成同步缩放。
+- `zoomIn()`、`zoomOut()`、`setZoom()`、`resetZoom()`、启用后的滚轮缩放，以及 `resize()` / `autoResize()` 触发的 viewport 归位，最终都复用同一套 viewport transform 落地逻辑。
+- `CanvasManager` 初始化现在直接吃 `FabricPaintOptions` 里的这组缩放配置，不再单独维护第二套缩放配置来源。
+- 动画过程中逐帧触发 `canvas:zooming`，结束时触发 `canvas:zoomed`。
 - `enableWheelZoom` 默认 `false`，显式开启后才会监听 `mouse:wheel`。
-- `autoResize` 默认 `false`。开启后会监听容器尺寸变化，500ms 防抖后重建当前显示尺寸，并保留当前业务 zoom。
+- `autoResize` 默认 `true`。开启后会监听容器尺寸变化，500ms 防抖后重建当前显示尺寸，并保留当前业务 zoom。
 - `autoResizeMode` 默认 `canvas`，保持旧语义：容器变化时同步更新内部基准画布尺寸。
 - `autoResizeMode: 'viewport'` 会固定逻辑参考尺寸，只用 viewport 把参考画布适配到新显示尺寸，适合背景图和对象点位需要保持相对一致的场景。
-- `autoResizeFit` 默认 `contain`，仅在 `autoResize=true` 且 `autoResizeMode='viewport'` 时生效；`cover` 会铺满并可能裁切，`stretch` 会按 X/Y 独立缩放并可能变形。
+- `autoResizeFit` 默认 `stretch`，仅在 `autoResize=true` 且 `autoResizeMode='viewport'` 时生效；`contain` 会完整显示参考画布，`cover` 会铺满并可能裁切，`stretch` 会按 X/Y 独立缩放并可能变形。
 - `referenceSize` 可选；不传时，`autoResizeMode='viewport'` 首次自适应会取当前容器尺寸作为参考尺寸。
 - `pixelRatio` 现在只负责清晰度和 backing store，不再参与业务 zoom，也不会改变 `getZoom()`、逻辑坐标或导出值。
 
@@ -191,6 +205,7 @@ await tracker.createPersonTraces(id, person, traces)
 
 `PersonTracker` 当前会跟随：
 
+- `canvas:zooming`
 - `canvas:zoomed`
 - `canvas:panned`
 - `canvas:resized`

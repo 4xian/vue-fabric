@@ -21,7 +21,8 @@ describe('VueFabric zoom invariant integration', () => {
       width: 800,
       height: 600,
       autoResize: false,
-      lockObjectVisualSizeOnZoom: true
+      lockObjectVisualSizeOnZoom: true,
+      zoomAnimationDuration: 0
     })
     board.init()
     board.canvas!.renderAll = vi.fn(() => board.canvas!) as typeof board.canvas.renderAll
@@ -139,6 +140,7 @@ describe('VueFabric zoom invariant integration', () => {
       height: 600,
       autoResize: false,
       lockObjectVisualSizeOnZoom: true,
+      zoomAnimationDuration: 0,
       zoomInvariantExcludeTypes: [CustomType.Text, CustomType.Image]
     })
     selectiveBoard.init()

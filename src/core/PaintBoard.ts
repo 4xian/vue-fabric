@@ -251,8 +251,12 @@ export default class VueFabric {
     const transform = this._getViewportTransformForDisplay(width, height, zoomScale, origin)
     const scaleX = transform[0]
     const scaleY = transform[3]
-    this.canvas.setViewportTransform(transform)
-    this.eventBus.emit('canvas:zoomed', zoomScale)
+    if (this.canvasManager) {
+      this.canvasManager.setViewportTransform(transform, zoomScale)
+    } else {
+      this.canvas.setViewportTransform(transform)
+      this.eventBus.emit('canvas:zoomed', zoomScale)
+    }
 
     this.eventBus.emit('canvas:resized', {
       width,
@@ -601,6 +605,10 @@ export default class VueFabric {
 
     this.eventBus.on('object:modified', target => {
       this._syncZoomInvariantObject(target as FabricObject | undefined, true)
+    })
+
+    this.eventBus.on('canvas:zooming', () => {
+      this._syncViewportPresentation()
     })
 
     this.eventBus.on('canvas:zoomed', () => {
@@ -1916,6 +1924,12 @@ export default class VueFabric {
   }
 
   destroy(): void {
+    if (!this._initialized) {
+      return
+    }
+
+    this._initialized = false
+
     if (this.currentTool) {
       this.currentTool.deactivate()
     }
@@ -1924,11 +1938,15 @@ export default class VueFabric {
     this._personTracker?.destroy()
     this._personTracker = null
     this.disableAutoResize()
+    this.canvasManager?.destroy()
+    this.canvasManager = null
     this.eventBus.clear()
-    this.canvas?.dispose()
+    const canvas = this.canvas as (Canvas & { disposed?: boolean; destroyed?: boolean }) | null
+    if (canvas && !canvas.disposed && !canvas.destroyed) {
+      void canvas.dispose()
+    }
     if (this.container) {
       this.container.innerHTML = ''
     }
-    this._initialized = false
   }
 }

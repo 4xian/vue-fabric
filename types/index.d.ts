@@ -26,7 +26,13 @@ export interface FabricPaintOptions {
   backgroundColor?: string
   hoverCursor?: string
   moveCursor?: string
+  zoomStep?: number
+  minZoom?: number
+  maxZoom?: number
+  expandMargin?: number
+  expandSize?: number
   zoomOrigin?: ZoomOrigin
+  zoomAnimationDuration?: number
   enableWheelZoom?: boolean
   backgroundImage?: string | BackgroundImageOptions
   lineColor?: string
@@ -63,13 +69,21 @@ export type AutoResizeMode = 'canvas' | 'viewport'
 
 export type AutoResizeFit = 'contain' | 'cover' | 'stretch'
 
-export interface CanvasManagerOptions extends FabricPaintOptions {
-  zoomStep?: number
-  minZoom?: number
-  maxZoom?: number
-  expandMargin?: number
-  expandSize?: number
-}
+export type CanvasManagerOptions = Pick<
+  FabricPaintOptions,
+  | 'zoomStep'
+  | 'minZoom'
+  | 'maxZoom'
+  | 'expandMargin'
+  | 'expandSize'
+  | 'zoomOrigin'
+  | 'zoomAnimationDuration'
+  | 'enableWheelZoom'
+  | 'autoResize'
+  | 'autoResizeMode'
+  | 'autoResizeFit'
+  | 'referenceSize'
+>
 
 export interface BaseToolOptions {
   defaultCursor?: string

@@ -48,7 +48,13 @@ new FabricPaint(container: HTMLElement | string, options?: FabricPaintOptions)
 | `backgroundColor` | `string` | `'transparent'` | 画布底色 |
 | `hoverCursor` | `string` | `'default'` | hover 光标 |
 | `moveCursor` | `string` | `'pointer'` | move 光标 |
+| `zoomStep` | `number` | `0.2` | 缩放步进比例；当前 `zoomIn()` 按 `1 + zoomStep` 放大 |
+| `minZoom` | `number` | `0.2` | 最小业务缩放 |
+| `maxZoom` | `number` | `3` | 最大业务缩放 |
+| `expandMargin` | `number` | `50` | 自动扩布触发边距 |
+| `expandSize` | `number` | `200` | 自动扩布单次扩展尺寸 |
 | `zoomOrigin` | `'center' \| 'topLeft'` | `'center'` | 统一缩放原点 |
+| `zoomAnimationDuration` | `number` | `500` | viewport 缩放动画时长，单位 ms；`<= 0` 时关闭动画 |
 | `enableWheelZoom` | `boolean` | `false` | 是否绑定滚轮缩放 |
 | `backgroundImage` | `string \| BackgroundImageOptions` | 无 | 当前仅定义类型，`init()` 不会自动应用 |
 | `lineColor` | `string` | `'rgba(2, 167, 240, 1)'` | 默认线条颜色 |
@@ -58,9 +64,9 @@ new FabricPaint(container: HTMLElement | string, options?: FabricPaintOptions)
 | `perPixelTargetFind` | `boolean` | `false` | 像素级命中 |
 | `targetFindTolerance` | `number` | `0` | 命中容差 |
 | `defaultShowHelpers` | `boolean` | `true` | 初始 helper 显示状态 |
-| `autoResize` | `boolean` | `false` | 监听容器尺寸变化并重算显示层 |
+| `autoResize` | `boolean` | `true` | 监听容器尺寸变化并重算显示层 |
 | `autoResizeMode` | `'canvas' \| 'viewport'` | `'canvas'` | `canvas` 保持旧语义；`viewport` 固定参考尺寸后用 viewport 自适应 |
-| `autoResizeFit` | `'contain' \| 'cover' \| 'stretch'` | `'contain'` | `viewport` 模式下的自适应方式 |
+| `autoResizeFit` | `'contain' \| 'cover' \| 'stretch'` | `'stretch'` | `viewport` 模式下的自适应方式 |
 | `referenceSize` | `{ width: number; height: number }` | 容器尺寸 | `viewport` 模式的逻辑参考尺寸 |
 | `pixelRatio` | `number \| 'auto'` | `'auto'` | 仅影响清晰度和 backing store |
 | `lockObjectVisualSizeOnZoom` | `boolean` | `false` | 是否开启视觉尺寸补偿缩放 |
@@ -153,7 +159,14 @@ type ZoomScale = {
 真实行为：
 
 - `zoomIn()`、`zoomOut()`、`setZoom()` 在 `center` 下围绕当前画布内容中心缩放，拖拽平移后不会跳回容器中心
+- `zoomStep` 默认 `0.2`，当前 `zoomIn()` 乘 `1.2`，`zoomOut()` 除 `1.2`
+- `minZoom` 默认 `0.2`，`maxZoom` 默认 `3`
+- `expandMargin=50`、`expandSize=200` 是自动扩布链路的默认阈值
 - `topLeft` 下缩放会保留当前画布左上锚点
+- `zoomAnimationDuration` 默认 `500ms`；传 `0` 或负数时，缩放立即落地
+- `CanvasManager` 初始化直接复用 `FabricPaintOptions` 里的这组缩放配置
+- `zoomIn()`、`zoomOut()`、`setZoom()`、`resetZoom()`、启用后的滚轮缩放，以及 `resize()` / `autoResize()` 触发的 viewport 归位，都复用同一个 viewport transform 入口
+- 动画中逐帧发 `canvas:zooming`，动画完成后发 `canvas:zoomed`
 - `enableWheelZoom=true` 时滚轮缩放也走同一套逻辑
 - `getZoom()` 返回业务 zoom，不受 `pixelRatio` 影响
 - `resetZoom()` 在当前显示尺寸上回到业务 zoom `1`
@@ -634,6 +647,7 @@ destroy(): void
 | `object:modified` | 任意对象修改 |
 | `object:removed` | 通过 id 删除对象 |
 | `objects:deleted` | 批量删除 |
+| `canvas:zooming` | 缩放动画进行中，每帧都会触发 |
 | `canvas:zoomed` | 缩放变化 |
 | `canvas:panned` | 平移完成 |
 | `canvas:cleared` | 画布清空 |

@@ -21,7 +21,8 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
     board = new VueFabric(container, {
       width: 800,
       height: 600,
-      autoResize: false
+      autoResize: false,
+      zoomAnimationDuration: 0
     })
     board.init()
   })
@@ -170,6 +171,7 @@ describe('VueFabric (PaintBoard) 集成测试', () => {
     })
 
     it('destroy() 后应清空容器', () => {
+      board.destroy()
       board.destroy()
       expect(container.innerHTML).toBe('')
     })

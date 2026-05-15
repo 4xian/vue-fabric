@@ -110,6 +110,8 @@ demo/
 - `resetZoom`
 
 当 `autoResize` 打开或显示尺寸不等于当前内部基准尺寸时，`resetZoom(zoomScale = 1)` 走 `_applyViewportResize(...)`，按传入业务倍率重新归位；不传时默认回到业务 zoom `1`。
+`_applyViewportResize(...)` 在 `canvasManager` 存在时，最终仍落到 `CanvasManager.setViewportTransform()`；`resize()`、`autoResize()` 和 viewport-fit 下的 `resetZoom()` 现在不再绕开这条链路。
+`zoomAnimationDuration` 默认 `500ms`，由 `CanvasManager` 统一控制 viewport 动画；传 `0` 或负数时直接同步落地。
 
 ### autoResize 当前语义
 
@@ -184,7 +186,7 @@ demo/
 - 每个对象可挂 `zoomInvariantBase`
 - `object:added` 时补采基准
 - `object:modified` 时刷新基准
-- `canvas:zoomed` / `canvas:panned` 时统一重算运行时显示值
+- `canvas:zooming` / `canvas:zoomed` / `canvas:panned` 时统一重算运行时显示值
 - `importFromJSON()` 后重跑一遍基准采集和 viewport 展示同步
 
 补偿规则：
@@ -205,9 +207,16 @@ demo/
 `CanvasManager` 当前职责：
 
 - 统一计算 viewportTransform
+- 统一执行 viewportTransform 动画
 - 维护业务 zoom
 - 可选绑定滚轮缩放
 - 保留自动扩布逻辑
+
+初始化来源：
+
+- `PaintBoard` 构造时先合并 `DEFAULT_VUEFABRIC_OPTIONS`
+- `CanvasManager` 初始化直接读取 `FabricPaintOptions`
+- 这组共享字段包括 `zoomStep`、`minZoom`、`maxZoom`、`expandMargin`、`expandSize`、`zoomOrigin`、`zoomAnimationDuration`、`enableWheelZoom`
 
 ### 当前已启用的部分
 
@@ -217,6 +226,19 @@ demo/
 - `resetZoom()`
 - `getZoom()`
 - `enableWheelZoom=true` 时绑定 `mouse:wheel`
+
+`setViewportTransform()` 现在是统一落地点：
+
+- `zoomIn()` / `zoomOut()` / `setZoom()` / `resetZoom()`
+- `enableWheelZoom=true` 时的滚轮缩放
+- `PaintBoard.resize()`、`autoResize()` 和 viewport-fit 下的 `resetZoom()`
+
+动画语义：
+
+- 默认时长来自 `zoomAnimationDuration=500`
+- `zoomAnimationDuration <= 0` 时跳过动画
+- 动画中逐帧发 `canvas:zooming`
+- 最终落地时发 `canvas:zoomed`
 
 ### 当前未启用的部分
 
@@ -442,6 +464,7 @@ demo/
 
 当前还会监听：
 
+- `canvas:zooming`
 - `canvas:zoomed`
 - `canvas:panned`
 - `canvas:resized`

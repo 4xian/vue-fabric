@@ -1,6 +1,5 @@
 import type {
   FabricPaintOptions,
-  CanvasManagerOptions,
   AreaToolOptions,
   BaseToolOptions,
   CurveToolOptions,
@@ -98,10 +97,16 @@ export const PROJECT_NAME = 'vue-fabric'
 // 默认画板配置
 export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   width: 800,
-  height: 800,
+  height: 600,
   hoverCursor: 'default',
   moveCursor: 'pointer',
+  zoomStep: 0.2,
+  minZoom: 0.2,
+  maxZoom: 3,
+  expandMargin: 50,
+  expandSize: 200,
   zoomOrigin: 'center',
+  zoomAnimationDuration: 500,
   enableWheelZoom: false,
   backgroundColor: 'transparent',
   lineColor: 'rgba(2, 167, 240, 1)',
@@ -111,24 +116,13 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   perPixelTargetFind: false,
   targetFindTolerance: 0,
   defaultShowHelpers: true,
-  autoResize: false,
+  autoResize: true,
   autoResizeMode: 'canvas',
-  autoResizeFit: 'contain',
+  autoResizeFit: 'stretch',
   referenceSize: undefined,
   pixelRatio: 'auto',
   lockObjectVisualSizeOnZoom: false,
   zoomInvariantExcludeTypes: []
-}
-
-// 默认canvas管理器配置
-export const DEFAULT_CANVAS_MANAGER_OPTIONS: CanvasManagerOptions = {
-  zoomStep: 1.1,
-  minZoom: 0.2,
-  maxZoom: 5,
-  expandMargin: 50,
-  expandSize: 200,
-  zoomOrigin: 'center',
-  enableWheelZoom: false
 }
 
 // 默认基础工具配置

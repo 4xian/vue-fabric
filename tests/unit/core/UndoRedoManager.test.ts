@@ -5,6 +5,11 @@ import { createMockCanvas } from '../../fixtures/mockCanvas'
 import { createMockFabricObject } from '../../fixtures/mockFabricObjects'
 import type { Canvas } from 'fabric'
 
+async function flushRestore(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 describe('UndoRedoManager', () => {
   let canvas: any
   let eventBus: EventBus
@@ -21,14 +26,14 @@ describe('UndoRedoManager', () => {
     vi.useRealTimers()
   })
 
-  describe('初始化', () => {
-    it('应该自动保存初始状态', () => {
+  describe('initialization', () => {
+    it('should save the initial state automatically', () => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
       expect(manager.getUndoCount()).toBe(1)
     })
 
-    it('应该正确处理构造函数参数', () => {
+    it('should accept constructor options', () => {
       const options = {
         excludeTypes: ['test'],
         getBackgroundImage: () => null
@@ -38,13 +43,13 @@ describe('UndoRedoManager', () => {
     })
   })
 
-  describe('undo() - 撤销功能', () => {
+  describe('undo()', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('应该执行单次撤销', () => {
+    it('should perform a single undo', () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
@@ -53,7 +58,7 @@ describe('UndoRedoManager', () => {
       expect(result).toBe(true)
     })
 
-    it('应该支持多次连续撤销', () => {
+    it('should support multiple undo calls after each restore finishes', async () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
@@ -63,37 +68,40 @@ describe('UndoRedoManager', () => {
       vi.runAllTimers()
 
       expect(manager.undo()).toBe(true)
+      await flushRestore()
       expect(manager.undo()).toBe(true)
     })
 
-    it('撤销到初始状态后应返回 false', () => {
+    it('should return false when already at the initial state', () => {
       const result = manager.undo()
       expect(result).toBe(false)
     })
 
-    it('无法继续撤销时应返回 false', () => {
+    it('should return false when undo is not available', () => {
       expect(manager.canUndo()).toBe(false)
       expect(manager.undo()).toBe(false)
     })
   })
 
-  describe('redo() - 重做功能', () => {
+  describe('redo()', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('应该执行单次重做', () => {
+    it('should perform a single redo after undo restore finishes', async () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
 
       manager.undo()
+      await flushRestore()
+
       const result = manager.redo()
       expect(result).toBe(true)
     })
 
-    it('应该支持多次连续重做', () => {
+    it('should support multiple redo calls after each restore finishes', async () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
@@ -103,36 +111,39 @@ describe('UndoRedoManager', () => {
       vi.runAllTimers()
 
       manager.undo()
+      await flushRestore()
       manager.undo()
+      await flushRestore()
 
       expect(manager.redo()).toBe(true)
+      await flushRestore()
       expect(manager.redo()).toBe(true)
     })
 
-    it('无法继续重做时应返回 false', () => {
+    it('should return false when redo is not available', () => {
       expect(manager.canRedo()).toBe(false)
       expect(manager.redo()).toBe(false)
     })
   })
 
-  describe('canUndo() / canRedo() - 状态查询', () => {
+  describe('canUndo() / canRedo()', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('初始状态不能撤销', () => {
+    it('should not allow undo at the initial state', () => {
       expect(manager.canUndo()).toBe(false)
     })
 
-    it('添加对象后可以撤销', () => {
+    it('should allow undo after an object is added', () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
       expect(manager.canUndo()).toBe(true)
     })
 
-    it('撤销后可以重做', () => {
+    it('should allow redo after undo', () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
@@ -141,24 +152,26 @@ describe('UndoRedoManager', () => {
       expect(manager.canRedo()).toBe(true)
     })
 
-    it('重做后不能继续重做', () => {
+    it('should clear redo availability after redo completes', async () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
 
       manager.undo()
-      manager.redo()
+      await flushRestore()
+
+      expect(manager.redo()).toBe(true)
       expect(manager.canRedo()).toBe(false)
     })
   })
 
-  describe('pause() / resume() - 暂停恢复', () => {
+  describe('pause() / resume()', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('暂停期间不记录历史', () => {
+    it('should not record history while paused', () => {
       const initialCount = manager.getUndoCount()
       manager.pause()
       canvas.add(createMockFabricObject())
@@ -167,7 +180,7 @@ describe('UndoRedoManager', () => {
       expect(manager.getUndoCount()).toBe(initialCount)
     })
 
-    it('恢复后保存当前状态', () => {
+    it('should save the current state when resumed', () => {
       manager.pause()
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
@@ -177,7 +190,7 @@ describe('UndoRedoManager', () => {
       expect(manager.getUndoCount()).toBe(countBeforeResume + 1)
     })
 
-    it('isPaused() 应返回正确状态', () => {
+    it('should report paused state correctly', () => {
       expect(manager.isPaused()).toBe(false)
       manager.pause()
       expect(manager.isPaused()).toBe(true)
@@ -186,13 +199,13 @@ describe('UndoRedoManager', () => {
     })
   })
 
-  describe('历史栈管理', () => {
+  describe('history stack', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('新操作应清空 redo 栈', async () => {
+    it('should clear redo stack after a new operation', async () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
@@ -209,13 +222,13 @@ describe('UndoRedoManager', () => {
     })
   })
 
-  describe('事件触发', () => {
+  describe('events', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('Canvas 对象变化时应自动保存', () => {
+    it('should save automatically when canvas objects change', () => {
       const initialCount = manager.getUndoCount()
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
@@ -223,7 +236,7 @@ describe('UndoRedoManager', () => {
       expect(manager.getUndoCount()).toBeGreaterThan(initialCount)
     })
 
-    it('撤销时应触发 history:changed 事件', () => {
+    it('should emit history:changed on undo', () => {
       const callback = vi.fn()
       eventBus.on('history:changed', callback)
 
@@ -235,13 +248,14 @@ describe('UndoRedoManager', () => {
       expect(callback).toHaveBeenCalled()
     })
 
-    it('重做时应触发 history:changed 事件', () => {
+    it('should emit history:changed on redo', async () => {
       const callback = vi.fn()
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
 
       manager.undo()
+      await flushRestore()
 
       eventBus.on('history:changed', callback)
       manager.redo()
@@ -249,13 +263,13 @@ describe('UndoRedoManager', () => {
     })
   })
 
-  describe('clear() - 清空历史', () => {
+  describe('clear()', () => {
     beforeEach(() => {
       manager = new UndoRedoManager(canvas as unknown as Canvas, eventBus)
       vi.runAllTimers()
     })
 
-    it('应清空所有历史记录', () => {
+    it('should clear all history', () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
@@ -267,7 +281,7 @@ describe('UndoRedoManager', () => {
       expect(manager.getRedoCount()).toBe(0)
     })
 
-    it('清空后应触发 history:changed 事件', () => {
+    it('should emit history:changed after clear', () => {
       const callback = vi.fn()
       eventBus.on('history:changed', callback)
 

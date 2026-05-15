@@ -104,8 +104,11 @@ describe('export 工具函数', () => {
     })
 
     it('应该支持字符串格式参数（格式名）', () => {
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
       const result = exportUtils.exportToImage(canvas as unknown as Canvas, 'jpeg')
       expect(typeof result).toBe('string')
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+      clickSpy.mockRestore()
     })
 
     it('download=false 时不应创建下载链接', () => {

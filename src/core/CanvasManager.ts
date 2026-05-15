@@ -5,29 +5,31 @@ import type {
   BasicTransformEvent,
   FabricObject
 } from 'fabric'
-import type { CanvasManagerOptions, ZoomOrigin, ZoomScale } from '../../types'
+import type { FabricPaintOptions, ZoomOrigin, ZoomScale } from '../../types'
 import { throttle } from '../utils/throttle'
 import EventBus from './EventBus'
-import { DEFAULT_CANVAS_MANAGER_OPTIONS } from '../utils/settings'
+import { DEFAULT_VUEFABRIC_OPTIONS } from '../utils/settings'
 
 type ObjectMovingEvent = BasicTransformEvent<TPointerEvent> & { target: FabricObject }
 type ViewportResetMode = 'preserveContentAnchor' | 'resetToDisplayAnchor'
+type ViewportTransform = [number, number, number, number, number, number]
 type CanvasManagerRuntimeOptions = Required<
   Pick<
-    CanvasManagerOptions,
+    FabricPaintOptions,
     | 'zoomStep'
     | 'minZoom'
     | 'maxZoom'
     | 'expandMargin'
     | 'expandSize'
     | 'zoomOrigin'
+    | 'zoomAnimationDuration'
     | 'enableWheelZoom'
     | 'autoResize'
     | 'autoResizeMode'
     | 'autoResizeFit'
   >
 > &
-  Pick<CanvasManagerOptions, 'referenceSize'>
+  Pick<FabricPaintOptions, 'referenceSize'>
 
 export default class CanvasManager {
   private canvas: Canvas
@@ -37,27 +39,31 @@ export default class CanvasManager {
   private lastPosX: number
   private lastPosY: number
   private _throttledObjectMoving: (opt: ObjectMovingEvent) => void
+  private _zoomAnimationFrame: number | null
 
-  constructor(canvas: Canvas, eventBus: EventBus, options: CanvasManagerOptions = {}) {
+  constructor(canvas: Canvas, eventBus: EventBus, options: FabricPaintOptions = {}) {
     this.canvas = canvas
     this.eventBus = eventBus
     this.options = {
-      zoomStep: options.zoomStep ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomStep!,
-      minZoom: options.minZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.minZoom!,
-      maxZoom: options.maxZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.maxZoom!,
-      expandMargin: options.expandMargin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandMargin!,
-      expandSize: options.expandSize ?? DEFAULT_CANVAS_MANAGER_OPTIONS.expandSize!,
-      zoomOrigin: options.zoomOrigin ?? DEFAULT_CANVAS_MANAGER_OPTIONS.zoomOrigin!,
-      enableWheelZoom: options.enableWheelZoom ?? DEFAULT_CANVAS_MANAGER_OPTIONS.enableWheelZoom!,
-      autoResize: options.autoResize ?? false,
-      autoResizeMode: options.autoResizeMode ?? 'canvas',
-      autoResizeFit: options.autoResizeFit ?? 'contain',
-      referenceSize: options.referenceSize
+      zoomStep: options.zoomStep ?? DEFAULT_VUEFABRIC_OPTIONS.zoomStep!,
+      minZoom: options.minZoom ?? DEFAULT_VUEFABRIC_OPTIONS.minZoom!,
+      maxZoom: options.maxZoom ?? DEFAULT_VUEFABRIC_OPTIONS.maxZoom!,
+      expandMargin: options.expandMargin ?? DEFAULT_VUEFABRIC_OPTIONS.expandMargin!,
+      expandSize: options.expandSize ?? DEFAULT_VUEFABRIC_OPTIONS.expandSize!,
+      zoomOrigin: options.zoomOrigin ?? DEFAULT_VUEFABRIC_OPTIONS.zoomOrigin!,
+      zoomAnimationDuration:
+        options.zoomAnimationDuration ?? DEFAULT_VUEFABRIC_OPTIONS.zoomAnimationDuration!,
+      enableWheelZoom: options.enableWheelZoom ?? DEFAULT_VUEFABRIC_OPTIONS.enableWheelZoom!,
+      autoResize: options.autoResize ?? DEFAULT_VUEFABRIC_OPTIONS.autoResize!,
+      autoResizeMode: options.autoResizeMode ?? DEFAULT_VUEFABRIC_OPTIONS.autoResizeMode!,
+      autoResizeFit: options.autoResizeFit ?? DEFAULT_VUEFABRIC_OPTIONS.autoResizeFit!,
+      referenceSize: options.referenceSize ?? DEFAULT_VUEFABRIC_OPTIONS.referenceSize
     }
     this.isDragging = false
     this.lastPosX = 0
     this.lastPosY = 0
     this._throttledObjectMoving = throttle(this._checkCanvasExpand.bind(this), 100)
+    this._zoomAnimationFrame = null
     this._bindEvents()
   }
 
@@ -168,13 +174,13 @@ export default class CanvasManager {
   }
 
   zoomIn(origin?: ZoomOrigin): void {
-    let zoom = this.getZoom() * this.options.zoomStep
+    let zoom = this.getZoom() * (1 + this.options.zoomStep)
     zoom = Math.min(zoom, this.options.maxZoom)
     this.setZoom(zoom, origin)
   }
 
   zoomOut(origin?: ZoomOrigin): void {
-    let zoom = this.getZoom() / this.options.zoomStep
+    let zoom = this.getZoom() / (1 + this.options.zoomStep)
     zoom = Math.max(zoom, this.options.minZoom)
     this.setZoom(zoom, origin)
   }
@@ -285,19 +291,147 @@ export default class CanvasManager {
     }
   }
 
-  setViewportTransform(
-    transform: [number, number, number, number, number, number],
+  private _getRelativeZoomScaleFromTransform(transform: ViewportTransform): ZoomScale {
+    const fitScale = this._getFitScale()
+
+    return {
+      x: transform[0] / (fitScale.x || 1),
+      y: transform[3] / (fitScale.y || 1)
+    }
+  }
+
+  private _resolveZoomPayload(
+    transform: ViewportTransform,
     zoomPayload?: number | ZoomScale
+  ): number | ZoomScale {
+    if (zoomPayload !== undefined) {
+      return zoomPayload
+    }
+
+    const scale = this._getRelativeZoomScaleFromTransform(transform)
+    return scale.x === scale.y ? scale.x : scale
+  }
+
+  private _resolveAnimatedZoomPayload(
+    transform: ViewportTransform,
+    zoomPayload?: number | ZoomScale
+  ): number | ZoomScale {
+    const scale = this._getRelativeZoomScaleFromTransform(transform)
+    return typeof zoomPayload === 'number' ? scale.x : scale
+  }
+
+  private _applyViewportTransformImmediately(
+    transform: ViewportTransform,
+    zoomPayload?: number | ZoomScale,
+    onComplete?: () => void
   ): void {
     this.canvas.setViewportTransform(transform)
-    this.eventBus.emit('canvas:zoomed', zoomPayload ?? transform[0])
+    this.eventBus.emit('canvas:zoomed', this._resolveZoomPayload(transform, zoomPayload))
+    onComplete?.()
+  }
+
+  private _requestAnimationFrame(callback: (timestamp: number) => void): number {
+    if (typeof globalThis.requestAnimationFrame === 'function') {
+      return globalThis.requestAnimationFrame(callback)
+    }
+
+    return globalThis.setTimeout(() => callback(Date.now()), 16) as unknown as number
+  }
+
+  private _cancelAnimationFrame(frameId: number): void {
+    if (typeof globalThis.cancelAnimationFrame === 'function') {
+      globalThis.cancelAnimationFrame(frameId)
+      return
+    }
+
+    globalThis.clearTimeout(frameId)
+  }
+
+  private _cancelZoomAnimation(): void {
+    if (this._zoomAnimationFrame === null) return
+
+    this._cancelAnimationFrame(this._zoomAnimationFrame)
+    this._zoomAnimationFrame = null
+  }
+
+  private _isSameViewportTransform(
+    from: ViewportTransform,
+    to: ViewportTransform,
+    epsilon = 0.0001
+  ): boolean {
+    return from.every((value, index) => Math.abs(value - to[index]) < epsilon)
+  }
+
+  private _easeZoomProgress(progress: number): number {
+    return 1 - Math.pow(1 - progress, 3)
+  }
+
+  private _interpolateViewportTransform(
+    from: ViewportTransform,
+    to: ViewportTransform,
+    progress: number
+  ): ViewportTransform {
+    return from.map((value, index) => value + (to[index] - value) * progress) as ViewportTransform
+  }
+
+  private _animateViewportTransform(
+    target: ViewportTransform,
+    zoomPayload?: number | ZoomScale,
+    onComplete?: () => void
+  ): void {
+    const duration = this.options.zoomAnimationDuration
+    const from = (this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0]) as ViewportTransform
+
+    this._cancelZoomAnimation()
+
+    if (duration <= 0 || this._isSameViewportTransform(from, target)) {
+      this._applyViewportTransformImmediately(target, zoomPayload, onComplete)
+      return
+    }
+
+    const startTime =
+      typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now()
+
+    const tick = (timestamp: number): void => {
+      const elapsed = timestamp - startTime
+      const rawProgress = Math.max(0, Math.min(1, elapsed / duration))
+
+      if (rawProgress >= 1) {
+        this._zoomAnimationFrame = null
+        this._applyViewportTransformImmediately(target, zoomPayload, onComplete)
+        return
+      }
+
+      const nextTransform = this._interpolateViewportTransform(
+        from,
+        target,
+        this._easeZoomProgress(rawProgress)
+      )
+
+      this.canvas.setViewportTransform(nextTransform)
+      this.eventBus.emit(
+        'canvas:zooming',
+        this._resolveAnimatedZoomPayload(nextTransform, zoomPayload)
+      )
+      this._zoomAnimationFrame = this._requestAnimationFrame(tick)
+    }
+
+    this._zoomAnimationFrame = this._requestAnimationFrame(tick)
+  }
+
+  setViewportTransform(
+    transform: ViewportTransform,
+    zoomPayload?: number | ZoomScale,
+    onComplete?: () => void
+  ): void {
+    this._animateViewportTransform(transform, zoomPayload, onComplete)
   }
 
   private _buildViewportTransform(
     zoom: ZoomScale,
     origin: ZoomOrigin = this.options.zoomOrigin,
     resetMode: ViewportResetMode = 'preserveContentAnchor'
-  ): [number, number, number, number, number, number] {
+  ): ViewportTransform {
     const logical = this._getLogicalCanvasSize()
     const display = this._getCanvasDisplaySize()
     const vpt = this.canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
@@ -327,5 +461,9 @@ export default class CanvasManager {
 
   getZoom(): number {
     return this._getRelativeZoomScale().x
+  }
+
+  destroy(): void {
+    this._cancelZoomAnimation()
   }
 }

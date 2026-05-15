@@ -94,6 +94,7 @@ export default class PersonTracker {
       this._applyZoomInvariantState()
       this.canvas.renderAll()
     }
+    this.eventBus.on('canvas:zooming', this._onCanvasZoomed)
     this.eventBus.on('canvas:zoomed', this._onCanvasZoomed)
     this.eventBus.on('canvas:panned', this._onCanvasPanned)
     this.eventBus.on('canvas:resized', this._onCanvasResized)
@@ -1080,8 +1081,10 @@ export default class PersonTracker {
 
   destroy(): void {
     this.clearAll()
+    this.eventBus.off('canvas:zooming', this._onCanvasZoomed)
     this.eventBus.off('canvas:zoomed', this._onCanvasZoomed)
     this.eventBus.off('canvas:panned', this._onCanvasPanned)
+    this.eventBus.off('canvas:resized', this._onCanvasResized)
   }
 
   abortRendering(): void {
