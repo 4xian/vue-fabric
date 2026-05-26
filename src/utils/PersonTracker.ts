@@ -3,6 +3,7 @@ import type { Canvas, Group, Circle, Polyline, Path, FabricImage } from 'fabric'
 import type { Point, PersonData, TraceOptions } from '../../types'
 import EventBus from '../core/EventBus'
 import { DEFAULT_PERSON_TRACKER_OPTIONS, CustomType } from '../utils/settings'
+import { applyLayerToObjects, normalizeLayer } from './layer'
 
 interface ZoomInvariantAdapter {
   isEnabled: () => boolean
@@ -57,6 +58,7 @@ export default class PersonTracker {
     this.eventBus = eventBus
     this.zoomInvariantAdapter = zoomInvariantAdapter
     this.options = {
+      layer: options?.layer ?? DEFAULT_PERSON_TRACKER_OPTIONS.layer!,
       radius: options?.radius ?? DEFAULT_PERSON_TRACKER_OPTIONS.radius!,
       strokeWidth: options?.strokeWidth ?? DEFAULT_PERSON_TRACKER_OPTIONS.strokeWidth!,
       fontSize: options?.fontSize ?? DEFAULT_PERSON_TRACKER_OPTIONS.fontSize!,
@@ -222,6 +224,85 @@ export default class PersonTracker {
     return this.zoomInvariantAdapter?.isExcludedType(customType) ?? false
   }
 
+  private _getTrackerLayer(layer?: number): number {
+    return normalizeLayer(layer ?? this.options.layer)
+  }
+
+  private _setTrackerFamilyMeta(
+    target: (Group | Circle | Polyline | Path) & { customData?: Record<string, unknown> },
+    familyId: string,
+    layer?: number
+  ): number {
+    const normalizedLayer = this._getTrackerLayer(layer)
+    target.customData = {
+      ...(target.customData || {}),
+      familyId,
+      layer: normalizedLayer
+    }
+    return normalizedLayer
+  }
+
+  private _applyPersonMarkerLayer(marker: PersonMarker, personId: string, layer?: number): void {
+    const familyId = `person:${personId}`
+    const normalizedLayer = this._setTrackerFamilyMeta(
+      marker.group as Group & { customData?: Record<string, unknown> },
+      familyId,
+      layer
+    )
+
+    if (marker.rippleCircle) {
+      this._setTrackerFamilyMeta(
+        marker.rippleCircle as Circle & { customData?: Record<string, unknown> },
+        familyId,
+        normalizedLayer
+      )
+    }
+
+    applyLayerToObjects(this.canvas, [marker.rippleCircle, marker.group], normalizedLayer)
+  }
+
+  private _applyTraceLayer(traceId: string, traceData: TraceData, layer?: number): void {
+    const familyId = `trace:${traceId}`
+    const normalizedLayer = this._setTrackerFamilyMeta(
+      traceData.pathLine as (Polyline | Path) & { customData?: Record<string, unknown> },
+      familyId,
+      layer
+    )
+
+    this._setTrackerFamilyMeta(
+      traceData.startMarker.group as Group & { customData?: Record<string, unknown> },
+      familyId,
+      normalizedLayer
+    )
+    this._setTrackerFamilyMeta(
+      traceData.endMarker.group as Group & { customData?: Record<string, unknown> },
+      familyId,
+      normalizedLayer
+    )
+
+    if (traceData.movingMarker) {
+      this._setTrackerFamilyMeta(
+        traceData.movingMarker.group as Group & { customData?: Record<string, unknown> },
+        familyId,
+        normalizedLayer
+      )
+    }
+
+    applyLayerToObjects(
+      this.canvas,
+      [
+        traceData.pathLine,
+        traceData.startMarker.rippleCircle,
+        traceData.startMarker.group,
+        traceData.endMarker.rippleCircle,
+        traceData.endMarker.group,
+        traceData.movingMarker?.rippleCircle,
+        traceData.movingMarker?.group
+      ],
+      normalizedLayer
+    )
+  }
+
   private _getMarkerAnchor(marker: PersonMarker): Point {
     const customData = ((marker.group as Group & { customData?: Record<string, unknown> })
       .customData || {}) as Record<string, unknown>
@@ -352,7 +433,6 @@ export default class PersonTracker {
     const anchor = this._getMarkerAnchor(marker)
     this._setMarkerAnchor(marker, anchor.x, anchor.y, false)
     this._applyZoomInvariantToRipple(marker)
-    this.canvas.bringObjectToFront(marker.group)
   }
 
   private _applyZoomInvariantState(): void {
@@ -498,6 +578,7 @@ export default class PersonTracker {
     }
 
     this.traces.set(id, traceData)
+    this._applyTraceLayer(id, traceData)
     if (this.options.showMovingMarker && movingMarker) {
       this._startTraceAnimation(id)
     }
@@ -547,6 +628,7 @@ export default class PersonTracker {
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
     this._bindMarkerClickHandler(marker)
+    this._applyPersonMarkerLayer(marker, person.id)
     this._applyZoomInvariantToMarker(marker)
     this._setMarkerAnchor(marker, person.x, person.y)
 
@@ -573,6 +655,7 @@ export default class PersonTracker {
     this.canvas.add(marker.group)
     this.persons.set(person.id, marker)
     this._bindMarkerClickHandler(marker)
+    this._applyPersonMarkerLayer(marker, person.id)
     this._applyZoomInvariantToMarker(marker)
     this._setMarkerAnchor(marker, person.x, person.y)
 
@@ -595,6 +678,7 @@ export default class PersonTracker {
     this.persons.delete(sourceId)
     this.persons.set(person.id, marker)
     this._bindMarkerClickHandler(marker)
+    this._applyPersonMarkerLayer(marker, person.id)
     this._updatePersonMarker(person)
   }
 
@@ -1148,8 +1232,10 @@ export default class PersonTracker {
     this.canvas.add(rippleCircle)
     marker.rippleCircle = rippleCircle
     marker.rippleAnimating = true
+    if (marker.personData) {
+      this._applyPersonMarkerLayer(marker, marker.personData.id)
+    }
     this._applyZoomInvariantToRipple(marker)
-    this.canvas.bringObjectToFront(marker.group)
 
     const animateRipple = () => {
       if (!marker.rippleAnimating || !marker.rippleCircle) return

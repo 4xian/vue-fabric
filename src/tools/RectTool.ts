@@ -5,6 +5,7 @@ import BaseTool from './BaseTool'
 import { CustomType, DEFAULT_RECTTOOL_OPTIONS } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
 import { setupRectEvents } from '../utils/rectEvents'
+import { applyLayerToObjects, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 type CustomRect = Rect & {
   customType?: string
@@ -23,7 +24,7 @@ interface RectUndoState {
 
 type CustomRectLabel = Text & {
   customType?: string
-  customData?: { drawId: string; drawPid: string; labelType: string }
+  customData?: { drawId: string; drawPid: string; labelType: string; layer: number }
 }
 
 export default class RectTool extends BaseTool {
@@ -332,13 +333,22 @@ export default class RectTool extends BaseTool {
 
     this._configureControls(rect)
 
-    const { widthLabel, heightLabel } = this._createRectLabel({ drawId, left, top, width, height })
+    const layer = normalizeLayer(this.options.defaultLayer)
+    const { widthLabel, heightLabel } = this._createRectLabel({
+      drawId,
+      left,
+      top,
+      width,
+      height,
+      layer
+    })
     this.canvas.add(widthLabel)
 
     this.canvas.add(heightLabel)
 
     const customData: RectCustomData = {
       drawId,
+      layer,
       startPoint: { x: left, y: top },
       endPoint: { x: left + width, y: top + height },
       width,
@@ -354,6 +364,7 @@ export default class RectTool extends BaseTool {
     rect.customData = customData
 
     this.canvas.add(rect)
+    applyLayerToObjects(this.canvas, [rect, widthLabel, heightLabel], layer)
 
     const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
     if (shouldShowHelpers) {
@@ -406,13 +417,15 @@ export default class RectTool extends BaseTool {
     width,
     height,
     top,
-    left
+    left,
+    layer
   }: {
     drawId: string
     width: number
     height: number
     top: number
     left: number
+    layer: number
   }): {
     widthLabel: CustomRectLabel
     heightLabel: CustomRectLabel
@@ -431,7 +444,8 @@ export default class RectTool extends BaseTool {
     widthLabel.customData = {
       drawId: generateDrawId(),
       drawPid: drawId,
-      labelType: 'width'
+      labelType: 'width',
+      layer
     }
 
     const heightLabel: CustomRectLabel = new fabric.Text(`${height}`, {
@@ -448,7 +462,8 @@ export default class RectTool extends BaseTool {
     heightLabel.customData = {
       drawId: generateDrawId(),
       drawPid: drawId,
-      labelType: 'height'
+      labelType: 'height',
+      layer
     }
     return { widthLabel, heightLabel }
   }
@@ -457,12 +472,11 @@ export default class RectTool extends BaseTool {
     if (!this.canvas) return
     if (data.widthLabel) {
       data.widthLabel.set({ visible: true, opacity: 1 })
-      this.canvas.bringObjectToFront(data.widthLabel)
     }
     if (data.heightLabel) {
       data.heightLabel.set({ visible: true, opacity: 1 })
-      this.canvas.bringObjectToFront(data.heightLabel)
     }
+    reflowCanvasLayers(this.canvas)
   }
 
   private _hideHelpers(data: RectCustomData): void {
@@ -471,6 +485,9 @@ export default class RectTool extends BaseTool {
     }
     if (data.heightLabel) {
       data.heightLabel.set({ visible: false })
+    }
+    if (this.canvas) {
+      reflowCanvasLayers(this.canvas)
     }
   }
 

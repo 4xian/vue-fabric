@@ -106,7 +106,7 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
   expandMargin: 50,
   expandSize: 200,
   zoomOrigin: 'center',
-  zoomAnimationDuration: 500,
+  zoomAnimationDuration: 0,
   enableWheelZoom: false,
   backgroundColor: 'transparent',
   lineColor: 'rgba(2, 167, 240, 1)',
@@ -127,6 +127,7 @@ export const DEFAULT_VUEFABRIC_OPTIONS: FabricPaintOptions = {
 
 // 默认基础工具配置
 export const DEFAULT_BASETOOL_OPTIONS: BaseToolOptions = {
+  defaultLayer: 0,
   continueDraw: false,
   disabeldClick: false,
   activeCursor: 'crosshair',
@@ -135,6 +136,7 @@ export const DEFAULT_BASETOOL_OPTIONS: BaseToolOptions = {
 
 // 默认选择工具配置
 export const DEFAULT_SELECTTOOL_OPTIONS: SelectToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'default',
   deactiveCursor: 'default',
   allowSelection: false,
@@ -146,6 +148,7 @@ export const DEFAULT_SELECTTOOL_OPTIONS: SelectToolOptions = {
 
 // 默认直线工具配置
 export const DEFAULT_LINETOOL_OPTIONS: LineToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'crosshair',
   deactiveCursor: 'default',
   pointRadius: 3,
@@ -164,6 +167,7 @@ export const DEFAULT_LINETOOL_OPTIONS: LineToolOptions = {
 }
 
 export const DEFAULT_POLYLINETOOL_OPTIONS: PolylineToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'crosshair',
   deactiveCursor: 'default',
   pointRadius: 3,
@@ -183,6 +187,7 @@ export const DEFAULT_POLYLINETOOL_OPTIONS: PolylineToolOptions = {
 
 // 默认矩形工具配置
 export const DEFAULT_RECTTOOL_OPTIONS: RectToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'crosshair',
   deactiveCursor: 'default',
   enableFill: true,
@@ -204,6 +209,7 @@ export const DEFAULT_RECTTOOL_OPTIONS: RectToolOptions = {
 
 // 默认区域工具配置
 export const DEFAULT_AREATOOL_OPTIONS: AreaToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'crosshair',
   deactiveCursor: 'default',
   closeThreshold: 8,
@@ -231,6 +237,7 @@ export const DEFAULT_AREATOOL_OPTIONS: AreaToolOptions = {
 
 // 默认曲线工具配置
 export const DEFAULT_CURVETOOL_OPTIONS: CurveToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'crosshair',
   deactiveCursor: 'default',
   tension: 0.5,
@@ -253,6 +260,7 @@ export const DEFAULT_CURVETOOL_OPTIONS: CurveToolOptions = {
 
 // 默认文本工具配置
 export const DEFAULT_TEXTTOOL_OPTIONS: TextToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'default',
   deactiveCursor: 'default',
   fontSize: 12,
@@ -267,6 +275,7 @@ export const DEFAULT_TEXTTOOL_OPTIONS: TextToolOptions = {
 
 // 默认图片工具配置
 export const DEFAULT_IMAGETOOL_OPTIONS: ImageToolOptions = {
+  defaultLayer: 0,
   activeCursor: 'default',
   deactiveCursor: 'default',
   defaultSelectable: false,
@@ -282,6 +291,7 @@ export const DEFAULT_IMAGETOOL_OPTIONS: ImageToolOptions = {
 
 // 默认拖拽工具配置
 export const DEFAULT_DRAGTOOL_OPTIONS: BaseToolOptions = {
+  defaultLayer: 0,
   defaultCursor: 'pointer',
   activeCursor: 'grabbing',
   deactiveCursor: 'pointer',
@@ -293,6 +303,7 @@ export const DEFAULT_DRAGTOOL_OPTIONS: BaseToolOptions = {
 
 // 默认人员轨迹配置
 export const DEFAULT_PERSON_TRACKER_OPTIONS: TraceOptions = {
+  layer: 0,
   radius: 3,
   strokeWidth: 2,
   fontSize: 12,

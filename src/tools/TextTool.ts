@@ -4,6 +4,7 @@ import type { TextCustomData, TextToolOptions, AddTextOptions } from '../../type
 import BaseTool from './BaseTool'
 import { DEFAULT_TEXTTOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { applyLayerToObjects, normalizeLayer } from '../utils/layer'
 
 export interface CreateTextResult {
   textObj: IText & { customType: string; customData: TextCustomData }
@@ -53,6 +54,7 @@ export default class TextTool extends BaseTool {
 
   private _createText(pointer: { x: number; y: number }): void {
     if (!this.canvas || !this.paintBoard || !this.eventBus) return
+    const layer = normalizeLayer(this.options.defaultLayer)
 
     const text = new fabric.IText('文本', {
       left: pointer.x,
@@ -72,7 +74,8 @@ export default class TextTool extends BaseTool {
 
     const customData: TextCustomData = {
       drawId: generateDrawId(),
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      layer
     }
 
     ;(text as IText & { customType: string; customData: TextCustomData }).customType =
@@ -80,6 +83,7 @@ export default class TextTool extends BaseTool {
     ;(text as IText & { customType: string; customData: TextCustomData }).customData = customData
 
     this.canvas.add(text)
+    applyLayerToObjects(this.canvas, [text], layer)
     this.canvas.setActiveObject(text)
     text.enterEditing()
     text.selectAll()
@@ -170,6 +174,7 @@ export default class TextTool extends BaseTool {
 
   createTextAt(options: AddTextOptions): CreateTextResult | null {
     if (!this.canvas || !this.paintBoard || !this.eventBus) return null
+    const layer = normalizeLayer(options.layer ?? this.options.defaultLayer)
 
     const {
       x,
@@ -213,7 +218,8 @@ export default class TextTool extends BaseTool {
 
     const customData: TextCustomData = {
       ...options,
-      drawId: options.id || generateDrawId()
+      drawId: options.id || generateDrawId(),
+      layer
     }
 
     ;(textObj as IText & { customType: string; customData: TextCustomData }).customType =
@@ -221,6 +227,7 @@ export default class TextTool extends BaseTool {
     ;(textObj as IText & { customType: string; customData: TextCustomData }).customData = customData
 
     this.canvas.add(textObj)
+    applyLayerToObjects(this.canvas, [textObj], layer)
     this.canvas.renderAll()
 
     this._bindTextEvents(textObj as IText & { customType: string; customData: TextCustomData })
@@ -237,6 +244,7 @@ export default class TextTool extends BaseTool {
 
   createTextWithoutRender(options: AddTextOptions): CreateTextResult | null {
     if (!this.canvas || !this.paintBoard || !this.eventBus) return null
+    const layer = normalizeLayer(options.layer ?? this.options.defaultLayer)
 
     const {
       x,
@@ -280,7 +288,8 @@ export default class TextTool extends BaseTool {
 
     const customData: TextCustomData = {
       ...options,
-      drawId: options.id || generateDrawId()
+      drawId: options.id || generateDrawId(),
+      layer
     }
 
     ;(textObj as IText & { customType: string; customData: TextCustomData }).customType =
@@ -288,6 +297,7 @@ export default class TextTool extends BaseTool {
     ;(textObj as IText & { customType: string; customData: TextCustomData }).customData = customData
 
     this.canvas.add(textObj)
+    applyLayerToObjects(this.canvas, [textObj], layer)
     this._bindTextEvents(textObj as IText & { customType: string; customData: TextCustomData })
 
     return {

@@ -17,6 +17,7 @@ export interface MockCanvas {
   remove: (...objects: FabricObject[]) => void
   sendObjectToBack: (object: FabricObject) => void
   bringObjectToFront: (object: FabricObject) => void
+  moveObjectTo: (object: FabricObject, index: number) => boolean
   forEachObject: (callback: (obj: FabricObject) => void) => void
   discardActiveObject: () => void
   getActiveObject: () => FabricObject | null
@@ -56,6 +57,18 @@ export function createMockCanvas(options: {
   let displayHeight = height
   let viewportTransform = [1, 0, 0, 1, 0, 0]
 
+  const moveObjectToIndex = (object: FabricObject, index: number): boolean => {
+    const currentIndex = objects.indexOf(object)
+    if (currentIndex < 0) return false
+
+    const normalizedIndex = Math.max(0, Math.min(index, objects.length - 1))
+    if (currentIndex === normalizedIndex) return true
+
+    objects.splice(currentIndex, 1)
+    objects.splice(normalizedIndex, 0, object)
+    return true
+  }
+
   const canvas: MockCanvas = {
     getWidth: vi.fn(() => width),
     getHeight: vi.fn(() => height),
@@ -88,8 +101,13 @@ export function createMockCanvas(options: {
         if (index > -1) objects.splice(index, 1)
       })
     }),
-    sendObjectToBack: vi.fn(),
-    bringObjectToFront: vi.fn(),
+    sendObjectToBack: vi.fn((object: FabricObject) => {
+      moveObjectToIndex(object, 0)
+    }),
+    bringObjectToFront: vi.fn((object: FabricObject) => {
+      moveObjectToIndex(object, objects.length - 1)
+    }),
+    moveObjectTo: vi.fn((object: FabricObject, index: number) => moveObjectToIndex(object, index)),
     forEachObject: vi.fn((callback: (obj: FabricObject) => void) => {
       objects.forEach(callback)
     }),

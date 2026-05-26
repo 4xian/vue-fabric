@@ -34,6 +34,7 @@ import * as exportUtils from '../utils/export'
 import BaseTool from '../tools/BaseTool'
 import { PROJECT_NAME, DEFAULT_VUEFABRIC_OPTIONS, CustomType } from '../utils/settings'
 import { setAreaHelpersVisibility } from '../utils/areaEvents'
+import { applyLayerToCanvasObject, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 type ZoomInvariantFabricObject = FabricObject & {
   customType?: string
@@ -1028,6 +1029,7 @@ export default class VueFabric {
         this.canvas?.getObjects().forEach(obj => {
           this._initializeZoomInvariantBase(obj)
         })
+        reflowCanvasLayers(this.canvas)
         this._syncViewportPresentation()
         this.eventBus.emit('canvas:loaded')
       })
@@ -1086,49 +1088,41 @@ export default class VueFabric {
           const data = obj.customData as CurveCustomData
           data.circles?.forEach((circle: Circle) => {
             circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
-            this.canvas!.bringObjectToFront(circle)
           })
           data.labels?.forEach((label: Text) => {
             label.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(label)
           })
         } else if (obj.customType === CustomType.Line && obj.customData) {
           const data = obj.customData as LineCustomData
           if (data.startCircle) {
             data.startCircle.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(data.startCircle)
           }
           if (data.endCircle) {
             data.endCircle.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(data.endCircle)
           }
           if (data.label) {
             data.label.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(data.label)
           }
         } else if (obj.customType === CustomType.Polyline && obj.customData) {
           const data = obj.customData as PolylineCustomData
           data.circles?.forEach((circle: Circle) => {
             circle.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(circle)
           })
           data.labels?.forEach((label: Text) => {
             label.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(label)
           })
         } else if (obj.customType === CustomType.Rect && obj.customData) {
           const data = obj.customData as RectCustomData
           if (data.widthLabel) {
             data.widthLabel.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(data.widthLabel)
           }
           if (data.heightLabel) {
             data.heightLabel.set({ visible: true, opacity: 1 })
-            this.canvas!.bringObjectToFront(data.heightLabel)
           }
         }
       }
     )
+    reflowCanvasLayers(this.canvas)
     this.canvas.renderAll()
     this.eventBus.emit('areaHelpers:shown')
     this._helpersVisible = true
@@ -1188,6 +1182,7 @@ export default class VueFabric {
         }
       }
     )
+    reflowCanvasLayers(this.canvas)
     this.canvas.renderAll()
     this.eventBus.emit('areaHelpers:hidden')
     this._helpersVisible = false
@@ -1483,6 +1478,13 @@ export default class VueFabric {
         if (options.editable !== undefined) {
           textObj.set('editable', options.editable)
         }
+        if (options.layer !== undefined) {
+          customObj.customData = {
+            ...(customObj.customData || {}),
+            layer: normalizeLayer(options.layer)
+          }
+          applyLayerToCanvasObject(this.canvas, textObj as FabricObject, options.layer)
+        }
 
         this._syncZoomInvariantObject(textObj, true)
         this.canvas.renderAll()
@@ -1529,6 +1531,13 @@ export default class VueFabric {
         if (options.scaleY !== undefined) imageObj.set('scaleY', options.scaleY)
         if (options.opacity !== undefined) imageObj.set('opacity', options.opacity)
         if (options.selectable !== undefined) imageObj.set('selectable', options.selectable)
+        if (options.layer !== undefined) {
+          customObj.customData = {
+            ...(customObj.customData || {}),
+            layer: normalizeLayer(options.layer)
+          }
+          applyLayerToCanvasObject(this.canvas, imageObj as FabricObject, options.layer)
+        }
 
         this._syncZoomInvariantObject(imageObj, true)
         this.canvas.renderAll()
@@ -1809,6 +1818,13 @@ export default class VueFabric {
         if (options.textAlign !== undefined) textObj.set('textAlign', options.textAlign)
         if (options.selectable !== undefined) textObj.set('selectable', options.selectable)
         if (options.editable !== undefined) textObj.set('editable', options.editable)
+        if (options.layer !== undefined) {
+          customObj.customData = {
+            ...(customObj.customData || {}),
+            layer: normalizeLayer(options.layer)
+          }
+          applyLayerToCanvasObject(this.canvas, textObj as FabricObject, options.layer)
+        }
 
         this._syncZoomInvariantObject(textObj, true)
         return true
@@ -1853,6 +1869,13 @@ export default class VueFabric {
         if (options.scaleY !== undefined) imageObj.set('scaleY', options.scaleY)
         if (options.opacity !== undefined) imageObj.set('opacity', options.opacity)
         if (options.selectable !== undefined) imageObj.set('selectable', options.selectable)
+        if (options.layer !== undefined) {
+          customObj.customData = {
+            ...(customObj.customData || {}),
+            layer: normalizeLayer(options.layer)
+          }
+          applyLayerToCanvasObject(this.canvas, imageObj as FabricObject, options.layer)
+        }
 
         this._syncZoomInvariantObject(imageObj, true)
         return true

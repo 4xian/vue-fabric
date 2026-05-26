@@ -539,9 +539,9 @@ describe('export utils', () => {
       expect(widthLabel.set).toHaveBeenCalledWith(expect.objectContaining({ visible: true }))
       expect(heightLabel.set).toHaveBeenCalledWith(expect.objectContaining({ visible: true }))
 
-      const bringOrder = canvas.bringObjectToFront.mock.calls.map(([obj]) => obj.customType)
-      expect(bringOrder.indexOf(CustomType.Area)).toBeGreaterThan(
-        bringOrder.indexOf(CustomType.AreaLine)
+      const objectOrder = canvas._objects.map((obj: any) => obj.customType)
+      expect(objectOrder.indexOf(CustomType.Area)).toBeGreaterThan(
+        objectOrder.indexOf(CustomType.AreaLine)
       )
     })
   })

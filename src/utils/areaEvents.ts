@@ -4,6 +4,7 @@ import type { AreaCustomData, Point } from '../../types'
 import type EventBus from '../core/EventBus'
 import { TOOL_MAPS } from './settings'
 import { calculateDistance, getMidPoint } from './geometry'
+import { reflowCanvasLayers } from './layer'
 
 type PolygonWithCustomData = Polygon & { customData: AreaCustomData }
 
@@ -24,25 +25,23 @@ export function setAreaHelpersVisibility(
     lines?.forEach(line => {
       line.set({ visible: false })
     })
+    reflowCanvasLayers(canvas)
     return
   }
 
   lines?.forEach(line => {
     line.set({ visible: true, opacity: 1, evented: false, selectable: false })
-    canvas.bringObjectToFront(line)
   })
-
-  canvas.bringObjectToFront(polygon)
 
   circles?.forEach(circle => {
     circle.set({ visible: true, opacity: 1, evented: true, hoverCursor: 'pointer' })
-    canvas.bringObjectToFront(circle)
   })
 
   labels?.forEach(label => {
     label.set({ visible: true, opacity: 1 })
-    canvas.bringObjectToFront(label)
   })
+
+  reflowCanvasLayers(canvas)
 }
 
 export function handleAreaSelected(

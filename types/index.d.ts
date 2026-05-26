@@ -89,6 +89,7 @@ export interface BaseToolOptions {
   defaultCursor?: string
   activeCursor?: string
   deactiveCursor?: string
+  defaultLayer?: number
   hasBorders?: boolean
   hasControls?: boolean
   lockMovementX?: boolean
@@ -202,6 +203,7 @@ export interface ExportJSONOptions {
 
 export interface AreaCustomData {
   drawId: string
+  layer?: number
   points: Point[]
   distances: number[]
   lineColor: string
@@ -214,11 +216,13 @@ export interface AreaCustomData {
 
 export interface TextCustomData {
   drawId: string
+  layer?: number
   createdAt?: number
 }
 
 export interface CurveCustomData {
   drawId: string
+  layer?: number
   points: Point[]
   isClosed: boolean
   lineColor: string
@@ -230,6 +234,7 @@ export interface CurveCustomData {
 
 export interface LineCustomData {
   drawId: string
+  layer?: number
   startPoint: Point
   endPoint: Point
   distance: number
@@ -241,6 +246,7 @@ export interface LineCustomData {
 
 export interface PolylineCustomData {
   drawId: string
+  layer?: number
   points: Point[]
   distances: number[]
   lineColor: string
@@ -251,6 +257,7 @@ export interface PolylineCustomData {
 
 export interface RectCustomData {
   drawId: string
+  layer?: number
   startPoint: Point
   endPoint: Point
   width: number
@@ -290,6 +297,7 @@ export interface ToolbarOptions {
 
 export interface AddTextOptions {
   id?: string
+  layer?: number
   x: number
   y: number
   text: string
@@ -309,6 +317,7 @@ export interface AddTextOptions {
 
 export interface AddImageOptions {
   id?: string
+  layer?: number
   x: number
   y: number
   src?: string
@@ -330,6 +339,7 @@ export interface AddImageOptions {
 
 export interface ImageCustomData {
   drawId: string
+  layer?: number
   createdAt?: number
   base64?: string
 }
@@ -346,6 +356,7 @@ export interface PersonData {
 }
 
 export interface TraceOptions {
+  layer?: number
   radius?: number
   strokeWidth?: number
   fontSize?: number

@@ -6,6 +6,7 @@ import { calculateDistance, getMidPoint } from '../utils/geometry'
 import { DEFAULT_AREATOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
 import { setupAreaEvents, configureControls, setAreaHelpersVisibility } from '../utils/areaEvents'
+import { applyLayerToObjects, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 interface UndoState {
   point: Point
@@ -325,9 +326,11 @@ export default class AreaTool extends BaseTool {
     configureControls(polygon, this.options)
 
     const drawId = generateDrawId()
+    const layer = normalizeLayer(this.options.defaultLayer)
 
     const customData: AreaCustomData = {
       drawId,
+      layer,
       points: [...this.points],
       distances: [...this.distances],
       lineColor: this.paintBoard.lineColor,
@@ -344,19 +347,24 @@ export default class AreaTool extends BaseTool {
       customData
 
     this.circles.forEach(c => {
-      const circleData = { drawId: generateDrawId(), drawPid: drawId }
+      const circleData = { drawId: generateDrawId(), drawPid: drawId, layer }
       ;(c as any).customData = circleData
     })
     this.lines.forEach(l => {
-      const lineData = { drawId: generateDrawId(), drawPid: drawId }
+      const lineData = { drawId: generateDrawId(), drawPid: drawId, layer }
       ;(l as any).customData = lineData
     })
     this.labels.forEach(l => {
-      const labelData = { drawId: generateDrawId(), drawPid: drawId }
+      const labelData = { drawId: generateDrawId(), drawPid: drawId, layer }
       ;(l as any).customData = labelData
     })
 
     this.canvas.add(polygon)
+    applyLayerToObjects(
+      this.canvas,
+      [polygon, ...this.lines, ...this.circles, ...this.labels],
+      layer
+    )
 
     const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
     setAreaHelpersVisibility(
@@ -423,14 +431,15 @@ export default class AreaTool extends BaseTool {
   private _bringHelpersToFront(): void {
     if (!this.canvas) return
     this.lines.forEach(line => {
-      this.canvas!.bringObjectToFront(line)
+      line.set({ visible: true, opacity: 1 })
     })
     this.circles.forEach(circle => {
-      this.canvas!.bringObjectToFront(circle)
+      circle.set({ visible: true, opacity: 1 })
     })
     this.labels.forEach(label => {
-      this.canvas!.bringObjectToFront(label)
+      label.set({ visible: true, opacity: 1 })
     })
+    reflowCanvasLayers(this.canvas)
   }
 
   private _undoLastPoint(): void {

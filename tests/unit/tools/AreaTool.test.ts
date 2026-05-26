@@ -227,10 +227,10 @@ describe('AreaTool', () => {
         target: startPoint
       } as any)
 
-      const bringOrder = canvas.bringObjectToFront.mock.calls.map(([obj]) => obj.customType || obj.type)
-      const areaIndex = bringOrder.indexOf('area')
-      const firstLineIndex = bringOrder.indexOf('areaLine')
-      const lastCircleIndex = bringOrder.lastIndexOf('areaPoint')
+      const objectOrder = canvas._objects.map((obj: any) => obj.customType || obj.type)
+      const areaIndex = objectOrder.indexOf('area')
+      const firstLineIndex = objectOrder.indexOf('areaLine')
+      const lastCircleIndex = objectOrder.lastIndexOf('areaPoint')
 
       expect(firstLineIndex).toBeGreaterThanOrEqual(0)
       expect(areaIndex).toBeGreaterThan(firstLineIndex)

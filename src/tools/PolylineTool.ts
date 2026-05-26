@@ -5,6 +5,7 @@ import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
 import { DEFAULT_POLYLINETOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { applyLayerToObjects, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 interface PolylinePointUndoState {
   point: Point
@@ -233,17 +234,19 @@ export default class PolylineTool extends BaseTool {
 
     this._clearPreview()
     const drawId = generateDrawId()
+    const layer = normalizeLayer(this.options.defaultLayer)
 
     this.circles.forEach((circle, index) => {
       ;(
         circle as Circle & {
           customType: string
-          customData: { drawId: string; drawPid: string; index: number }
+          customData: { drawId: string; drawPid: string; index: number; layer: number }
         }
       ).customData = {
         drawId: generateDrawId(),
         drawPid: drawId,
-        index
+        index,
+        layer
       }
     })
 
@@ -251,12 +254,13 @@ export default class PolylineTool extends BaseTool {
       ;(
         label as Text & {
           customType: string
-          customData: { drawId: string; drawPid: string; index: number }
+          customData: { drawId: string; drawPid: string; index: number; layer: number }
         }
       ).customData = {
         drawId: generateDrawId(),
         drawPid: drawId,
-        index
+        index,
+        layer
       }
     })
 
@@ -280,6 +284,7 @@ export default class PolylineTool extends BaseTool {
 
     const customData: PolylineCustomData = {
       drawId,
+      layer,
       points: this.points.map(point => ({ ...point })),
       distances: [...this.distances],
       lineColor: this.paintBoard.lineColor,
@@ -294,6 +299,7 @@ export default class PolylineTool extends BaseTool {
       customData
 
     this.canvas.add(polyline)
+    applyLayerToObjects(this.canvas, [polyline, ...this.circles, ...this.labels], layer)
 
     if (this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()) {
       this._bringHelpersToFront(customData)
@@ -434,12 +440,11 @@ export default class PolylineTool extends BaseTool {
 
     data.circles?.forEach(circle => {
       circle.set({ visible: true, opacity: 1 })
-      this.canvas!.bringObjectToFront(circle)
     })
     data.labels?.forEach(label => {
       label.set({ visible: true, opacity: 1 })
-      this.canvas!.bringObjectToFront(label)
     })
+    reflowCanvasLayers(this.canvas)
   }
 
   private _hideHelpers(data: PolylineCustomData): void {
@@ -449,6 +454,9 @@ export default class PolylineTool extends BaseTool {
     data.labels?.forEach(label => {
       label.set({ visible: false })
     })
+    if (this.canvas) {
+      reflowCanvasLayers(this.canvas)
+    }
   }
 
   private _clearPreview(): void {

@@ -25,6 +25,7 @@ import {
 import type { ExportJSONOptions } from '../../types'
 import { setupRectEvents } from './rectEvents'
 import { setupAreaEvents, configureControls, setAreaHelpersVisibility } from './areaEvents'
+import { reflowCanvasLayers } from './layer'
 
 type SerializedZoomInvariantNode = {
   customType?: string
@@ -239,6 +240,7 @@ export function importFromJSON(
       const data = typeof json === 'string' ? JSON.parse(json) : json
       canvas.loadFromJSON(data).then(() => {
         rebindObjectEvents(canvas, eventBus, helpersVisible, getCurrentToolName)
+        reflowCanvasLayers(canvas)
         canvas.renderAll()
         resolve()
       })
@@ -445,11 +447,9 @@ function applyRectHelperVisibility(
   const { widthLabel, heightLabel } = obj.customData || {}
   if (widthLabel && typeof widthLabel.set === 'function') {
     widthLabel.set({ visible })
-    if (visible) canvas.bringObjectToFront(widthLabel)
   }
   if (heightLabel && typeof heightLabel.set === 'function') {
     heightLabel.set({ visible })
-    if (visible) canvas.bringObjectToFront(heightLabel)
   }
 }
 

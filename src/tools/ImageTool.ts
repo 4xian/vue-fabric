@@ -4,6 +4,7 @@ import type { ImageToolOptions, AddImageOptions, ImageCustomData } from '../../t
 import BaseTool from './BaseTool'
 import { DEFAULT_IMAGETOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { applyLayerToObjects, normalizeLayer } from '../utils/layer'
 
 export interface CreateImageResult {
   imageObj: FabricImage & { customType: string; customData: ImageCustomData }
@@ -102,6 +103,7 @@ export default class ImageTool extends BaseTool {
 
       const {
         id,
+        layer: inputLayer,
         x,
         y,
         src,
@@ -134,6 +136,7 @@ export default class ImageTool extends BaseTool {
       img.crossOrigin = 'anonymous'
 
       img.onload = () => {
+        const layer = normalizeLayer(inputLayer ?? this.options.defaultLayer)
         let finalScaleX = scaleX
         let finalScaleY = scaleY
 
@@ -173,7 +176,8 @@ export default class ImageTool extends BaseTool {
         const customData: ImageCustomData = {
           ...options,
           drawId: id || generateDrawId(),
-          base64: base64Data
+          base64: base64Data,
+          layer
         }
 
         ;(
@@ -186,6 +190,7 @@ export default class ImageTool extends BaseTool {
         this._bindImageEvents(fabricImg as FabricImage & { customData: ImageCustomData })
 
         this.canvas!.add(fabricImg)
+        applyLayerToObjects(this.canvas, [fabricImg], layer)
         this.canvas!.renderAll()
 
         this.eventBus!.emit('image:created', {
@@ -216,6 +221,7 @@ export default class ImageTool extends BaseTool {
 
       const {
         id,
+        layer: inputLayer,
         x,
         y,
         src,
@@ -248,6 +254,7 @@ export default class ImageTool extends BaseTool {
       img.crossOrigin = 'anonymous'
 
       img.onload = () => {
+        const layer = normalizeLayer(inputLayer ?? this.options.defaultLayer)
         let finalScaleX = scaleX
         let finalScaleY = scaleY
 
@@ -287,7 +294,8 @@ export default class ImageTool extends BaseTool {
         const customData: ImageCustomData = {
           ...options,
           drawId: id || generateDrawId(),
-          base64: base64Data
+          base64: base64Data,
+          layer
         }
 
         ;(
@@ -299,6 +307,7 @@ export default class ImageTool extends BaseTool {
 
         this._bindImageEvents(fabricImg as FabricImage & { customData: ImageCustomData })
         this.canvas!.add(fabricImg)
+        applyLayerToObjects(this.canvas, [fabricImg], layer)
 
         resolve({
           imageObj: fabricImg as FabricImage & { customType: string; customData: ImageCustomData },

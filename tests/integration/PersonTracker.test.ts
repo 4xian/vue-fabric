@@ -280,7 +280,10 @@ describe('PersonTracker', () => {
       expect(marker.group.scaleX).toBeCloseTo(0.5)
       expect(marker.group.scaleY).toBeCloseTo(0.5)
       expect(canvas.sendObjectToBack).not.toHaveBeenCalled()
-      expect(canvas.bringObjectToFront).toHaveBeenCalledWith(marker.group)
+      expect(canvas.bringObjectToFront).not.toHaveBeenCalled()
+      expect(canvas._objects.indexOf(marker.rippleCircle!)).toBeLessThan(
+        canvas._objects.indexOf(marker.group)
+      )
 
       zoom = 4
       eventBus.emit('canvas:zoomed')

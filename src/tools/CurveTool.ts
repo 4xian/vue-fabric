@@ -4,6 +4,7 @@ import type { Point, CurveCustomData, CurveToolOptions } from '../../types'
 import BaseTool from './BaseTool'
 import { DEFAULT_CURVETOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { applyLayerToObjects, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 interface CurveUndoState {
   point: Point
@@ -493,9 +494,11 @@ export default class CurveTool extends BaseTool {
     }
 
     const drawId = generateDrawId()
+    const layer = normalizeLayer(this.options.defaultLayer)
 
     const customData: CurveCustomData = {
       drawId,
+      layer,
       points: [...this.points],
       isClosed: isClosed,
       lineColor: this.paintBoard.lineColor,
@@ -510,15 +513,16 @@ export default class CurveTool extends BaseTool {
     ;(curve as Path & { customType: string; customData: CurveCustomData }).customData = customData
 
     this.circles.forEach(c => {
-      const circleData = { drawId: generateDrawId(), drawPid: drawId }
+      const circleData = { drawId: generateDrawId(), drawPid: drawId, layer }
       ;(c as any).customData = circleData
     })
     this.labels.forEach(l => {
-      const labelData = { drawId: generateDrawId(), drawPid: drawId }
+      const labelData = { drawId: generateDrawId(), drawPid: drawId, layer }
       ;(l as any).customData = labelData
     })
 
     this.canvas.add(curve)
+    applyLayerToObjects(this.canvas, [curve, ...this.circles, ...this.labels], layer)
 
     const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
     if (shouldShowHelpers) {
@@ -681,12 +685,11 @@ export default class CurveTool extends BaseTool {
     if (!this.canvas) return
     this.circles.forEach(circle => {
       circle.set({ visible: true, opacity: 1 })
-      this.canvas!.bringObjectToFront(circle)
     })
     this.labels.forEach(label => {
       label.set({ visible: true, opacity: 1 })
-      this.canvas!.bringObjectToFront(label)
     })
+    reflowCanvasLayers(this.canvas)
   }
 
   private _hideCurveHelpers(): void {
@@ -696,6 +699,9 @@ export default class CurveTool extends BaseTool {
     this.labels.forEach(label => {
       label.set({ visible: false })
     })
+    if (this.canvas) {
+      reflowCanvasLayers(this.canvas)
+    }
   }
 
   private _reset(): void {

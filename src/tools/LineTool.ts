@@ -5,6 +5,7 @@ import BaseTool from './BaseTool'
 import { calculateDistance, getMidPoint } from '../utils/geometry'
 import { DEFAULT_LINETOOL_OPTIONS, CustomType } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
+import { applyLayerToObjects, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 interface LineUndoState {
   startPoint: Point
@@ -233,14 +234,17 @@ export default class LineTool extends BaseTool {
       }
     )
 
+    const layer = normalizeLayer(this.options.defaultLayer)
+
     ;(
       this.startCircle as Circle & {
         customType: string
-        customData: { drawId: string; drawPid: string }
+        customData: { drawId: string; drawPid: string; layer: number }
       }
     ).customData = {
       drawId: generateDrawId(),
-      drawPid: drawId
+      drawPid: drawId,
+      layer
     }
 
     this.endCircle = new fabric.Circle({
@@ -260,17 +264,18 @@ export default class LineTool extends BaseTool {
     ;(
       this.endCircle as Circle & {
         customType: string
-        customData: { drawId: string; drawPid: string }
+        customData: { drawId: string; drawPid: string; layer: number }
       }
     ).customType = CustomType.LineHelper
     ;(
       this.endCircle as Circle & {
         customType: string
-        customData: { drawId: string; drawPid: string }
+        customData: { drawId: string; drawPid: string; layer: number }
       }
     ).customData = {
       drawId: generateDrawId(),
-      drawPid: drawId
+      drawPid: drawId,
+      layer
     }
     this.canvas.add(this.endCircle)
 
@@ -290,18 +295,26 @@ export default class LineTool extends BaseTool {
       hasControls: false
     })
     ;(
-      label as Text & { customType: string; customData: { drawId: string; drawPid: string } }
+      label as Text & {
+        customType: string
+        customData: { drawId: string; drawPid: string; layer: number }
+      }
     ).customType = CustomType.LineHelperLabel
     ;(
-      label as Text & { customType: string; customData: { drawId: string; drawPid: string } }
+      label as Text & {
+        customType: string
+        customData: { drawId: string; drawPid: string; layer: number }
+      }
     ).customData = {
       drawId: generateDrawId(),
-      drawPid: drawId
+      drawPid: drawId,
+      layer
     }
     this.canvas.add(label)
 
     const customData: LineCustomData = {
       drawId,
+      layer,
       startPoint: { ...this.startPoint },
       endPoint: { ...this.endPoint },
       distance,
@@ -316,6 +329,7 @@ export default class LineTool extends BaseTool {
     ;(line as Line & { customType: string; customData: LineCustomData }).customData = customData
 
     this.canvas.add(line)
+    applyLayerToObjects(this.canvas, [line, this.startCircle, this.endCircle, label], layer)
 
     const shouldShowHelpers = this.options.defaultShowHelpers || this.paintBoard.isHelpersVisible()
     if (shouldShowHelpers) {
@@ -426,16 +440,14 @@ export default class LineTool extends BaseTool {
     if (!this.canvas) return
     if (data.startCircle) {
       data.startCircle.set({ visible: true, opacity: 1 })
-      this.canvas.bringObjectToFront(data.startCircle)
     }
     if (data.endCircle) {
       data.endCircle.set({ visible: true, opacity: 1 })
-      this.canvas.bringObjectToFront(data.endCircle)
     }
     if (data.label) {
       data.label.set({ visible: true, opacity: 1 })
-      this.canvas.bringObjectToFront(data.label)
     }
+    reflowCanvasLayers(this.canvas)
   }
 
   private _hideHelpers(data: LineCustomData): void {
@@ -447,6 +459,9 @@ export default class LineTool extends BaseTool {
     }
     if (data.label) {
       data.label.set({ visible: false })
+    }
+    if (this.canvas) {
+      reflowCanvasLayers(this.canvas)
     }
   }
 
