@@ -203,7 +203,7 @@ export function exportToJSON(canvas: Canvas, options: ExportJSONOptions | string
     ? { additionalProperties: options }
     : options
 
-  const { additionalProperties = [], excludeTypes = ['text', 'image'] } = normalizedOptions
+  const { additionalProperties = [], excludeTypes = [] } = normalizedOptions
   const propertiesToInclude = [...SERIALIZATION_PROPERTIES, ...additionalProperties]
   const rawCanvasData = createSerializableCanvasSnapshot(canvas, propertiesToInclude)
   const canvasData = normalizeZoomInvariantNode(rawCanvasData) || rawCanvasData

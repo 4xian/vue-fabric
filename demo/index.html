@@ -585,11 +585,11 @@
     // 人员追踪示例
     let tracker = board.createPersonTracker({
       radius: 3,
-      displayDuration: 3000,
-      deleteOld: true,
+      displayDuration: 30000,
+      deleteOld: false,
       fontSize: 12,
       // pathType: 'line',
-      markerBase64: cameraBase64,
+      // markerBase64: cameraBase64,
       showMovingMarker: false
     })
     let realPersonData = []
@@ -624,14 +624,14 @@
         lineColor: '#1677ff',
         status: 'climbing'
       },
-      {
-        id: '22',
-        name: '普通人员C-更新',
-        x: 320,
-        y: 150,
-        lineColor: '#13c2c2',
-        status: ''
-      },
+      // {
+      //   id: '22',
+      //   name: '普通人员C-更新',
+      //   x: 320,
+      //   y: 150,
+      //   lineColor: '#13c2c2',
+      //   status: ''
+      // },
       {
         id: '33',
         name: '新增人员D',
@@ -773,7 +773,7 @@
 
       const person = realPersonData[0]
       const traces = [
-        { x: person.x, y: person.y },
+        { x: person.x, y: person.y, name: person.name + ' 起点', lineColor: '#80ffff' },
         { x: person.x + 10, y: person.y + 50 },
         { x: person.x + 40, y: person.y + 150 },
         { x: person.x + 70, y: person.y + 20 },
@@ -785,7 +785,7 @@
         { x: person.x + 280, y: person.y - 10 },
         { x: person.x + 320, y: person.y + 90 },
         { x: person.x + 350, y: person.y - 20 },
-        { x: person.x + 420, y: person.y + 250 }
+        { x: person.x + 420, y: person.y + 250, name: person.name + ' 终点', lineColor: '#02a7f0' }
       ]
 
       tracker.createPersonTraces(person.id, person, traces)

@@ -502,7 +502,11 @@ export default class PersonTracker {
     this.eventBus.emit('traces:cleared')
   }
 
-  async createPersonTraces(id: string, person: PersonData, traces: Point[]): Promise<void> {
+  async createPersonTraces(
+    id: string,
+    person: PersonData,
+    traces: (Point & Partial<PersonData>)[]
+  ): Promise<void> {
     if (traces.length < 2) return
 
     this.removePersonTraces(id)
@@ -517,18 +521,18 @@ export default class PersonTracker {
     const startMarker = await this._createMarkerGroup(
       traces[0].x,
       traces[0].y,
-      person.name,
-      person.lineColor,
+      traces[0].name || person.name,
+      traces[0].lineColor || person.lineColor,
       true,
-      person.base64
+      traces[0].base64 || person.base64
     )
     const endMarker = await this._createMarkerGroup(
       traces[traces.length - 1].x,
       traces[traces.length - 1].y,
-      person.name,
-      person.lineColor,
+      traces[traces.length - 1].name || person.name,
+      traces[traces.length - 1].lineColor || person.lineColor,
       true,
-      person.base64
+      traces[traces.length - 1].base64 || person.base64
     )
     let movingMarker = null
     if (this.options.showMovingMarker) {
