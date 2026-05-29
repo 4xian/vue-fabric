@@ -1,6 +1,6 @@
 {
   "name": "@4xian/vue-fabric",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "基于 fabric.js 的二次封装绘图工具库，支持任意区域画图(直线,曲线)，矩形，文本，图片等功能，不限制框架，原生js可使用。",
   "main": "dist/vue-fabric.umd.js",
   "module": "dist/vue-fabric.js",
