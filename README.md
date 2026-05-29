@@ -12,6 +12,11 @@ pnpm add @4xian/vue-fabric fabric
 
 `fabric` 是 `peerDependency`，当前要求 `^6.0.0`。
 
+
+## AI skills使用
+
+`https://github.com/4xian/vue-fabric-skills`
+
 ## 快速开始
 
 ```ts
