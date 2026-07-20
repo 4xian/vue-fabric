@@ -460,6 +460,7 @@ export default class AreaTool extends BaseTool {
 
     if (this.points.length === 0) {
       this.isDrawingState = false
+      this.paintBoard?.resumeHistory()
     }
 
     this._clearPreview()

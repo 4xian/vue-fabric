@@ -38,7 +38,7 @@ describe('CanvasManager', () => {
       expect(manager.options.minZoom).toBe(0.2)
       expect(manager.options.maxZoom).toBe(3)
       expect(manager.options.zoomOrigin).toBe('center')
-      expect(manager.options.zoomAnimationDuration).toBe(500)
+      expect(manager.options.zoomAnimationDuration).toBe(0)
       expect(manager.options.enableWheelZoom).toBe(false)
       expect(manager.options.autoResize).toBe(true)
       expect(manager.options.autoResizeFit).toBe('stretch')
@@ -306,7 +306,7 @@ describe('CanvasManager', () => {
       })
       vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
 
-      manager = new CanvasManager(canvas as unknown as Canvas, eventBus)
+      manager = createManager({ zoomAnimationDuration: 500 })
 
       const zooming = vi.fn()
       const zoomed = vi.fn()
@@ -345,7 +345,7 @@ describe('CanvasManager', () => {
         return frameCallbacks.length
       })
 
-      manager = new CanvasManager(canvas as unknown as Canvas, eventBus)
+      manager = createManager({ zoomAnimationDuration: 500 })
 
       manager.setZoom(2)
       manager.setZoom(3)

@@ -1,8 +1,19 @@
 # @4xian/vue-fabric
 
-基于 [fabric.js](https://fabricjs.com/) v6 的绘图 SDK，面向标注、测量、区域绘制、文本图片叠加和人员轨迹展示场景。
+基于 Fabric.js v6 的 TypeScript 绘图 SDK。它提供可注册、可切换的绘图工具体系，内置工具栏、颜色选择器、撤销重做、JSON 导入导出、图片导出、背景图、辅助测量元素和人员轨迹能力，适合标注、测量、区域绘制、画板编辑等业务场景。
 
-文档以当前 `src/`、`types/index.d.ts` 和测试为准；如果旧文档与源码不一致，以源码为准。
+`@4xian/vue-fabric` 不绑定 Vue 运行时，Vue、原生 ESM 和 UMD 页面都可以集成。包名保留 `vue-fabric` 是为了延续项目定位和生态命名。
+
+## 特性
+
+- 基于 Fabric.js v6，`fabric` 作为 `peerDependency` 由业务项目自行安装
+- 支持 `select`、`drag`、`line`、`polyline`、`area`、`curve`、`pen`、`rect`、`text`、`image` 等工具
+- 工具可通过 `registerTool()` 注册，通过 `setTool()` 在运行时互相切换
+- 内置 `Toolbar` 和 `ColorPicker`，可直接启用或自行实现 UI
+- 支持全局撤销、重做，绘制中的工具可优先处理自身临时状态
+- 支持 JSON 导入导出、PNG/JPEG/WebP 导出、SVG 导出
+- 支持背景图、响应式画布、缩放视觉补偿、辅助元素显隐和图层重排
+- 提供 `PersonTracker` 用于人员点位、轨迹、状态和动画展示
 
 ## 安装
 
@@ -10,12 +21,10 @@
 pnpm add @4xian/vue-fabric fabric
 ```
 
-`fabric` 是 `peerDependency`，当前要求 `^6.0.0`。
+要求：
 
-
-## AI skills使用
-
-`https://github.com/4xian/vue-fabric-skills`
+- Node.js >= 18
+- fabric >= 6
 
 ## 快速开始
 
@@ -27,6 +36,7 @@ import PaintBoard, {
   PolylineTool,
   AreaTool,
   CurveTool,
+  PenTool,
   RectTool,
   TextTool,
   ImageTool,
@@ -38,11 +48,8 @@ const board = new PaintBoard('#canvas-container', {
   width: 1000,
   height: 600,
   backgroundColor: '#fff',
-  zoomOrigin: 'center',
-  zoomAnimationDuration: 1000,
-  enableWheelZoom: false,
   autoResize: true,
-  pixelRatio: 'auto'
+  enableWheelZoom: true
 }).init()
 
 board
@@ -52,6 +59,7 @@ board
   .registerTool('polyline', new PolylineTool())
   .registerTool('area', new AreaTool({ enableFill: true }))
   .registerTool('curve', new CurveTool())
+  .registerTool('pen', new PenTool())
   .registerTool('rect', new RectTool())
   .registerTool('text', new TextTool())
   .registerTool('image', new ImageTool())
@@ -59,168 +67,76 @@ board
 
 new Toolbar(board).init()
 
-await board.setBackgroundImage({
-  source: '/demo/static/draw-bg.png',
-  scaleMode: 'stretch',
-  backgroundVpt: true
+```
+
+## 集成方式
+
+Vue 3 中通常在 `onMounted` 里初始化，在 `onUnmounted` 中销毁：
+
+```vue
+<template>
+  <div ref="container" class="canvas-container"></div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue'
+import PaintBoard, { SelectTool, PenTool, Toolbar } from '@4xian/vue-fabric'
+import '@4xian/vue-fabric/style.css'
+
+const container = ref<HTMLElement | null>(null)
+let board: PaintBoard | null = null
+let toolbar: Toolbar | null = null
+
+onMounted(() => {
+  board = new PaintBoard(container.value!, { width: 1000, height: 600 }).init()
+  board.registerTool('select', new SelectTool()).registerTool('pen', new PenTool()).setTool('select')
+  toolbar = new Toolbar(board).init()
 })
 
-board.on('line:created', data => {
-  console.log(data)
+onUnmounted(() => {
+  toolbar?.destroy()
+  board?.destroy()
 })
+</script>
 ```
 
-## 当前能力
+React 中可在 `useEffect` 中初始化和销毁：
 
-- 画板核心类：`FabricPaint`，默认导出可自由命名为 `PaintBoard`
-- 工具：`select`、`drag`、`line`、`polyline`、`area`、`curve`、`rect`、`text`、`image`
-- UI：`Toolbar`、`ColorPicker`
-- 编程式文本/图片插入、批量 upsert、按 id 删除
-- JSON / PNG / JPEG / WebP / SVG 导出
-- 背景图、辅助元素显隐、撤销重做
-- `PersonTracker` 人员点位、轨迹、闪烁水波纹
-- 缩放视觉尺寸锁定模式和类型排除配置
+```tsx
+import { useEffect, useRef } from 'react'
+import PaintBoard, { SelectTool, PenTool, Toolbar } from '@4xian/vue-fabric'
+import '@4xian/vue-fabric/style.css'
 
-## 缩放与自适应
+export function FabricCanvas() {
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
-`FabricPaintOptions` 当前与缩放相关的重点配置：
+  useEffect(() => {
+    if (!containerRef.current) return
 
-- `zoomStep?: number`
-- `minZoom?: number`
-- `maxZoom?: number`
-- `expandMargin?: number`
-- `expandSize?: number`
-- `zoomOrigin?: 'center' | 'topLeft'`
-- `zoomAnimationDuration?: number`
-- `enableWheelZoom?: boolean`
-- `autoResize?: boolean`
-- `autoResizeMode?: 'canvas' | 'viewport'`
-- `autoResizeFit?: 'contain' | 'cover' | 'stretch'`
-- `referenceSize?: { width: number; height: number }`
-- `pixelRatio?: number | 'auto'`
-- `lockObjectVisualSizeOnZoom?: boolean`
-- `zoomInvariantExcludeTypes?: string[]`
+    const board = new PaintBoard(containerRef.current, {
+      width: 1000,
+      height: 600,
+      autoResize: true
+    }).init()
 
-真实语义：
+    board
+      .registerTool('select', new SelectTool())
+      .registerTool('pen', new PenTool({ strokeWidth: 4 }))
+      .setTool('select')
 
-- `zoomIn()`、`zoomOut()`、`setZoom()` 在 `center` 下围绕当前画布内容中心缩放；拖拽平移后不会跳回容器中心。
-- `zoomStep` 默认 `0.2`，当前按“额外比例”计算；默认 `zoomIn()` 是乘 `1.2`，`zoomOut()` 是除 `1.2`。
-- `minZoom` 默认 `0.2`，`maxZoom` 默认 `3`。
-- `expandMargin` 默认 `50`，`expandSize` 默认 `200`；仅在对应自动扩布链路启用时生效。
-- `topLeft` 下缩放会保留当前画布左上锚点。
-- `resetZoom(zoomScale = 1)` 会按当前显示尺寸归位，可传入还原倍率，默认回到业务 zoom `1`。
-- `zoomAnimationDuration` 默认 `500` ms；传 `0` 或负数会关闭动画，回退成同步缩放。
-- `zoomIn()`、`zoomOut()`、`setZoom()`、`resetZoom()`、启用后的滚轮缩放，以及 `resize()` / `autoResize()` 触发的 viewport 归位，最终都复用同一套 viewport transform 落地逻辑。
-- `CanvasManager` 初始化现在直接吃 `FabricPaintOptions` 里的这组缩放配置，不再单独维护第二套缩放配置来源。
-- 动画过程中逐帧触发 `canvas:zooming`，结束时触发 `canvas:zoomed`。
-- `enableWheelZoom` 默认 `false`，显式开启后才会监听 `mouse:wheel`。
-- `autoResize` 默认 `true`。开启后会监听容器尺寸变化，500ms 防抖后重建当前显示尺寸，并保留当前业务 zoom。
-- `autoResizeMode` 默认 `canvas`，保持旧语义：容器变化时同步更新内部基准画布尺寸。
-- `autoResizeMode: 'viewport'` 会固定逻辑参考尺寸，只用 viewport 把参考画布适配到新显示尺寸，适合背景图和对象点位需要保持相对一致的场景。
-- `autoResizeFit` 默认 `stretch`，仅在 `autoResize=true` 且 `autoResizeMode='viewport'` 时生效；`contain` 会完整显示参考画布，`cover` 会铺满并可能裁切，`stretch` 会按 X/Y 独立缩放并可能变形。
-- `referenceSize` 可选；不传时，`autoResizeMode='viewport'` 首次自适应会取当前容器尺寸作为参考尺寸。
-- `pixelRatio` 现在只负责清晰度和 backing store，不再参与业务 zoom，也不会改变 `getZoom()`、逻辑坐标或导出值。
+    const toolbar = new Toolbar(board).init()
 
-## 补偿缩放模式
+    return () => {
+      toolbar.destroy()
+      board.destroy()
+    }
+  }, [])
 
-当 `lockObjectVisualSizeOnZoom: true` 时：
-
-- 几何坐标继续跟随 viewport 缩放和平移
-- 线宽、辅助点半径、文字字号、图片显示尺寸按 `1 / zoom` 做补偿
-- 导出 JSON 时写出逻辑真值和 `zoomInvariantBase`，不会把当前运行时补偿值当成真实值导出
-
-可通过 `zoomInvariantExcludeTypes` 排除某些类型，让它们继续走 Fabric 正常缩放。常见可选值见 `CustomType`，例如：
-
-```ts
-zoomInvariantExcludeTypes: ['text', 'image']
+  return <div ref={containerRef} style={{ width: '100%', height: 600 }} />
+}
 ```
 
-## 背景图
-
-设置背景图需要手动调用 `setBackgroundImage()`：
-
-```ts
-await board.setBackgroundImage({
-  source: '/demo/static/draw-bg.png',
-  scaleMode: 'stretch',
-  backgroundVpt: true
-})
-```
-
-注意：
-
-- `FabricPaintOptions.backgroundImage` 类型虽然存在，但当前 `init()` 不会自动应用，仍需手动调用 `setBackgroundImage()`。
-- `setBackgroundImage()` 设置的背景图会被锁定为不可选中、不可拖拽、不可缩放，并始终压到最底层。
-- `scaleMode: 'fill'` 会裁切，`fit` 会留白，`stretch` 会严格铺满画布，`center` 保持原始尺寸居中。
-- `autoResizeMode: 'viewport'` 且 `backgroundVpt: true` 时，`stretch` 会铺满 `referenceSize`，页面尺寸变化只改变 viewport，背景与对象逻辑点位保持同一参考坐标。
-- `repeat` 当前只是按原始尺寸放在左上角，不会真正平铺。
-- `backgroundVpt` 未显式传值时，若开启了补偿缩放，会默认按 `true` 处理。
-
-## 导入导出
-
-```ts
-const json = board.exportToJSON()
-await board.importFromJSON(json)
-
-board.exportToImage({
-  format: 'png',
-  multiplier: 2,
-  download: true
-})
-
-const svg = board.exportToSVG()
-```
-
-注意：
-
-- `exportToJSON()` 默认排除 `text` 和 `image`；如果要完整导出，传 `excludeTypes: []`。
-- 导入会自动重绑 helper、对象事件、当前 helper 显隐状态，并重新应用当前缩放补偿和背景图展示。
-- `exportToImage()` 导出的是当前视觉画面，`quality` 语义沿用 Fabric，范围按 `0 ~ 1` 使用。
-
-## 辅助元素
-
-当前 helper API 名称沿用历史命名，但作用范围不只 area：
-
-```ts
-board.showAllAreaHelpers()
-board.hideAllAreaHelpers()
-board.toggleAreaHelpers()
-board.isHelpersVisible()
-```
-
-它们当前会处理：
-
-- `area`
-- `curve`
-- `line`
-- `polyline`
-- `rect`
-
-## PersonTracker
-
-```ts
-const tracker = board.createPersonTracker({
-  pathType: 'curve',
-  showMovingMarker: true
-})
-
-await tracker.createMultiplePersons(persons)
-await tracker.createPersonTraces(id, person, traces)
-```
-
-`PersonTracker` 当前会跟随：
-
-- `canvas:zooming`
-- `canvas:zoomed`
-- `canvas:panned`
-- `canvas:resized`
-
-如果开启补偿缩放：
-
-- 轨迹线宽、marker、文字、图片、水波纹都会按当前 zoom 重新计算显示尺寸
-- 逻辑点位不改，仍按原始业务坐标工作
-
-## UMD
+UMD 页面使用全局变量 `VueFabric`：
 
 ```html
 <link rel="stylesheet" href="node_modules/@4xian/vue-fabric/dist/style.css" />
@@ -229,65 +145,51 @@ await tracker.createPersonTraces(id, person, traces)
 <script src="node_modules/fabric/dist/fabric.js"></script>
 <script src="node_modules/@4xian/vue-fabric/dist/vue-fabric.umd.js"></script>
 <script>
-  const { FabricPaint, SelectTool, AreaTool, Toolbar } = VueFabric
+  const { FabricPaint, SelectTool, PenTool, Toolbar } = VueFabric
 
-  const board = new FabricPaint('#canvas-container', {
-    width: 1000,
-    height: 600
-  }).init()
-
-  board
-    .registerTool('select', new SelectTool())
-    .registerTool('area', new AreaTool({ enableFill: true }))
-    .setTool('select')
-
+  const board = new FabricPaint('#canvas-container', { width: 1000, height: 600 }).init()
+  board.registerTool('select', new SelectTool()).registerTool('pen', new PenTool()).setTool('select')
   new Toolbar(board).init()
 </script>
 ```
+
+更完整的 Vue、ESM、UMD 集成示例见 [docs/API.md](docs/API.md) 和 [demo](demo/)。
 
 ## 常用 API
 
 ```ts
 board.registerTool(name, tool)
 board.setTool(name)
+board.undo()
+board.redo()
+board.canUndo()
+board.canRedo()
 
-board.setLineColor(color)
-board.setFillColor(color)
-
-board.zoomIn()
-board.zoomOut()
-board.setZoom(1.5)
-board.resetZoom()
-board.resetZoom(0.5)
-board.setZoomOrigin('center')
-
-board.resize()
-board.enableAutoResize()
-board.disableAutoResize()
-
-board.exportToJSON()
-board.importFromJSON(json)
-board.exportToImage({ format: 'png' })
-board.exportToSVG()
-
-board.addText(options)
-board.insertText(options)
-board.addImage(options)
-board.insertImage(options)
-
-board.batchInsertTexts(list)
-board.batchInsertImages(list)
-board.batchRemoveByIds(ids)
-
-board.showAllAreaHelpers()
-board.hideAllAreaHelpers()
-
-const tracker = board.createPersonTracker()
+const json = board.exportToJSON()
+await board.importFromJSON(json)
+board.exportToImage({ format: 'png', download: true })
+const svg = board.exportToSVG()
 ```
 
-完整 API 见 [docs/API.md](./docs/API.md)，源码职责说明见 [docs/SOURCE.md](./docs/SOURCE.md)。
+具体参数、事件和数据结构请以 [docs/API.md](docs/API.md) 为准；源码实现说明见 [docs/SOURCE.md](docs/SOURCE.md)。
 
-## 开发
+## 项目结构
+
+```text
+src/
+  core/      PaintBoard、CanvasManager、EventBus
+  tools/     BaseTool 和各类绘图工具
+  ui/        Toolbar、ColorPicker
+  utils/     导入导出、撤销重做、图层、辅助元素、人员轨迹
+  assets/    工具图标
+  styles/    内置 UI 样式
+types/       对外类型声明
+docs/        API 和源码说明
+demo/        本地示例
+tests/       Vitest 单元测试和集成测试
+```
+
+## 运行
 
 ```bash
 pnpm dev
@@ -302,6 +204,16 @@ pnpm demo
 pnpm demo:dev
 ```
 
-## 许可证
+## AI Skills
 
-[MPL-2.0](./LICENSE)
+面向 agent 的集成和诊断说明维护在 `vue-fabric-skills` 仓库：
+
+```text
+https://github.com/4xian/vue-fabric-skills
+```
+
+当前源码、docs 和 skills 应保持同步。使用 agent 排查 SDK 集成问题时，优先让 agent 读取真实源码和 `docs/`，再参考 skills 中的速查文档。
+
+## License
+
+MPL-2.0

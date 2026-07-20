@@ -221,6 +221,7 @@ describe('CurveTool', () => {
 
       tool.undo()
       expect(tool.isDrawing()).toBe(false)
+      expect(mockPaintBoard.resumeHistory).toHaveBeenCalled()
     })
 
     it('撤销后可以重做', () => {

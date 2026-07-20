@@ -111,7 +111,7 @@ demo/
 
 当 `autoResize` 打开或显示尺寸不等于当前内部基准尺寸时，`resetZoom(zoomScale = 1)` 走 `_applyViewportResize(...)`，按传入业务倍率重新归位；不传时默认回到业务 zoom `1`。
 `_applyViewportResize(...)` 在 `canvasManager` 存在时，最终仍落到 `CanvasManager.setViewportTransform()`；`resize()`、`autoResize()` 和 viewport-fit 下的 `resetZoom()` 现在不再绕开这条链路。
-`zoomAnimationDuration` 默认 `500ms`，由 `CanvasManager` 统一控制 viewport 动画；传 `0` 或负数时直接同步落地。
+`zoomAnimationDuration` 默认 `0`，由 `CanvasManager` 统一控制 viewport 动画；传正数时启用动画。
 
 ### autoResize 当前语义
 
@@ -235,7 +235,7 @@ demo/
 
 动画语义：
 
-- 默认时长来自 `zoomAnimationDuration=500`
+- 默认时长来自 `zoomAnimationDuration=0`
 - `zoomAnimationDuration <= 0` 时跳过动画
 - 动画中逐帧发 `canvas:zooming`
 - 最终落地时发 `canvas:zoomed`
@@ -509,3 +509,20 @@ demo/
 5. `showAllAreaHelpers()` 名称旧，但现在不只管 area。
 6. `repeat` 背景模式当前不会真正平铺。
 7. `CanvasManager` 里中键平移和 `object:moving` 自动扩布监听默认未挂载。
+## PenTool 实现
+
+`src/tools/PenTool.ts` 是自由画笔工具：
+
+- 激活时打开 `canvas.isDrawingMode`
+- 通过 `fabric.PencilBrush` 连续绘制
+- 在 `before:path:created` 中写入 `customType = 'pen'` 和 `customData`
+- 默认设置 `perPixelTargetFind: true`，只命中真实笔迹像素
+- 通过 `setStrokeWidth(width)` 修改后续绘制线宽
+- 在 `path:created` 中绑定事件、回填图层、恢复历史
+- 导入后由 `src/utils/export.ts` 重新绑定 `pen:clicked`、`pen:selected`、`pen:modified`
+
+对应源码入口：
+
+- `src/index.ts`
+- `src/tools/PenTool.ts`
+- `src/utils/export.ts`

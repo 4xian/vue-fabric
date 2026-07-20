@@ -2,6 +2,7 @@ import line from './line.svg'
 import polyline from './polyline.svg'
 import area from './area.svg'
 import curve from './curve.svg'
+import pen from './pen.svg'
 import text from './text.svg'
 import image from './image.svg'
 import drag from './cursor.svg'
@@ -20,6 +21,7 @@ export const TOOL_ICONS: Record<string, string> = {
   polyline,
   area,
   curve,
+  pen,
   rect,
   text,
   image,
@@ -39,6 +41,7 @@ export {
   polyline,
   area,
   curve,
+  pen,
   rect,
   text,
   image,

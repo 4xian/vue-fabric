@@ -9,6 +9,7 @@ import SelectTool from './tools/SelectTool'
 import DragTool from './tools/DragTool'
 import TextTool from './tools/TextTool'
 import CurveTool from './tools/CurveTool'
+import PenTool from './tools/PenTool'
 import LineTool from './tools/LineTool'
 import PolylineTool from './tools/PolylineTool'
 import RectTool from './tools/RectTool'
@@ -29,6 +30,7 @@ export {
   DragTool,
   TextTool,
   CurveTool,
+  PenTool,
   LineTool,
   PolylineTool,
   RectTool,
@@ -50,10 +52,12 @@ export type {
   AreaCustomData,
   TextCustomData,
   CurveCustomData,
+  PenCustomData,
   LineCustomData,
   PolylineCustomData,
   RectCustomData,
   PolylineToolOptions,
+  PenToolOptions,
   RectToolOptions,
   HistoryState,
   ColorPickerOptions,

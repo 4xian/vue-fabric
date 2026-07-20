@@ -1,23 +1,4 @@
-import type {
-  Canvas,
-  FabricObject,
-  FabricImage,
-  Group,
-  Line,
-  Path,
-  Polyline,
-  Rect,
-  Text
-} from 'fabric'
-import type {
-  AreaCustomData,
-  CurveCustomData,
-  ImageCustomData,
-  LineCustomData,
-  PolylineCustomData,
-  RectCustomData,
-  TextCustomData
-} from '../../types'
+import type { Canvas, FabricObject, FabricImage } from 'fabric'
 import { CustomType } from './settings'
 
 type LayerCustomData = {

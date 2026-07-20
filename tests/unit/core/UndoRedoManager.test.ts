@@ -143,12 +143,13 @@ describe('UndoRedoManager', () => {
       expect(manager.canUndo()).toBe(true)
     })
 
-    it('should allow redo after undo', () => {
+    it('should allow redo after undo restore finishes', async () => {
       canvas.add(createMockFabricObject())
       canvas.fire('object:added')
       vi.runAllTimers()
 
       manager.undo()
+      await flushRestore()
       expect(manager.canRedo()).toBe(true)
     })
 

@@ -67,4 +67,12 @@ describe('Toolbar', () => {
       expect(toolbarEl?.style.display).toBe('none')
     })
   })
+  describe('pen tool', () => {
+    it('should include the default pen tool button', () => {
+      toolbar = new Toolbar(paintBoard)
+      toolbar.init()
+      const penButton = container.querySelector('[data-tool="pen"]')
+      expect(penButton).toBeDefined()
+    })
+  })
 })

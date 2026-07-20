@@ -575,6 +575,7 @@ export default class CurveTool extends BaseTool {
 
     if (this.points.length === 0) {
       this.isDrawingState = false
+      this.paintBoard?.resumeHistory()
     }
 
     this.canvas.renderAll()

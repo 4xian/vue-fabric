@@ -470,11 +470,31 @@ describe('PaintBoard - 核心功能', () => {
 
     it('redo() 应回退到全局历史管理器', () => {
       board.undoRedoManager = {
+        canRedo: vi.fn(() => true),
+        redo: vi.fn(() => true)
+      } as any
+
+      expect(board.redo()).toBe(true)
+      expect(board.undoRedoManager.canRedo).toHaveBeenCalled()
+      expect(board.undoRedoManager.redo).toHaveBeenCalled()
+    })
+
+    it('redo() should prefer global history before tool redo', () => {
+      const tool = {
+        canRedoTool: vi.fn(() => true),
+        redo: vi.fn(() => true),
+        deactivate: vi.fn(),
+        destroy: vi.fn()
+      }
+      board.currentTool = tool as any
+      board.undoRedoManager = {
+        canRedo: vi.fn(() => true),
         redo: vi.fn(() => true)
       } as any
 
       expect(board.redo()).toBe(true)
       expect(board.undoRedoManager.redo).toHaveBeenCalled()
+      expect(tool.redo).not.toHaveBeenCalled()
     })
   })
 })

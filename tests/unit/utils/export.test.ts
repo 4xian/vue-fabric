@@ -157,6 +157,36 @@ describe('export utils', () => {
       expect(liveAreaObject.customData).toBe(originalCustomData)
       expect(canvas.toObject).toHaveBeenCalledTimes(1)
     })
+
+    it('should export pen customData without runtime-only fields', () => {
+      canvas.toObject = vi.fn(() => ({
+        version: '6.0.0',
+        objects: [
+          {
+            customType: CustomType.Pen,
+            customData: {
+              drawId: 'pen-1',
+              layer: 2,
+              lineColor: '#f00',
+              strokeWidth: 3,
+              createdAt: 100,
+              runtimeObject: {}
+            }
+          }
+        ]
+      }))
+
+      const json = exportToJSON(canvas as unknown as Canvas)
+      const data = JSON.parse(json)
+
+      expect(data.objects[0].customData).toEqual({
+        drawId: 'pen-1',
+        layer: 2,
+        lineColor: '#f00',
+        strokeWidth: 3,
+        createdAt: 100
+      })
+    })
   })
 
   describe('importFromJSON', () => {
@@ -543,6 +573,53 @@ describe('export utils', () => {
       expect(objectOrder.indexOf(CustomType.Area)).toBeGreaterThan(
         objectOrder.indexOf(CustomType.AreaLine)
       )
+    })
+
+    it('should rebind imported pen events', async () => {
+      const handlers: Record<string, Function> = {}
+      const penObj: any = {
+        customType: CustomType.Pen,
+        customData: {
+          drawId: 'pen-1',
+          layer: 0,
+          lineColor: '#f00',
+          strokeWidth: 2
+        },
+        set: vi.fn(),
+        on: vi.fn((event: string, handler: Function) => {
+          handlers[event] = handler
+        })
+      }
+      const clicked = vi.fn()
+      const selected = vi.fn()
+      const modified = vi.fn()
+      eventBus.on('pen:clicked', clicked)
+      eventBus.on('pen:selected', selected)
+      eventBus.on('pen:modified', modified)
+
+      await importFromJSON(
+        canvas as unknown as Canvas,
+        {
+          objects: [penObj],
+          background: ''
+        },
+        eventBus
+      )
+
+      expect(penObj.set).toHaveBeenCalledWith({
+        evented: true,
+        selectable: true,
+        perPixelTargetFind: true
+      })
+      expect(penObj.on).toHaveBeenCalledTimes(3)
+
+      handlers.mousedown()
+      handlers.selected()
+      handlers.modified()
+
+      expect(clicked).toHaveBeenCalledWith({ drawId: 'pen-1', object: penObj })
+      expect(selected).toHaveBeenCalledWith({ drawId: 'pen-1', object: penObj })
+      expect(modified).toHaveBeenCalledWith({ drawId: 'pen-1', object: penObj })
     })
   })
 })

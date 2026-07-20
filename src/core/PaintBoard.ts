@@ -774,6 +774,9 @@ export default class VueFabric {
   }
 
   redo(): boolean {
+    if (this.undoRedoManager?.canRedo()) {
+      return this.undoRedoManager.redo()
+    }
     if (this.currentTool?.canRedoTool()) {
       return this.currentTool.redo()
     }
@@ -782,7 +785,7 @@ export default class VueFabric {
         return tool.redo()
       }
     }
-    return this.undoRedoManager?.redo() ?? false
+    return false
   }
 
   canUndo(): boolean {

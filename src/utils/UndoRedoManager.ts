@@ -41,12 +41,16 @@ export default class UndoRedoManager {
   }
 
   private _saveInitialState(): void {
-    setTimeout(() => {
+    if (this.undoStack.length === 0) {
       this.undoStack.push(this._serializeCanvas())
-    }, 0)
+    }
   }
 
   pause(): void {
+    if (!this._isPaused && this.redoStack.length > 0) {
+      this.redoStack = []
+      this._emitHistoryChanged()
+    }
     this._isPaused = true
   }
 
@@ -129,11 +133,11 @@ export default class UndoRedoManager {
   }
 
   canUndo(): boolean {
-    return this.undoStack.length > 1
+    return !this._isRestoring && this.undoStack.length > 1
   }
 
   canRedo(): boolean {
-    return this.redoStack.length > 0
+    return !this._isRestoring && this.redoStack.length > 0
   }
 
   private _serializeCanvas(): string {

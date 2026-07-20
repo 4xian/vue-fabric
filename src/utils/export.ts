@@ -1,10 +1,12 @@
 import * as fabric from 'fabric'
 import type { Canvas, Line, Polygon, IText, FabricImage, Rect, Polyline } from 'fabric'
+import type { Path } from 'fabric'
 import type {
   AreaCustomData,
   LineCustomData,
   PolylineCustomData,
   CurveCustomData,
+  PenCustomData,
   TextCustomData,
   ImageCustomData,
   RectCustomData,
@@ -127,6 +129,14 @@ function buildSerializableCustomData(
         lineColor: customData.lineColor,
         fillColor: customData.fillColor,
         distances: customData.distances
+      }
+    case CustomType.Pen:
+      return {
+        drawId: customData.drawId,
+        layer: customData.layer,
+        lineColor: customData.lineColor,
+        strokeWidth: customData.strokeWidth,
+        createdAt: customData.createdAt
       }
     case CustomType.Rect:
       return {
@@ -311,6 +321,9 @@ function rebindObjectEvents(
           customObj as fabric.FabricObject & { customData: CurveCustomData },
           helpersVisible
         )
+        break
+      case CustomType.Pen:
+        rebindPenEvents(customObj as Path & { customData: PenCustomData }, canvas, eventBus)
         break
       case CustomType.Rect:
         hydrateRectRuntimeData(customObj as Rect & { customData: RectCustomData })
@@ -862,6 +875,35 @@ function rebindCurveEvents(
     moveCurveHelpers(curve, dx, dy, canvas)
     lastLeft = curve.left || 0
     lastTop = curve.top || 0
+  })
+}
+
+function rebindPenEvents(
+  path: Path & { customData: PenCustomData },
+  _canvas: Canvas,
+  eventBus: EventBus
+): void {
+  path.set({ evented: true, selectable: true, perPixelTargetFind: true })
+
+  path.on('mousedown', () => {
+    eventBus.emit('pen:clicked', {
+      drawId: path.customData.drawId,
+      object: path
+    })
+  })
+
+  path.on('selected', () => {
+    eventBus.emit('pen:selected', {
+      drawId: path.customData.drawId,
+      object: path
+    })
+  })
+
+  path.on('modified', () => {
+    eventBus.emit('pen:modified', {
+      drawId: path.customData.drawId,
+      object: path
+    })
   })
 }
 

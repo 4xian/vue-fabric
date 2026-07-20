@@ -145,6 +145,12 @@ export interface CurveToolOptions extends BaseToolOptions {
   helperStrokeWidth?: number
 }
 
+export interface PenToolOptions extends BaseToolOptions {
+  strokeWidth?: number
+  decimate?: number
+  perPixelTargetFind?: boolean
+}
+
 export interface LineToolOptions extends BaseToolOptions {
   pointRadius?: number
   labelFontSize?: number
@@ -194,7 +200,7 @@ export interface ExportImageOptions {
   filename?: string
 }
 
-export type MainCustomType = 'line' | 'polyline' | 'area' | 'curve' | 'text' | 'image' | 'rect'
+export type MainCustomType = 'line' | 'polyline' | 'area' | 'curve' | 'pen' | 'text' | 'image' | 'rect'
 
 export interface ExportJSONOptions {
   additionalProperties?: string[]
@@ -230,6 +236,14 @@ export interface CurveCustomData {
   circles?: Circle[]
   labels?: Text[]
   distances?: number[]
+}
+
+export interface PenCustomData {
+  drawId: string
+  layer?: number
+  lineColor: string
+  strokeWidth: number
+  createdAt?: number
 }
 
 export interface LineCustomData {
@@ -382,6 +396,7 @@ export type ToolName =
   | 'drag'
   | 'area'
   | 'curve'
+  | 'pen'
   | 'line'
   | 'polyline'
   | 'rect'
@@ -403,6 +418,7 @@ export type CustomData =
   | AreaCustomData
   | TextCustomData
   | CurveCustomData
+  | PenCustomData
   | LineCustomData
   | PolylineCustomData
   | RectCustomData
@@ -415,6 +431,7 @@ export const CustomType: {
   readonly Polyline: 'polyline'
   readonly Area: 'area'
   readonly Curve: 'curve'
+  readonly Pen: 'pen'
   readonly Text: 'text'
   readonly Image: 'image'
   readonly Rect: 'rect'

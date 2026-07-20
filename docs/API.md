@@ -18,6 +18,7 @@ import PaintBoard, {
   PolylineTool,
   AreaTool,
   CurveTool,
+  PenTool,
   RectTool,
   TextTool,
   ImageTool,
@@ -54,7 +55,7 @@ new FabricPaint(container: HTMLElement | string, options?: FabricPaintOptions)
 | `expandMargin` | `number` | `50` | 自动扩布触发边距 |
 | `expandSize` | `number` | `200` | 自动扩布单次扩展尺寸 |
 | `zoomOrigin` | `'center' \| 'topLeft'` | `'center'` | 统一缩放原点 |
-| `zoomAnimationDuration` | `number` | `500` | viewport 缩放动画时长，单位 ms；`<= 0` 时关闭动画 |
+| `zoomAnimationDuration` | `number` | `0` | viewport 缩放动画时长，单位 ms；`<= 0` 时关闭动画 |
 | `enableWheelZoom` | `boolean` | `false` | 是否绑定滚轮缩放 |
 | `backgroundImage` | `string \| BackgroundImageOptions` | 无 | 当前仅定义类型，`init()` 不会自动应用 |
 | `lineColor` | `string` | `'rgba(2, 167, 240, 1)'` | 默认线条颜色 |
@@ -126,6 +127,7 @@ setTool(toolName: string): this
 - `polyline`
 - `area`
 - `curve`
+- `pen`
 - `rect`
 - `text`
 - `image`
@@ -163,7 +165,7 @@ type ZoomScale = {
 - `minZoom` 默认 `0.2`，`maxZoom` 默认 `3`
 - `expandMargin=50`、`expandSize=200` 是自动扩布链路的默认阈值
 - `topLeft` 下缩放会保留当前画布左上锚点
-- `zoomAnimationDuration` 默认 `500ms`；传 `0` 或负数时，缩放立即落地
+- `zoomAnimationDuration` 默认 `0`；传正数时启用缩放动画
 - `CanvasManager` 初始化直接复用 `FabricPaintOptions` 里的这组缩放配置
 - `zoomIn()`、`zoomOut()`、`setZoom()`、`resetZoom()`、启用后的滚轮缩放，以及 `resize()` / `autoResize()` 触发的 viewport 归位，都复用同一个 viewport transform 入口
 - 动画中逐帧发 `canvas:zooming`，动画完成后发 `canvas:zoomed`
@@ -247,7 +249,7 @@ exportToSVG(): string
 ```ts
 {
   additionalProperties?: string[]
-  excludeTypes?: Array<'line' | 'polyline' | 'area' | 'curve' | 'text' | 'image' | 'rect'>
+  excludeTypes?: Array<'line' | 'polyline' | 'area' | 'curve' | 'pen' | 'text' | 'image' | 'rect'>
 }
 ```
 
@@ -621,6 +623,10 @@ destroy(): void
 | `curve:created` | 曲线创建 |
 | `curve:selected` | 曲线选中 |
 | `curve:clicked` | 曲线点击 |
+| `pen:created` | 画笔路径创建 |
+| `pen:selected` | 画笔路径选中 |
+| `pen:clicked` | 画笔路径点击 |
+| `pen:modified` | 画笔路径修改完成 |
 | `rect:created` | 矩形创建 |
 | `rect:selected` | 矩形选中 |
 | `rect:clicked` | 矩形点击 |
@@ -678,3 +684,47 @@ destroy(): void
 | `trace:shown` | 轨迹显示 |
 | `trace:hidden` | 轨迹移除 |
 | `traces:cleared` | 轨迹全部清空 |
+## PenTool
+
+### 导出与注册
+
+```ts
+import PaintBoard, { PenTool } from '@4xian/vue-fabric'
+
+board.registerTool('pen', new PenTool())
+board.setTool('pen')
+```
+
+### 工具选项
+
+```ts
+{
+  strokeWidth?: number
+  decimate?: number
+  perPixelTargetFind?: boolean
+}
+```
+
+运行时可修改后续绘制线宽：
+
+```ts
+const penTool = new PenTool({ strokeWidth: 2 })
+board.registerTool('pen', penTool)
+penTool.setStrokeWidth(6)
+```
+
+### 行为说明
+
+- 画笔基于 Fabric 的 `PencilBrush`
+- 激活后进入连续自由绘制，直到切换到其他工具
+- 创建路径时会写入 `customType: 'pen'`
+- 默认 `perPixelTargetFind: true`，点击必须命中真实笔迹像素，包围框内空白区域不会触发点击
+- `customData` 会保留 `drawId`、`layer`、`lineColor`、`strokeWidth`、`createdAt`
+- 导出 JSON 时可通过 `excludeTypes` 排除 `pen`
+
+### 事件
+
+- `pen:created`
+- `pen:selected`
+- `pen:clicked`
+- `pen:modified`

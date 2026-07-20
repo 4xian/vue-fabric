@@ -4,6 +4,7 @@ import type {
   BaseToolOptions,
   CurveToolOptions,
   ImageToolOptions,
+  PenToolOptions,
   TextToolOptions,
   LineToolOptions,
   PolylineToolOptions,
@@ -21,6 +22,7 @@ export const CustomType = {
   Polyline: 'polyline',
   Area: 'area',
   Curve: 'curve',
+  Pen: 'pen',
   Text: 'text',
   Image: 'image',
   Rect: 'rect',
@@ -46,15 +48,16 @@ export const CustomType = {
 
 export const TOOL_TITLES: Record<string, string> = {
   select: '选择工具: 不对画布进行任何操作，默认工具',
-  drag: '拖拽工具: 选中该工具后可以任意拖拽，缩放图形大小；按住Ctrl键可以拖拽整个画布',
+  drag: '拖拽工具: 选中该工具后可以拖拽图形；按住 Ctrl 键可以拖拽整个画布',
   line: '直线工具: 画直线',
-  polyline: '折线工具: 画任意折线，右键完成绘制',
+  polyline: '折线工具: 画任意折线，右键或 Enter 完成绘制',
   area: '区域工具: 画任意直线图形区域',
   curve: '曲线工具: 画任意曲线图形区域',
+  pen: '画笔工具: 自由绘制路径',
   rect: '矩形工具: 画矩形/正方形区域',
   text: '文字工具: 添加文字',
   image: '图片工具: 上传图片',
-  undo: '撤销工具: 撤销上一步操作，已绘制图形无法撤销',
+  undo: '撤销工具: 撤销上一步操作',
   redo: '还原工具: 还原上一步被撤销的操作',
   zoomIn: '放大工具: 放大画布',
   zoomOut: '缩小工具: 缩小画布',
@@ -72,6 +75,7 @@ export const TOOL_MAPS: Record<string, string> = {
   POLYLINE: 'polyline',
   AREA: 'area',
   CURVE: 'curve',
+  PEN: 'pen',
   RECT: 'rect',
   TEXT: 'text',
   IMAGE: 'image'
@@ -79,13 +83,22 @@ export const TOOL_MAPS: Record<string, string> = {
 
 export type CustomTypeValue = (typeof CustomType)[keyof typeof CustomType]
 
-export type MainCustomType = 'line' | 'polyline' | 'area' | 'curve' | 'text' | 'image' | 'rect'
+export type MainCustomType =
+  | 'line'
+  | 'polyline'
+  | 'area'
+  | 'curve'
+  | 'pen'
+  | 'text'
+  | 'image'
+  | 'rect'
 
 export const CUSTOM_TYPE_HELPER_MAP: Record<MainCustomType, CustomTypeValue[]> = {
   line: [CustomType.LineHelper, CustomType.LineHelperLabel],
   polyline: [CustomType.PolylineHelper, CustomType.PolylineHelperLabel],
   area: [CustomType.AreaPoint, CustomType.AreaLine, CustomType.AreaLabel],
   curve: [CustomType.CurveHelper, CustomType.CurveHelperLabel, CustomType.CurvePreview],
+  pen: [],
   text: [],
   image: [],
   rect: [CustomType.RectLabel]
@@ -258,6 +271,20 @@ export const DEFAULT_CURVETOOL_OPTIONS: CurveToolOptions = {
   lockMovementY: true
 }
 
+// 默认画笔工具配置
+export const DEFAULT_PENTOOL_OPTIONS: PenToolOptions = {
+  defaultLayer: 0,
+  activeCursor: 'crosshair',
+  deactiveCursor: 'default',
+  strokeWidth: 2,
+  decimate: 0.4,
+  perPixelTargetFind: true,
+  hasBorders: false,
+  hasControls: false,
+  lockMovementX: true,
+  lockMovementY: true
+}
+
 // 默认文本工具配置
 export const DEFAULT_TEXTTOOL_OPTIONS: TextToolOptions = {
   defaultLayer: 0,
@@ -340,6 +367,7 @@ const DEFAULT_TOOLS: ToolName[] = [
   'polyline',
   'area',
   'curve',
+  'pen',
   'rect',
   'text',
   'image',
@@ -370,6 +398,7 @@ export const DEFAULT_HISTORY_EXCLUDE_TYPES: string[] = [
   CustomType.CurveHelper,
   CustomType.CurveHelperLabel,
   CustomType.CurvePreview,
+  CustomType.Pen,
   CustomType.Line,
   CustomType.LineHelper,
   CustomType.LineHelperLabel,

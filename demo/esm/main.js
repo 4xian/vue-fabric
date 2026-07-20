@@ -1,4 +1,4 @@
-import { PaintBoard, AreaTool, SelectTool, TextTool, CurveTool, ImageTool, Toolbar } from '../../dist/vue-fabric.js'
+import { PaintBoard, AreaTool, SelectTool, TextTool, CurveTool, PenTool, ImageTool, Toolbar } from '../../dist/vue-fabric.js'
 
 const board = new PaintBoard('#canvas-container', {
   width: 1000,
@@ -10,6 +10,7 @@ board
   .registerTool('select', new SelectTool())
   .registerTool('area', new AreaTool())
   .registerTool('curve', new CurveTool())
+  .registerTool('pen', new PenTool())
   .registerTool('text', new TextTool())
   .registerTool('image', new ImageTool())
   .setTool('select')
@@ -26,6 +27,10 @@ board.on('text:created', (data) => {
 
 board.on('curve:created', (data) => {
   console.log('曲线已创建:', data)
+})
+
+board.on('pen:created', (data) => {
+  console.log('画笔已创建:', data)
 })
 
 board.on('image:created', (data) => {

@@ -84,6 +84,7 @@ export default class Toolbar {
       case 'polyline':
       case 'area':
       case 'curve':
+      case 'pen':
       case 'rect':
       case 'text':
         this._createToolButton(
@@ -333,6 +334,10 @@ export default class Toolbar {
     })
 
     this.paintBoard.on('curve:created', () => {
+      this._updateUndoRedoState()
+    })
+
+    this.paintBoard.on('pen:created', () => {
       this._updateUndoRedoState()
     })
 

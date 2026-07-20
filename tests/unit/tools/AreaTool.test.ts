@@ -163,6 +163,18 @@ describe('AreaTool', () => {
       expect(tool.canRedoTool()).toBe(true)
       expect(tool.redo()).toBe(true)
     })
+
+    it('should resume global history after undoing all drawing points', () => {
+      canvas.getPointer.mockReturnValue({ x: 100, y: 100 })
+      tool.onMouseDown({
+        e: new MouseEvent('mousedown', { button: 0 }),
+        target: null
+      } as any)
+
+      tool.undo()
+      expect(tool.isDrawing()).toBe(false)
+      expect(mockPaintBoard.resumeHistory).toHaveBeenCalled()
+    })
   })
 
   describe('键盘事件', () => {
