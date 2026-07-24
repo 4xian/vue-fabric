@@ -19,6 +19,13 @@ describe('UndoRedoManager', () => {
     const backgroundImage = { id: 'bg-image' } as any
     const lineObject = { id: 'line-1', customType: 'line' } as any
 
+    canvas.toObject = vi.fn(() => ({
+      version: '6.0.0',
+      objects: canvas
+        .getObjects()
+        .filter(obj => !(obj as any).excludeFromExport)
+        .map(obj => ({ type: 'rect', ...obj }))
+    }))
     canvas.add(backgroundImage, lineObject)
 
     const manager = new UndoRedoManager(canvas as any, eventBus, {
@@ -34,6 +41,48 @@ describe('UndoRedoManager', () => {
 
     expect(snapshot.objects).toHaveLength(1)
     expect(snapshot.objects[0]).toEqual(expect.objectContaining({ id: 'line-1' }))
+  })
+
+  it('背景图不参与 Fabric 序列化时仍应逐步撤销和还原绘制内容', async () => {
+    const canvas = createMockCanvas()
+    const eventBus = new EventBus()
+    const backgroundImage = { id: 'bg-image', excludeFromExport: true } as any
+    const firstShape = { id: 'shape-1' } as any
+    const secondShape = { id: 'shape-2' } as any
+
+    canvas.toObject = vi.fn(() => ({
+      version: '6.0.0',
+      objects: canvas
+        .getObjects()
+        .filter(obj => !(obj as any).excludeFromExport)
+        .map(obj => ({ type: 'rect', ...obj }))
+    }))
+    canvas.add(backgroundImage)
+
+    const manager = new UndoRedoManager(canvas as any, eventBus, {
+      excludeTypes: [],
+      getBackgroundImage: () => backgroundImage
+    })
+
+    canvas.add(firstShape)
+    manager.saveState()
+    canvas.add(secondShape)
+    manager.saveState()
+
+    expect(manager.undo()).toBe(true)
+    await flushRestore()
+    expect(canvas.getObjects()).toEqual([
+      backgroundImage,
+      expect.objectContaining({ id: 'shape-1' })
+    ])
+
+    expect(manager.redo()).toBe(true)
+    await flushRestore()
+    expect(canvas.getObjects()).toEqual([
+      backgroundImage,
+      expect.objectContaining({ id: 'shape-1' }),
+      expect.objectContaining({ id: 'shape-2' })
+    ])
   })
 
   it('没有实际变化时不应重复写入相同历史快照', () => {

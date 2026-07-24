@@ -272,6 +272,7 @@ export interface PolylineCustomData {
 export interface RectCustomData {
   drawId: string
   layer?: number
+  points: Point[]
   startPoint: Point
   endPoint: Point
   width: number

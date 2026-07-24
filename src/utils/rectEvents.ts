@@ -1,9 +1,19 @@
 import type { Canvas, Rect, TPointerEvent, TPointerEventInfo } from 'fabric'
-import type { RectCustomData } from '../../types'
+import type { Point, RectCustomData } from '../../types'
 import type EventBus from '../core/EventBus'
 import { TOOL_MAPS } from './settings'
 
 type RectWithCustomData = Rect & { customData: RectCustomData }
+
+/** 根据矩形边界生成从左上角开始、按顺时针排列的四个顶点。 */
+export function getRectPoints(left: number, top: number, width: number, height: number): Point[] {
+  return [
+    { x: left, y: top },
+    { x: left + width, y: top },
+    { x: left + width, y: top + height },
+    { x: left, y: top + height }
+  ]
+}
 
 export function handleRectSelected(rect: RectWithCustomData, eventBus: EventBus): void {
   eventBus.emit('rect:selected', { ...rect.customData })
@@ -40,6 +50,7 @@ export function handleRectMoving(rect: RectWithCustomData, canvas: Canvas): void
 
   rect.customData.startPoint = { x: newLeft, y: newTop }
   rect.customData.endPoint = { x: newLeft + width, y: newTop + height }
+  rect.customData.points = getRectPoints(newLeft, newTop, width, height)
 
   if (rect.customData.widthLabel) {
     rect.customData.widthLabel.set({ left: newLeft + width / 2, top: newTop })
@@ -65,6 +76,7 @@ export function handleRectScaling(rect: RectWithCustomData, canvas: Canvas): voi
   rect.customData.height = newHeight
   rect.customData.startPoint = { x: newLeft, y: newTop }
   rect.customData.endPoint = { x: newLeft + newWidth, y: newTop + newHeight }
+  rect.customData.points = getRectPoints(newLeft, newTop, newWidth, newHeight)
 
   if (rect.customData.widthLabel) {
     rect.customData.widthLabel.set({
@@ -96,6 +108,12 @@ export function handleRectModified(rect: RectWithCustomData, canvas: Canvas): vo
   rect.setCoords()
   rect.customData.width = newWidth
   rect.customData.height = newHeight
+  rect.customData.startPoint = { x: rect.left || 0, y: rect.top || 0 }
+  rect.customData.endPoint = {
+    x: (rect.left || 0) + newWidth,
+    y: (rect.top || 0) + newHeight
+  }
+  rect.customData.points = getRectPoints(rect.left || 0, rect.top || 0, newWidth, newHeight)
   canvas.renderAll()
 }
 

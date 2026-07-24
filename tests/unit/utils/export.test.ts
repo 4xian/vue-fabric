@@ -64,6 +64,12 @@ describe('export utils', () => {
             customType: CustomType.Rect,
             customData: {
               drawId: 'rect-1',
+              points: [
+                { x: 10, y: 10 },
+                { x: 110, y: 10 },
+                { x: 110, y: 60 },
+                { x: 10, y: 60 }
+              ],
               startPoint: { x: 10, y: 10 },
               endPoint: { x: 110, y: 60 },
               width: 100,
@@ -109,6 +115,12 @@ describe('export utils', () => {
 
       expect(data.objects[0].customData.widthLabel).toBeUndefined()
       expect(data.objects[0].customData.heightLabel).toBeUndefined()
+      expect(data.objects[0].customData.points).toEqual([
+        { x: 10, y: 10 },
+        { x: 110, y: 10 },
+        { x: 110, y: 60 },
+        { x: 10, y: 60 }
+      ])
       expect(data.objects[1].customData.circles).toBeUndefined()
       expect(data.objects[1].customData.labels).toBeUndefined()
       expect(data.objects[1].customData.polyline).toBeUndefined()
@@ -306,6 +318,12 @@ describe('export utils', () => {
           lockMovementY: false
         })
       )
+      expect(rectObj.customData.points).toEqual([
+        { x: 10, y: 10 },
+        { x: 110, y: 10 },
+        { x: 110, y: 60 },
+        { x: 10, y: 60 }
+      ])
       expect(() =>
         handlers.mousedown({
           e: new MouseEvent('mousedown', { button: 0 })

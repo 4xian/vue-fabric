@@ -98,18 +98,31 @@ describe('RectTool', () => {
     })
 
     it('第二次点击应完成绘制', () => {
-      canvas.getPointer.mockReturnValue({ x: 100, y: 100 })
-      tool.onMouseDown({
-        e: new MouseEvent('mousedown', { button: 0 })
-      } as any)
+      const onCreated = vi.fn()
+      eventBus.on('rect:created', onCreated)
 
       canvas.getPointer.mockReturnValue({ x: 200, y: 200 })
       tool.onMouseDown({
         e: new MouseEvent('mousedown', { button: 0 })
       } as any)
 
+      canvas.getPointer.mockReturnValue({ x: 100, y: 50 })
+      tool.onMouseDown({
+        e: new MouseEvent('mousedown', { button: 0 })
+      } as any)
+
       expect(tool.isDrawing()).toBe(false)
       expect(mockPaintBoard.resumeHistory).toHaveBeenCalled()
+      expect(onCreated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          points: [
+            { x: 100, y: 50 },
+            { x: 200, y: 50 },
+            { x: 200, y: 200 },
+            { x: 100, y: 200 }
+          ]
+        })
+      )
     })
 
     it('非左键点击不应开始绘制', () => {

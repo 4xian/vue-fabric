@@ -25,7 +25,7 @@ import {
   type MainCustomType
 } from './settings'
 import type { ExportJSONOptions } from '../../types'
-import { setupRectEvents } from './rectEvents'
+import { getRectPoints, setupRectEvents } from './rectEvents'
 import { setupAreaEvents, configureControls, setAreaHelpersVisibility } from './areaEvents'
 import { reflowCanvasLayers } from './layer'
 
@@ -141,6 +141,7 @@ function buildSerializableCustomData(
     case CustomType.Rect:
       return {
         drawId: customData.drawId,
+        points: customData.points,
         startPoint: customData.startPoint,
         endPoint: customData.endPoint,
         width: customData.width,
@@ -377,11 +378,14 @@ function hydrateCurveRuntimeData(obj: fabric.FabricObject & { customData: CurveC
 }
 
 function hydrateRectRuntimeData(obj: Rect & { customData: RectCustomData }): void {
+  const data = obj.customData
   obj.customData = {
-    ...obj.customData,
+    ...data,
+    points:
+      data.points || getRectPoints(data.startPoint.x, data.startPoint.y, data.width, data.height),
     originalOptions: {
       ...DEFAULT_RECTTOOL_OPTIONS,
-      ...(obj.customData?.originalOptions || {})
+      ...(data.originalOptions || {})
     }
   }
 }

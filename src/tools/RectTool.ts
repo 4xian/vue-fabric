@@ -4,7 +4,7 @@ import type { Point, RectToolOptions, RectCustomData } from '../../types'
 import BaseTool from './BaseTool'
 import { CustomType, DEFAULT_RECTTOOL_OPTIONS } from '../utils/settings'
 import { generateDrawId } from '../utils/generateId'
-import { setupRectEvents } from '../utils/rectEvents'
+import { getRectPoints, setupRectEvents } from '../utils/rectEvents'
 import { applyLayerToObjects, normalizeLayer, reflowCanvasLayers } from '../utils/layer'
 
 type CustomRect = Rect & {
@@ -349,6 +349,7 @@ export default class RectTool extends BaseTool {
     const customData: RectCustomData = {
       drawId,
       layer,
+      points: getRectPoints(left, top, width, height),
       startPoint: { x: left, y: top },
       endPoint: { x: left + width, y: top + height },
       width,

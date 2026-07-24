@@ -140,21 +140,27 @@ export default class UndoRedoManager {
     return !this._isRestoring && this.redoStack.length > 0
   }
 
+  /** 序列化画布历史，并排除背景图和指定辅助对象。 */
   private _serializeCanvas(): string {
     const bgImage = this._getBackgroundImage?.()
-    const canvasObjects = this.canvas.getObjects()
-    const canvasData = this.canvas.toObject(SERIALIZATION_PROPERTIES)
+    const shouldRestoreBackgroundExport = bgImage && !bgImage.excludeFromExport
 
-    canvasData.objects = canvasData.objects.filter(
-      (obj: { customType?: string }, index: number) => {
-        const fabricObj = canvasObjects[index]
-        if (bgImage && fabricObj === bgImage) return false
-        if (obj.customType && this._excludeTypes.includes(obj.customType)) return false
-        return true
+    if (shouldRestoreBackgroundExport) {
+      bgImage.excludeFromExport = true
+    }
+
+    try {
+      const canvasData = this.canvas.toObject(SERIALIZATION_PROPERTIES)
+      canvasData.objects = canvasData.objects.filter(
+        (obj: { customType?: string }) =>
+          !obj.customType || !this._excludeTypes.includes(obj.customType)
+      )
+      return JSON.stringify(canvasData)
+    } finally {
+      if (shouldRestoreBackgroundExport) {
+        bgImage.excludeFromExport = false
       }
-    )
-
-    return JSON.stringify(canvasData)
+    }
   }
 
   private _getExcludedObjects(): FabricObject[] {
@@ -180,7 +186,9 @@ export default class UndoRedoManager {
     )
       .then(() => {
         if (bgImage) {
-          this.canvas.add(bgImage)
+          if (!this.canvas.getObjects().includes(bgImage)) {
+            this.canvas.add(bgImage)
+          }
           this.canvas.sendObjectToBack(bgImage)
         }
         excludedObjects.forEach(obj => this.canvas.add(obj))
